@@ -1,0 +1,52 @@
+# OS / Editor
+**/.DS_Store
+Thumbs.db
+.vscode/*.code-workspace
+.idea/
+
+# Python / tooling
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+
+# Archives
+*.zip
+*.tar
+*.tgz
+*.tar.gz
+
+# Logs
+*.log
+/logs/
+
+# Audit bundle output - contains real customer audit-trail data, keep LOCAL
+audit_bundle/
+*.mapping.json
+*.anon.log
+**/*.anon/
+
+# Build artefacts
+dist/*
+!dist/.gitkeep
+build/
+artefacts/*.pdf
+
+# Local workspace - extracted bundles, dev experiments
+workspace/*
+!workspace/.gitkeep
+
+# AI toolkit symlinks - managed by init-repo.sh, not committed
+.claude/commands/idea-capture.md
+.claude/commands/idea-sparring.md
+.claude/commands/repo-review.md
+.claude/commands/security-check.md
+.claude/commands/update-docs.md
+.claude/rules/
+.claude/skills/bash-header
+.claude/skills/markdown-lint
+.claude/skills/makefile
+.claude/skills/oracle-audit
+.github/copilot-instructions.md
