@@ -80,6 +80,8 @@ QUERIES=(
     "14-privileged-activity.sql"
     "15-noise-candidates.sql"
     "16-policy-ddl.sql"
+    "17-cis-coverage.sql"
+    "18-audit-roles.sql"
 )
 
 # ------------------------------------------------------------------------------
