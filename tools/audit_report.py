@@ -1247,7 +1247,23 @@ def render_section_02_storage(file_data):
     out += t("storage.partitions_summary", lang=LANG,
              n=len(rows), rows=fmt_int(total_rows),
              mb=fmt_int(round(total_mb, 2))) + "\n\n"
-    out += render_table(file_data["headers"], rows)
+
+    # Augment partition rows with high_value from per-partition metadata.
+    # Emitted by the PL/SQL block in 02-storage.sql Phase 2.5 as:
+    #   # partition_high_value_<PARTITION_NAME>: <VALUE>
+    _HV_PREFIX = "partition_high_value_"
+    hv_map = {
+        k[len(_HV_PREFIX):]: v.strip()
+        for k, v in meta.items()
+        if k.startswith(_HV_PREFIX)
+    }
+    if hv_map:
+        idx_pname = _col_index(file_data, "partition_name")
+        aug_headers = list(file_data["headers"]) + ["high_value"]
+        aug_rows = [list(r) + [hv_map.get(_row_get(r, idx_pname), "")] for r in rows]
+        out += render_table(aug_headers, aug_rows)
+    else:
+        out += render_table(file_data["headers"], rows)
     out += "\n"
 
     # Trail management health from Phase 3 metadata (purge job + archive ts).

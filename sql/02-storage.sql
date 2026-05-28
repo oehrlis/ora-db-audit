@@ -145,6 +145,29 @@ PROMPT # purge_job_count: &PURGE_JOB_COUNT
 PROMPT # purge_job_status: &PURGE_JOB_STATUS
 PROMPT # last_archive_timestamp: &LAST_ARCH_TS
 PROMPT # partition_interval: &PART_INTERVAL
+-- Emit per-partition HIGH_VALUE as metadata lines.
+-- PL/SQL CURSOR FOR LOOP maps LONG columns to VARCHAR2 automatically,
+-- avoiding ORA-00997 that occurs when projecting LONG in a JOIN context.
+SET SERVEROUTPUT ON SIZE UNLIMITED
+DECLARE
+    v_hv VARCHAR2(200);
+BEGIN
+    FOR r IN (
+        SELECT partition_name, high_value
+        FROM   dba_tab_partitions
+        WHERE  table_owner = 'AUDSYS'
+          AND  table_name  = 'AUD$UNIFIED'
+        ORDER BY partition_position
+    ) LOOP
+        v_hv := SUBSTR(r.high_value, 1, 100);
+        DBMS_OUTPUT.PUT_LINE(
+            '# partition_high_value_' || r.partition_name
+            || ': ' || NVL(v_hv, '')
+        );
+    END LOOP;
+END;
+/
+SET SERVEROUTPUT OFF
 PROMPT # schema: partition_name=KEEP|num_rows=COUNT|size_mb=COUNT|last_analyzed=TIMESTAMP|tablespace_name=TABLESPACE_STATE|partition_position=KEEP|creation_time=TIMESTAMP
 
 SET MARKUP CSV ON DELIMITER '|' QUOTE OFF

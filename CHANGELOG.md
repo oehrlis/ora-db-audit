@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-05-28
+
+### Added
+
+- **`--version` / `-V` flag for `ora-db-audit.sh`** - prints the SemVer string
+  and exits. Version is read from the `VERSION` file at runtime; falls back to
+  a hardcoded constant so the flag works from a dist tarball without the repo.
+- **Version shown in `--help` banner** - first line of help output now includes
+  the tool version so DBAs can confirm what they are running without a separate
+  `--version` call.
+- **Partition `high_value` column in Section 2 Trail Storage** - each
+  `AUD$UNIFIED` partition now shows its upper boundary (e.g.
+  `TIMESTAMP' 2026-05-30 00:00:00'`). Makes it immediately visible when old
+  1-month partitions coexist with new 1-day partitions after a
+  `DBMS_AUDIT_MGMT.SET_AUDIT_TRAIL_PROPERTY` interval change. Emitted via a
+  PL/SQL cursor loop (avoids ORA-00997 on the LONG column in join context).
+
+### Fixed
+
+- **`bundle_version` / `tool_version` in `manifest.json` were hardcoded** - both
+  fields now reflect the actual `SCRIPT_VERSION` (read from `VERSION` at startup)
+  instead of the stale `1.3.6` constant.
+- **`ora-db-audit.sh` header version was stale** - script `# Version` comment
+  out of sync with `VERSION` file; now aligned to `1.4.2`.
+
 ## [1.4.1] - 2026-05-28
 
 ### Fixed
