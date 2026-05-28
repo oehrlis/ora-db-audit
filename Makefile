@@ -172,9 +172,10 @@ test-pytest: ## Run Python tests with pytest
 
 DIST_PACK_NAME    := $(PROJECT_NAME)-$(VERSION)
 DIST_PACK_TARBALL := $(DIST_DIR)/$(DIST_PACK_NAME).tar.gz
+DIST_PACK_B64     := $(DIST_PACK_TARBALL).b64
 
 .PHONY: dist
-dist: ## Build self-contained ora-db-audit-<VERSION>.tar.gz for deployment
+dist: ## Build ora-db-audit-<VERSION>.tar.gz + .tar.gz.b64 for deployment
 	@mkdir -p "$(DIST_DIR)"
 	@stage="$$(mktemp -d -t ora_db_audit.XXXXXX)/$(DIST_PACK_NAME)"; \
 	mkdir -p "$$stage/$(TOOLS_DIR)" "$$stage/$(SQL_DIR)"; \
@@ -190,12 +191,14 @@ dist: ## Build self-contained ora-db-audit-<VERSION>.tar.gz for deployment
 		"$$(date -u '+%Y-%m-%dT%H:%M:%SZ')" > "$$stage/dist_manifest.json"; \
 	tar -C "$$(dirname "$$stage")" -czf "$(DIST_PACK_TARBALL)" "$(DIST_PACK_NAME)"; \
 	rm -rf "$$(dirname "$$stage")"; \
+	base64 "$(DIST_PACK_TARBALL)" > "$(DIST_PACK_B64)"; \
 	echo "Built $(DIST_PACK_TARBALL)"; \
+	echo "Built $(DIST_PACK_B64)  (email-safe base64 encoded copy)"; \
 	echo "  layout: $(DIST_PACK_NAME)/{ora-db-audit.sh, sql/*.sql, tools/*.py}"; \
 	echo "  entrypoint: ./ora-db-audit.sh --help"
 
 .PHONY: dist-verify
-dist-verify: ## Verify the built distribution tarball
+dist-verify: ## Verify the built distribution tarball and .b64
 	@if [[ ! -f "$(DIST_PACK_TARBALL)" ]]; then \
 		echo "ERROR: $(DIST_PACK_TARBALL) not found - run 'make dist' first" >&2; \
 		exit 1; \
@@ -209,6 +212,11 @@ dist-verify: ## Verify the built distribution tarball
 		fi; \
 	done; \
 	echo "All required files present in tarball"
+	@if [[ ! -f "$(DIST_PACK_B64)" ]]; then \
+		echo "ERROR: $(DIST_PACK_B64) not found - run 'make dist' first" >&2; \
+		exit 1; \
+	fi
+	@echo "base64: $(DIST_PACK_B64) ($$(wc -c < "$(DIST_PACK_B64)") bytes)"
 
 # ==============================================================================
 # Cleanup
