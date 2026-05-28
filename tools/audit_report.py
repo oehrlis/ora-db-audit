@@ -70,7 +70,7 @@ from audit_report_messages import (  # noqa: E402
 )
 
 
-TOOL_VERSION = "1.3.0"
+TOOL_VERSION = "1.3.1"
 DEFAULT_TOP_N = None  # None = use bundle manifest top_n; 0 = unlimited
 DEFAULT_CUSTOMER_PREFIX = ""
 DEFAULT_AI_MODEL = "claude-sonnet-4-6"
@@ -80,23 +80,36 @@ DEFAULT_AI_OP_PATH = ""
 # v1.0.0 ships German-only; v1.1+ adds EN via SUPPORTED_LANGUAGES.
 LANG = DEFAULT_LANGUAGE
 
-AI_SYSTEM_PROMPT = (
-    "Du bist ein Oracle Security Architect mit Expertise in Oracle "
-    "Unified Auditing (Pure Mode) auf 19c und 26ai. Analysiere "
-    "Audit-Reports nach den unten verbindlichen Pure-Mode-Regeln. "
-    "Strikte Trennung: Findings zu Traditional / Mixed-Mode-Artefakten "
-    "sind ausdruecklich KEINE gueltigen Findings - der Tool-Scope ist "
-    "Pure Mode. Bewerte die im Report generierten Tuning-Vorschlaege "
-    "(Abschnitt 8.1) als Bedingungs-Ausdruecke, die manuell via "
-    "DROP + CREATE AUDIT POLICY anzuwenden sind. Antworte auf Deutsch; "
-    "Oracle-Objekt-Namen, SQL und Code-Bloecke bleiben Englisch."
-)
+# AI prompts are language-keyed. Keys match SUPPORTED_LANGUAGES ("de", "en").
+# Updating the rules doc (docs/ai-analysis-rules.md) and both prompt versions
+# together keeps them in sync.
+AI_SYSTEM_PROMPTS: dict[str, str] = {
+    "de": (
+        "Du bist ein Oracle Security Architect mit Expertise in Oracle "
+        "Unified Auditing (Pure Mode) auf 19c und 26ai. Analysiere "
+        "Audit-Reports nach den unten verbindlichen Pure-Mode-Regeln. "
+        "Strikte Trennung: Findings zu Traditional / Mixed-Mode-Artefakten "
+        "sind ausdruecklich KEINE gueltigen Findings - der Tool-Scope ist "
+        "Pure Mode. Bewerte die im Report generierten Tuning-Vorschlaege "
+        "(Abschnitt 8.1) als Bedingungs-Ausdruecke, die manuell via "
+        "DROP + CREATE AUDIT POLICY anzuwenden sind. Antworte auf Deutsch; "
+        "Oracle-Objekt-Namen, SQL und Code-Bloecke bleiben Englisch."
+    ),
+    "en": (
+        "You are an Oracle Security Architect with expertise in Oracle "
+        "Unified Auditing (Pure Mode) on 19c and 26ai. Analyse audit "
+        "reports according to the binding Pure-Mode rules below. Strict "
+        "separation: findings about Traditional / Mixed-Mode artefacts are "
+        "explicitly NOT valid findings - the tool scope is Pure Mode. "
+        "Evaluate the tuning suggestions in the report (Section 8.1) as "
+        "condition expressions to be applied manually via "
+        "DROP + CREATE AUDIT POLICY. Reply in English; Oracle object names, "
+        "SQL, and code blocks stay in English."
+    ),
+}
 
-# This template is grounded in docs/ai-analysis-rules.md - that doc is
-# the canonical rules contract. The prompt below summarises its key
-# suppression rules inline so the LLM has them in working context;
-# updating the rules doc + this template together keeps them in sync.
-AI_USER_PROMPT_TEMPLATE = """\
+AI_USER_PROMPT_TEMPLATES: dict[str, str] = {
+    "de": """\
 Analysiere den folgenden Oracle Unified Audit-Report.
 
 ## Audit-Modus pruefen (zuerst!)
@@ -211,7 +224,128 @@ ODER alternativer Ansatz wenn keine sicher anwendbar ist.
 
 Pro Finding (Nummer aus Tabelle): ein Absatz mit Begruendung und ggf.
 konkretem Unified-SQL oder Konfigurations-Schritt.
-"""
+""",
+    "en": """\
+Analyse the following Oracle Unified Audit report.
+
+## Check audit mode (first!)
+
+The report header contains `audit_mode: <value>`. Before any further analysis:
+
+- `audit_mode = mixed` -> Tool scope exceeded. Produce ONE finding:
+  HIGH-severity "Mixed-Mode Contamination", recommendation "Migrate to
+  Pure Mode" (see `/oracle-audit` skill Mixed-to-Pure section).
+  Do NOT produce any further Pure-Mode findings.
+- `audit_mode = unsupported` -> ONE finding: HIGH "Unified Auditing not
+  enabled; tool scope not applicable".
+- `audit_mode in (pure, pure-intent, pure-contaminated)` -> proceed normally.
+
+## Context
+
+- Audit mode per report: see `audit_mode` metadata above
+- Policy namespace: {customer_prefix}_* (custom), ORA_* for reference only
+- Hostnames / usernames may be anonymised (HOST_NNN, DBUSER_NNN, ...)
+- Audit context variable (e.g. for off-path classification): typically
+  `<CUSTOMER>_AUDIT_CTX` - if not configured, application context is missing
+
+## Rule contract (Pure Mode) - from docs/ai-analysis-rules.md
+
+### Out of scope (do NOT report as finding)
+
+Findings referencing the following legacy artefacts are invalid and
+MUST BE SUPPRESSED:
+
+- `audit_trail` init parameter (Legacy; has no effect in Pure Mode -
+  even the value `DB` is NOT a finding)
+- `audit_sys_operations` (Legacy; SYS is audited via policy in Pure Mode)
+- `audit_syslog_level` (Legacy)
+- `audit_file_dest` as audit trail configuration (Legacy)
+- Traditional AUDIT syntax in recommendations (`AUDIT <stmt> BY ...`,
+  `NOAUDIT <stmt>`); use Unified Auditing syntax only
+- Individual AUD$UNIFIED partitions in SYSAUX when
+  `audit_data_tablespace_default = AUDIT_DATA` (transient after
+  `ALTER TABLE MODIFY DEFAULT ATTRIBUTES TABLESPACE` - not a
+  misconfiguration)
+
+### Valid findings (Pure Mode)
+
+These finding classes are expected:
+
+- DBMS_AUDIT_MGMT.CLEAN_AUDIT_TRAIL job: configured?
+- LAST_ARCHIVE_TIMESTAMP set before cleanup?
+- AUD$UNIFIED default tablespace is SYSAUX (misconfiguration)
+- Policy coverage gaps (e.g. CIS-mandatory areas without an enabled policy)
+- ORA_* policies (Oracle-supplied) active while custom policies cover
+  the same events more precisely
+- Failed login patterns (ORA-01017 spikes, brute-force suspicion,
+  misconfigured job with stale password)
+- Privileged activity (SYS, SYSDBA, AUDIT_ADMIN, SYSBACKUP, ...)
+- Off-path hosts (not classified in App/Infra/DBA patterns)
+- Mixed-Mode contamination (AUD$ with recent rows despite Pure Mode)
+- Mandatory binary `*.aud` files: uncontrolled growth / no rotation
+
+### Tuning suggestions (Section 8.1)
+
+The WHEN-clause suggestions listed in the report are condition expressions.
+Apply them manually via:
+
+```sql
+DROP AUDIT POLICY <name>;
+CREATE AUDIT POLICY <name> ... WHEN '(<existing>) AND (<suggestion>)' ...;
+```
+
+Evaluate each suggestion:
+
+- Compliance risk: may it be suppressed according to site policy?
+- Precision: user+program combination is narrower than user alone - prefer it
+- If NO suggestion is safely applicable: justify an alternative approach
+  (audit context, whitelist, separate suppression policy)
+
+## Audit Report
+
+{report_text}
+
+## Output
+
+If `audit_mode = mixed` or `unsupported`: only the single finding per
+"Check audit mode" - no table, no A/B/C sections.
+
+Otherwise findings table (overview):
+
+| # | Finding | Section | Risk | Action |
+|---|---------|---------|------|--------|
+
+Then three structured sections:
+
+### A - Security Signals
+
+Risk rating HIGH / MEDIUM / LOW / INFO:
+
+- Real security events vs. expected operational behaviour
+- Failed logins (ORA-01017): brute force, config error, automated job?
+- Off-path hosts: real threat or missing application context configuration?
+- Unusual user + host + program combinations
+
+### B - Configuration gaps (Pure-Mode-CIS, not Legacy)
+
+Refer EXCLUSIVELY to Pure-Mode configuration (see Out-of-Scope list above).
+In particular NO findings about `audit_trail`, `audit_sys_operations`,
+`audit_syslog_level`, and no Traditional-AUDIT recommendations.
+
+### C - Qualify tuning recommendations
+
+Per candidate from Section 8.1: recommended variant + justification
+OR alternative approach if none can be safely applied.
+
+Per finding (number from table): one paragraph with justification and,
+if applicable, concrete Unified SQL or configuration step.
+""",
+}
+
+# Backward-compat aliases (used by _generate_via_sdk / _generate_via_cli at
+# module level; runtime code should use the dicts and LANG instead).
+AI_SYSTEM_PROMPT = AI_SYSTEM_PROMPTS["de"]
+AI_USER_PROMPT_TEMPLATE = AI_USER_PROMPT_TEMPLATES["de"]
 
 # Built-in pattern set. Community / customer-configurable default;
 # override with --patterns config.json for deployment-specific patterns.
@@ -1483,6 +1617,7 @@ def _generate_via_sdk(
     user_prompt: str,
     model: str,
     api_key: str,
+    lang: str = "de",
 ) -> str:
     """Generate findings via the Anthropic Python SDK."""
     try:
@@ -1491,17 +1626,18 @@ def _generate_via_sdk(
         raise RuntimeError(
             "'anthropic' package not installed. Run: pip install anthropic"
         )
+    sys_prompt = AI_SYSTEM_PROMPTS.get(lang, AI_SYSTEM_PROMPTS["de"])
     client = anthropic.Anthropic(api_key=api_key)
     message = client.messages.create(
         model=model,
         max_tokens=4096,
-        system=AI_SYSTEM_PROMPT,
+        system=sys_prompt,
         messages=[{"role": "user", "content": user_prompt}],
     )
     return message.content[0].text
 
 
-def _generate_via_cli(user_prompt: str, model: str) -> str:
+def _generate_via_cli(user_prompt: str, model: str, lang: str = "de") -> str:
     """Generate findings via the claude CLI (Claude Code, uses claude.ai auth).
 
     Passes the prompt via stdin (input=) to avoid OS argument-length limits.
@@ -1510,7 +1646,8 @@ def _generate_via_cli(user_prompt: str, model: str) -> str:
     Timeout is 600 s to allow for slow API responses on large reports.
     """
     import subprocess
-    combined = f"{AI_SYSTEM_PROMPT}\n\n---\n\n{user_prompt}"
+    sys_prompt = AI_SYSTEM_PROMPTS.get(lang, AI_SYSTEM_PROMPTS["de"])
+    combined = f"{sys_prompt}\n\n---\n\n{user_prompt}"
     try:
         result = subprocess.run(
             ["claude", "--output-format", "text", "--model", model],
@@ -1531,6 +1668,7 @@ def _generate_ai_findings(
     model: str,
     api_key: str,
     customer_prefix: str,
+    lang: str = "de",
 ) -> str:
     """Call Claude and return findings text.
 
@@ -1539,15 +1677,16 @@ def _generate_ai_findings(
       api_key ''   -> claude CLI (Claude Code, claude.ai authentication)
       neither      -> RuntimeError with setup instructions
     """
-    user_prompt = AI_USER_PROMPT_TEMPLATE.format(
+    tmpl = AI_USER_PROMPT_TEMPLATES.get(lang, AI_USER_PROMPT_TEMPLATES["de"])
+    user_prompt = tmpl.format(
         customer_prefix=customer_prefix,
         report_text=report_text,
     )
     if api_key:
-        return _generate_via_sdk(user_prompt, model, api_key)
+        return _generate_via_sdk(user_prompt, model, api_key, lang=lang)
     if _claude_cli_available():
         print("[AI] No API key - using claude CLI (Claude Code)...", file=sys.stderr)
-        return _generate_via_cli(user_prompt, model)
+        return _generate_via_cli(user_prompt, model, lang=lang)
     raise RuntimeError(
         "No AI backend available. One of:\n"
         "  1. Set ANTHROPIC_API_KEY (console.anthropic.com)\n"
@@ -1569,6 +1708,7 @@ def _run_ai_analysis(
         api_key = _get_api_key(args.ai_op_path)
         ai_text = _generate_ai_findings(
             report_text, args.ai_model, api_key, args.customer_prefix,
+            lang=LANG,
         )
     except RuntimeError as exc:
         print(f"ERROR (AI): {exc}", file=sys.stderr)
@@ -1627,23 +1767,37 @@ _EXPORT_PROMPT_HEADER = """\
 """
 
 
-def _write_export_prompt(report_text: str, customer_prefix: str, dest: Path) -> None:
+def _write_export_prompt(
+    report_text: str,
+    customer_prefix: str,
+    dest: Path,
+    lang: str = "de",
+) -> None:
     """Build the full AI user prompt and write it to dest.
 
     The exported file is self-contained: it includes both the system-level
     context (inlined as a plain-text block) and the user prompt with the
     full report embedded. This makes it paste-ready for any LLM chat UI.
+    The prompt language matches the report language (lang parameter).
     """
-    user_prompt = AI_USER_PROMPT_TEMPLATE.format(
+    sys_prompt = AI_SYSTEM_PROMPTS.get(lang, AI_SYSTEM_PROMPTS["de"])
+    tmpl = AI_USER_PROMPT_TEMPLATES.get(lang, AI_USER_PROMPT_TEMPLATES["de"])
+    user_prompt = tmpl.format(
         customer_prefix=customer_prefix,
         report_text=report_text,
     )
+    if lang == "en":
+        section_header = "## Context / System Prompt\n\n"
+        task_header = "## Analysis Task (User Prompt)\n\n"
+    else:
+        section_header = "## Kontext / System-Prompt\n\n"
+        task_header = "## Analyse-Auftrag (User-Prompt)\n\n"
     content = (
         _EXPORT_PROMPT_HEADER
-        + "## Kontext / System-Prompt\n\n"
-        + AI_SYSTEM_PROMPT
+        + section_header
+        + sys_prompt
         + "\n\n---\n\n"
-        + "## Analyse-Auftrag (User-Prompt)\n\n"
+        + task_header
         + user_prompt
     )
     dest.write_text(content, encoding="utf-8")
@@ -1808,7 +1962,7 @@ def main(argv=None):
 
     if args.export_prompt:
         _write_export_prompt(report_text, args.customer_prefix,
-                             args.export_prompt)
+                             args.export_prompt, lang=LANG)
         print(f"Wrote AI prompt export  -> {args.export_prompt}")
         return 0
 

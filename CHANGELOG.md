@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-05-28
+
+### Fixed
+
+- **`--export-prompt` language** - the exported AI prompt file now uses the
+  same language as the report (`--lang de` -> German prompts,
+  `--lang en` -> English prompts). Previously the prompt was always German
+  regardless of `--lang`. Both the system prompt and the user task prompt
+  are now language-keyed (`AI_SYSTEM_PROMPTS`, `AI_USER_PROMPT_TEMPLATES`
+  dicts); the live AI analysis path (`--ai`) inherits the same fix.
+
 ## [1.3.0] - 2026-05-28
 
 ### Added
