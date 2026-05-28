@@ -1,6 +1,6 @@
 # Roadmap
 
-Current release: **v1.2.2** - Updated: 2026-05-28
+Current release: **v1.2.3** - Updated: 2026-05-28
 
 ---
 
@@ -18,6 +18,7 @@ Current release: **v1.2.2** - Updated: 2026-05-28
 | 1.2.0   | released | 2026-05-28 | R3: --sample-rows flag; D2: export_siem.py (OCSF + Sentinel); B6: CSV sanity check; B7: TABLESPACE_STATE; UX1: no-arg -> --help; version alignment |
 | 1.2.1   | released | 2026-05-28 | docs/use-cases/ + CHANGELOG.md in dist tarball; comprehensive README.md |
 | 1.2.2   | released | 2026-05-28 | B8: wire --lang, --export-prompt, --customer-prefix to audit_report.py |
+| 1.2.3   | released | 2026-05-28 | B9: include PDB name in bundle dir/tarball name; pdb field in manifest |
 <!-- markdownlint-enable MD013 MD060 -->
 
 ---
