@@ -36,10 +36,20 @@ findings.
 ## Quick Start
 
 ```bash
-# Clone and enter the repo
+# Option A - clone the repo
 git clone https://github.com/oehrlis/ora-db-audit.git
 cd ora-db-audit
 
+# Option B - deploy from the release tarball
+tar xzf ora-db-audit-1.0.1.tar.gz
+cd ora-db-audit-1.0.1
+```
+
+In both cases the canonical entry point is `./bin/ora-db-audit.sh`.
+The dist tarball also includes a convenience wrapper `./ora-db-audit.sh`
+at the root that delegates to `bin/`.
+
+```bash
 # Run data collection against the local DB (as SYSDBA)
 ./bin/ora-db-audit.sh --days 30 --top-n 100 --output ./output
 

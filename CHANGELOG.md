@@ -7,8 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-05-28
+
+### Added
+
+- `ora-db-audit.sh` root wrapper in the dist tarball - thin delegating
+  script (`exec .../bin/ora-db-audit.sh "$@"`) so both
+  `./ora-db-audit.sh` and `./bin/ora-db-audit.sh` work after extracting
+  the tarball.
+
+### Changed
+
+- `Makefile` dist layout: `bin/ora-db-audit.sh` is now placed inside a
+  `bin/` subdirectory (matching the repo-clone layout) instead of the
+  tarball root. `dist_manifest.json` entrypoint field updated accordingly.
+- `README.md` Quick Start: documents Option A (clone) and Option B (tarball)
+  install paths; clarifies `./bin/ora-db-audit.sh` as the canonical entry
+  point in both environments with the root wrapper as a convenience alias.
+
 ### Fixed
 
+- `Makefile` dist / `bin/ora-db-audit.sh` - `REPO_ROOT` was computed as
+  `parent(SCRIPT_DIR)` which resolves correctly only when the script lives
+  in `bin/`. The v1.0.0 tarball placed the script at the install root,
+  making `REPO_ROOT` point one directory too high and causing
+  `ERROR: missing query file: .../sql/00-setup.sql` on every run. Fixed by
+  keeping the `bin/` layout in the dist tarball so the path calculation is
+  identical whether running from a clone or a tarball extract.
 - `.github/workflows/ci.yml` - `sudo npm install -g bats` fixes EACCES
   permission error on Ubuntu runner (`/usr/local/share/man/man7`).
 - `Makefile` `test-pytest` - pytest availability now checked at recipe
