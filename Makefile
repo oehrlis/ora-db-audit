@@ -126,7 +126,8 @@ lint-markdown: ## Lint markdown files with markdownlint
 	fi
 	@find . -type f -name "*.md" \
 		-not -path "./.git/*" \
-		-not -path "./node_modules/*" -print0 | \
+		-not -path "./node_modules/*" \
+		-not -path "./workspace/*" -print0 | \
 		xargs -0 "$(MARKDOWNLINT)"
 
 .PHONY: lint-yaml

@@ -11,9 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **ORA$MANDATORY metric** - executive summary Kennzahlen now shows the event
-  count for the mandatory audit policy (`ORA$MANDATORY`) as a dedicated row,
-  read from `04_policy_volume.csv`.
+- **ORA$MANDATORY metric** - executive summary Kennzahlen now shows the
+  `ORA$MANDATORY` event count as a dedicated row in the metrics table
+  (source: `04_policy_volume.csv`).
 - **CIS action-based coverage** (`sql/17-cis-coverage.sql`,
   `tools/audit_report.py`) - Section 9 now compares the actual audit actions
   of enabled policies against CIS 5.1-5.5 requirements instead of checking
