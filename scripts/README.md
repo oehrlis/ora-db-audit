@@ -5,8 +5,8 @@ Build and release helper scripts. These scripts are called by the `Makefile` - p
 
 ## Scripts
 
-| Script | Purpose |
-|--------|---------|
+| Script            | Purpose                                                                                                           |
+|-------------------|-------------------------------------------------------------------------------------------------------------------|
 | `bump_version.sh` | Bump the SemVer in `VERSION`, update `bin/ora-db-audit.sh` header, create `CHANGELOG.md` stub for the new version |
 
 ## Common Make Targets
