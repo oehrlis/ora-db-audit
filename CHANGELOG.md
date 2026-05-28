@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `bin/ora-db-audit.sh` `--from-bundle` without explicit `--output` now
+  defaults `OUTPUT_DIR` to the directory that contains the bundle file
+  instead of `${PWD}/audit_bundle`. The report and extracted directory
+  land next to the bundle, matching the v0.5.0 behaviour. Explicit
+  `--output DIR` still overrides this default.
 - `Makefile` dist / `bin/ora-db-audit.sh` - `REPO_ROOT` was computed as
   `parent(SCRIPT_DIR)` which resolves correctly only when the script lives
   in `bin/`. The v1.0.0 tarball placed the script at the install root,
