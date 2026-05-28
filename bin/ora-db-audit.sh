@@ -79,6 +79,7 @@ QUERIES=(
     "13-failed-logins.sql"
     "14-privileged-activity.sql"
     "15-noise-candidates.sql"
+    "16-policy-ddl.sql"
 )
 
 # ------------------------------------------------------------------------------

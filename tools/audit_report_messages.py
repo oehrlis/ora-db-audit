@@ -90,16 +90,35 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
 
         # --- Section 8.1 specific ---
+        "tuning.intro": (
+            "Top Noise-Kandidaten (High-Volume Kombinationen aus Policy / User / "
+            "Action / Programm). Pro Kandidat folgt die aktuelle Policy-DDL plus "
+            "vorgeschlagene WHEN-Klausel-Erweiterungen. Vorschlaege sind "
+            "Bedingungs-Ausdruecke - die Anwendung erfolgt manuell via "
+            "`DROP AUDIT POLICY ...; CREATE AUDIT POLICY ... WHEN '...';` "
+            "(per ai-analysis-rules.md Section 4)."
+        ),
+        "tuning.csv_missing": "_(15-noise-candidates.csv nicht im Bundle)_",
+        "tuning.no_candidates": "_Keine Noise-Kandidaten - keine Tuning-Empfehlung._",
         "tuning.candidate_header": "Kandidat {n}",
-        "tuning.current_ddl_label": "Aktuelle Policy-DDL",
+        "tuning.observed_combo": "Beobachtete Kombination",
+        "tuning.current_ddl_label": "Aktuelle Policy-DDL (DBMS_METADATA.GET_DDL)",
         "tuning.existing_when": "Bestehende WHEN-Klausel",
         "tuning.no_existing_when": "_(keine bestehende WHEN-Klausel)_",
         "tuning.suggestion_header": "Kandidat {n} - Variante {v}: {label}",
-        "tuning.suppress_user": "Suppression {user} in {policy}",
-        "tuning.suppress_program": "Suppression Programm {program} in {policy}",
-        "tuning.suppress_combo": "Suppression Kombination {user}/{program} in {policy}",
-        "tuning.suppress_action": "Suppression action {action} in {policy}",
+        "tuning.suppress_user": "Benutzer {user} in {policy} ausschliessen",
+        "tuning.suppress_program": "Programm {program} in {policy} ausschliessen",
+        "tuning.suppress_combo": "Kombination {user}/{program} in {policy} ausschliessen",
         "tuning.no_template": "Kein automatisches Template ableitbar fuer {policy}",
+        "tuning.apply_instructions": "Anwendung (manuell)",
+        "tuning.apply_template": (
+            "Erweitere die WHEN-Klausel von `{policy}` um den oben gezeigten Ausdruck. "
+            "Verfahren: bestehende DDL behalten, WHEN-Klausel auf "
+            "`(bestehend) AND ({new})` setzen "
+            "(ohne `(bestehend) AND` falls noch keine WHEN-Klausel existiert). "
+            "Sequenz: `DROP AUDIT POLICY {policy};` gefolgt von einem neuen "
+            "`CREATE AUDIT POLICY {policy} ...` mit der angepassten WHEN-Klausel."
+        ),
     },
 }
 

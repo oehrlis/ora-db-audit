@@ -408,16 +408,147 @@ class HostClassifier:
 # WHEN-clause templates
 # ---------------------------------------------------------------------------
 
-def when_clause_for(noise_row, headers):
-    """Build a WHEN-clause suggestion from a 15_noise_candidates row.
+# Match WHEN '...' allowing escaped single quotes ('') inside the WHEN body.
+# DBMS_METADATA emits DDL with single-quoted strings; doubled '' is the
+# Oracle escape for an embedded quote.
+_WHEN_RE = re.compile(
+    r"\bWHEN\s+'((?:[^']|'')*)'",
+    re.IGNORECASE | re.DOTALL,
+)
+# Oracle identifier start at column 0 of a CSV row in 16-policy-ddl.csv.
+# Used to detect the start of a new logical row when the DDL column
+# contains embedded newlines (CLOB with QUOTE OFF markup).
+_POLICY_ROW_START = re.compile(r"^[A-Z][A-Z0-9_$#]{0,127}\|")
 
-    Strategy:
-      - If dbusername is a single privileged service account, exclude it
-      - If client_program_name is highly specific, exclude it
-      - Otherwise combine both into an AND-suppression
 
-    Returns a list of suggestion dicts {label, sql} - the renderer turns
-    them into a code block.
+def _read_policy_ddl_csv(path):
+    """Parse sql/16-policy-ddl.csv into {policy_name -> ddl_text}.
+
+    The DDL column is a CLOB with embedded newlines and the SQL*Plus CSV
+    markup uses QUOTE OFF (consistent with the rest of the bundle), so
+    standard csv.reader cannot handle the multi-line cells. We use a
+    heuristic row-detection based on the Oracle identifier pattern at
+    column 0 of each line. Anything between two row-start lines is
+    concatenated as continuation of the previous DDL cell.
+
+    Returns an empty dict if the file is missing, has no schema preamble,
+    or the runner lacked DBMS_METADATA privileges (in which case the SQL
+    emits an empty result set per docs/ai-analysis-rules.md Section 4.3).
+    """
+    if not path.is_file():
+        return {}
+    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    lines = text.splitlines(keepends=False)
+
+    body_lines = []
+    in_body = False
+    for line in lines:
+        if not in_body:
+            stripped = line.strip()
+            if stripped.startswith("#") or not stripped:
+                continue
+            # Header row: contains the column names. Skip and start body.
+            if "|" in line and "policy_name" in line.lower():
+                in_body = True
+            continue
+        body_lines.append(line)
+
+    if not body_lines:
+        return {}
+
+    rows = []
+    current = []
+    for line in body_lines:
+        if _POLICY_ROW_START.match(line):
+            if current:
+                rows.append(current)
+            current = [line]
+        else:
+            if current:
+                current.append(line)
+            # If no current row yet (leading whitespace before first row),
+            # discard the line silently.
+
+    if current:
+        rows.append(current)
+
+    result = {}
+    for row_lines in rows:
+        first = row_lines[0]
+        idx = first.find("|")
+        if idx < 0:
+            continue
+        policy_name = first[:idx].strip()
+        head = first[idx + 1:]
+        ddl_parts = [head] + row_lines[1:]
+        # DBMS_METADATA emits PRETTY DDL ending with ';'; trim trailing whitespace
+        # but preserve internal newlines for readability in the report.
+        ddl_text = "\n".join(ddl_parts).rstrip()
+        if policy_name:
+            result[policy_name] = ddl_text
+    return result
+
+
+def load_policy_ddl(bundle_dir):
+    """Locate 16_policy_ddl.csv (or hyphenated variant) in the bundle and
+    parse it via _read_policy_ddl_csv. Returns an empty dict if the file
+    is absent - the renderer then emits a "DDL unavailable" note rather
+    than fabricating DDL from concat strings.
+    """
+    candidates = [
+        bundle_dir / "16_policy_ddl.csv",
+        bundle_dir / "16-policy-ddl.csv",
+    ]
+    for path in candidates:
+        if path.is_file():
+            return _read_policy_ddl_csv(path)
+    return {}
+
+
+def extract_when_clause(ddl):
+    """Pull the WHEN '...' body from an AUDIT POLICY DDL string.
+
+    Returns the raw text inside the WHEN single-quotes (with Oracle's
+    doubled-single-quote escaping preserved), or None if the policy has
+    no WHEN clause.
+    """
+    if not ddl:
+        return None
+    m = _WHEN_RE.search(ddl)
+    if not m:
+        return None
+    return m.group(1).strip() or None
+
+
+def when_clause_for(noise_row, headers, policy_ddl_map):
+    """Build a structured tuning recommendation for a 15-noise-candidates row.
+
+    Per docs/ai-analysis-rules.md Section 4 (DDL source rule), suggestions
+    are presented as boolean condition expressions intended to be
+    AND-combined with the policy's existing WHEN clause via a manual
+    DROP + CREATE sequence. We never synthesise standalone
+    `ALTER AUDIT POLICY` statements from the row's UAP context - that
+    pattern was finding F2 and was functionally wrong (Oracle has no
+    `ALTER AUDIT POLICY ... CONDITION` syntax; the WHEN clause is set
+    at CREATE time and changing it requires DROP + recreate).
+
+    Returns a dict the renderer (render_section_08_tuning) formats into
+    a Markdown sub-section. Shape:
+
+      {
+        "policy_name":  str,
+        "current_ddl":  str | None,   # from DBMS_METADATA via 16-policy-ddl.csv
+        "existing_when": str | None,  # parsed from current_ddl, if present
+        "recap":        list[(label, value)],
+        "suggestions":  [
+            {
+              "label":          str,
+              "condition_expr": str | None,  # AND-combinable bool expression
+              "rationale":      str,
+            },
+            ...
+        ],
+      }
     """
     def get(name):
         idx = -1
@@ -434,69 +565,84 @@ def when_clause_for(noise_row, headers):
     user = get("dbusername")
     program = get("client_program_name")
     action = get("action_name")
+    events = get("events")
+
+    current_ddl = policy_ddl_map.get(policy) if policy_ddl_map else None
+    existing_when = extract_when_clause(current_ddl)
 
     suggestions = []
 
     if user and user.upper() not in {"(NULL)", ""}:
         suggestions.append({
-            "label": f"Suppress {user!r} on {policy}",
-            "sql": (
-                f"-- Vorschlag: {user} unterdrücken in {policy}\n"
-                f"ALTER AUDIT POLICY {policy} CONDITION DROP;\n"
-                f"ALTER AUDIT POLICY {policy}\n"
-                f"  CONDITION '\n"
-                f"    SYS_CONTEXT(''USERENV'',''CURRENT_USER'') "
-                f"!= ''{user}''\n"
-                f"  '\n"
-                f"  EVALUATE PER SESSION;\n"
+            "label": t("tuning.suppress_user", lang=LANG,
+                       user=user, policy=policy),
+            "condition_expr": (
+                f"SYS_CONTEXT(''USERENV'',''SESSION_USER'') != ''{user}''"
+            ),
+            "rationale": (
+                f"Filtere Events vom Benutzer `{user}` aus. Anwendbar "
+                f"wenn `{user}` ein deterministischer Service-Account "
+                f"ist und seine Aktionen aus dem Audit-Scope ausgeschlossen "
+                f"werden duerfen (Compliance-Pruefung erforderlich)."
             ),
         })
 
     if program:
         suggestions.append({
-            "label": f"Suppress program {program!r}",
-            "sql": (
-                f"-- Vorschlag: Programm {program!r} unterdrücken\n"
-                f"ALTER AUDIT POLICY {policy} CONDITION DROP;\n"
-                f"ALTER AUDIT POLICY {policy}\n"
-                f"  CONDITION '\n"
-                f"    SYS_CONTEXT(''USERENV'',''CLIENT_PROGRAM_NAME'') "
-                f"!= ''{program}''\n"
-                f"  '\n"
-                f"  EVALUATE PER SESSION;\n"
+            "label": t("tuning.suppress_program", lang=LANG,
+                       program=program, policy=policy),
+            "condition_expr": (
+                f"SYS_CONTEXT(''USERENV'',''CLIENT_PROGRAM_NAME'') "
+                f"!= ''{program}''"
+            ),
+            "rationale": (
+                f"Filtere Events vom Client-Programm `{program}` aus. "
+                f"Sinnvoll bei automatisierten Monitoring- oder "
+                f"Backup-Tools mit hohem Aktivitaets-Volumen."
             ),
         })
 
-    if user and program:
+    if user and program and user.upper() not in {"(NULL)", ""}:
         suggestions.append({
-            "label": (
-                f"Suppress {user!r}+{program!r} combination"
+            "label": t("tuning.suppress_combo", lang=LANG,
+                       user=user, program=program, policy=policy),
+            "condition_expr": (
+                f"NOT (SYS_CONTEXT(''USERENV'',''SESSION_USER'') = ''{user}'' "
+                f"AND SYS_CONTEXT(''USERENV'',''CLIENT_PROGRAM_NAME'') "
+                f"= ''{program}'')"
             ),
-            "sql": (
-                f"-- Vorschlag: Kombination {user}/{program!r} "
-                f"unterdrücken\n"
-                f"ALTER AUDIT POLICY {policy} CONDITION DROP;\n"
-                f"ALTER AUDIT POLICY {policy}\n"
-                f"  CONDITION '\n"
-                f"    NOT (SYS_CONTEXT(''USERENV'',''CURRENT_USER'') "
-                f"= ''{user}''\n"
-                f"     AND SYS_CONTEXT(''USERENV'',"
-                f"''CLIENT_PROGRAM_NAME'') = ''{program}'')\n"
-                f"  '\n"
-                f"  EVALUATE PER SESSION;\n"
+            "rationale": (
+                f"Engste Suppression: nur die exakte Kombination "
+                f"`{user}` / `{program}` wird ausgeblendet. Andere "
+                f"Benutzer mit dem gleichen Programm und `{user}` mit "
+                f"anderen Programmen bleiben weiterhin auditiert."
             ),
         })
 
     if not suggestions:
         suggestions.append({
-            "label": f"No automatic template for {policy}",
-            "sql": (
-                f"-- Kein automatisches Template ableitbar.\n"
-                f"-- Manuelle Prüfung notwendig fuer Policy "
-                f"{policy}, Action {action!r}.\n"
+            "label": t("tuning.no_template", lang=LANG, policy=policy),
+            "condition_expr": None,
+            "rationale": (
+                f"Weder `dbusername` noch `client_program_name` liefern "
+                f"eine eindeutige Suppression-Heuristik. Manuelle Analyse "
+                f"der Action `{action or '<n/a>'}` erforderlich."
             ),
         })
-    return suggestions
+
+    return {
+        "policy_name":   policy,
+        "current_ddl":   current_ddl,
+        "existing_when": existing_when,
+        "recap": [
+            ("policy_name",         policy),
+            ("dbusername",          user or "<n/a>"),
+            ("action_name",         action or "<n/a>"),
+            ("client_program_name", program or "<n/a>"),
+            ("events",              events or "<n/a>"),
+        ],
+        "suggestions": suggestions,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -800,56 +946,78 @@ def render_section_07_security_signals(files, classifier, top_n):
     return out
 
 
-def render_section_08_tuning(file_data, top_n):
-    out = section_header(2, "8. Tuning-Empfehlungen")
+def render_section_08_tuning(file_data, top_n, policy_ddl_map):
+    """Section 8 (noise candidates) + Section 8.1 (DDL-grounded WHEN-
+    clause tuning suggestions).
+
+    `policy_ddl_map` comes from load_policy_ddl(bundle_dir) and contains
+    {policy_name: DBMS_METADATA.GET_DDL output}. If empty, the per-
+    candidate sub-sections emit a "DDL unavailable" note instead of
+    fabricating DDL.
+    """
+    out = section_header(2, t("section.08_tuning", lang=LANG))
     if file_data is None:
-        out += "_(15_noise_candidates.csv nicht im Bundle)_\n\n"
+        out += t("tuning.csv_missing", lang=LANG) + "\n\n"
         return out
     rows = file_data.get("rows", [])
     if not rows:
-        out += "_Keine Noise-Kandidaten - keine Tuning-Empfehlung._\n\n"
+        out += t("tuning.no_candidates", lang=LANG) + "\n\n"
         return out
-    out += (
-        "Top Noise-Kandidaten (High-Volume Kombinationen aus Policy / "
-        "User / Action / Programm). Pro Kandidat folgt ein WHEN-Klausel-"
-        "Vorschlag.\n\n"
-    )
+
+    out += t("tuning.intro", lang=LANG) + "\n\n"
     out += render_table(file_data["headers"], rows, max_rows=top_n)
     out += "\n"
 
-    out += section_header(3, "8.1 WHEN-Klausel-Vorschläge")
+    out += section_header(3, t("section.08_1_when_clauses", lang=LANG))
     headers = file_data["headers"]
     candidate_count = min(len(rows), 5)
     for i, row in enumerate(rows[:candidate_count], start=1):
-        out += f"#### Kandidat {i}\n\n"
-        recap = []
-        for col in ("policy_name", "dbusername", "action_name",
-                    "client_program_name", "events"):
-            idx = -1
-            for j, h in enumerate(headers):
-                if h.lower() == col:
-                    idx = j
-                    break
-            if idx >= 0 and idx < len(row):
-                recap.append(f"`{col}`={row[idx]!r}")
-        if recap:
-            out += "- " + "\n- ".join(recap) + "\n\n"
-        for n, suggestion in enumerate(when_clause_for(row, headers),
-                                       start=1):
-            out += (
-                f"##### Kandidat {i} - Variante {n}: "
-                f"{suggestion['label']}\n\n"
-            )
+        result = when_clause_for(row, headers, policy_ddl_map)
+        out += f"#### {t('tuning.candidate_header', lang=LANG, n=i)}\n\n"
+
+        # Observed combination from the noise-candidate row.
+        out += f"**{t('tuning.observed_combo', lang=LANG)}**:\n\n"
+        for label, value in result["recap"]:
+            out += f"- `{label}`: `{value}`\n"
+        out += "\n"
+
+        # Current DDL (from DBMS_METADATA) + existing WHEN clause.
+        if result["current_ddl"]:
+            out += f"**{t('tuning.current_ddl_label', lang=LANG)}**:\n\n"
             out += "```sql\n"
-            out += suggestion["sql"]
-            if not suggestion["sql"].endswith("\n"):
+            out += result["current_ddl"]
+            if not result["current_ddl"].endswith("\n"):
                 out += "\n"
             out += "```\n\n"
-    out += (
-        "> **Hinweis:** Templates sind als Diskussionsgrundlage gedacht. "
-        "WHEN-Klauseln sind policy-spezifisch - vor dem Einsatz manuell "
-        "review-en und gegen Compliance-Anforderungen prüfen.\n\n"
-    )
+            if result["existing_when"]:
+                out += f"**{t('tuning.existing_when', lang=LANG)}**:\n\n"
+                out += "```text\n"
+                out += result["existing_when"] + "\n"
+                out += "```\n\n"
+            else:
+                out += (
+                    f"**{t('tuning.existing_when', lang=LANG)}**: "
+                    f"{t('tuning.no_existing_when', lang=LANG)}\n\n"
+                )
+        else:
+            out += t("note.policy_ddl_unavailable", lang=LANG) + "\n\n"
+
+        # Suggested condition expressions (NOT full ALTER DDL - see
+        # ai-analysis-rules.md Section 4 + rationale in when_clause_for).
+        for v, suggestion in enumerate(result["suggestions"], start=1):
+            out += (
+                f"##### {t('tuning.suggestion_header', lang=LANG, n=i, v=v, label=suggestion['label'])}\n\n"
+            )
+            out += suggestion["rationale"] + "\n\n"
+            if suggestion["condition_expr"]:
+                out += "```sql\n"
+                out += suggestion["condition_expr"] + "\n"
+                out += "```\n\n"
+                out += (
+                    f"**{t('tuning.apply_instructions', lang=LANG)}**: "
+                    f"{t('tuning.apply_template', lang=LANG, policy=result['policy_name'], new=suggestion['condition_expr'])}\n\n"
+                )
+    out += t("note.tuning_disclaimer", lang=LANG) + "\n\n"
     return out
 
 
@@ -874,8 +1042,11 @@ def render_appendix(bundle, top_n):
 # Top-level renderer
 # ---------------------------------------------------------------------------
 
-def render_report(bundle, classifier, top_n, include_appendix):
+def render_report(bundle, classifier, top_n, include_appendix,
+                  policy_ddl_map=None):
     files = bundle["_files"]
+    if policy_ddl_map is None:
+        policy_ddl_map = {}
     out = "<!-- markdownlint-disable MD013 MD033 MD060 -->\n"
     out += render_executive_summary(bundle, classifier, top_n)
     out += render_section_01_config(files.get("01"))
@@ -887,7 +1058,7 @@ def render_report(bundle, classifier, top_n, include_appendix):
     out += render_section_05_connect_profile(files, classifier, top_n)
     out += render_section_06_privileged(files.get("14"), top_n)
     out += render_section_07_security_signals(files, classifier, top_n)
-    out += render_section_08_tuning(files.get("15"), top_n)
+    out += render_section_08_tuning(files.get("15"), top_n, policy_ddl_map)
     if include_appendix:
         out += render_appendix(bundle, top_n)
     out += "---\n\n"
@@ -1191,8 +1362,23 @@ def main(argv=None):
               file=sys.stderr)
         return 2
 
+    # Section 8.1 tuning suggestions need actual policy DDL from
+    # DBMS_METADATA (sql/16-policy-ddl.csv). Empty if unavailable -
+    # the renderer falls back to a "DDL unavailable" note instead of
+    # fabricating DDL from concat strings (per ai-analysis-rules.md
+    # Section 4 / finding F2).
+    policy_ddl_map = load_policy_ddl(bundle_dir)
+    if args.verbose:
+        if policy_ddl_map:
+            print(f"Policy DDL: {len(policy_ddl_map)} policies loaded "
+                  f"from 16-policy-ddl.csv")
+        else:
+            print("Policy DDL: 16-policy-ddl.csv missing or empty "
+                  "(Section 8.1 will note 'DDL unavailable')")
+
     report_text = render_report(
         bundle, classifier, args.top_n, args.include_appendix,
+        policy_ddl_map=policy_ddl_map,
     )
 
     output = args.output or (bundle_dir / "audit_report.md")
