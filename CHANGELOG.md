@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-05-28
+
+### Added
+
+- **`make to-html` target** (`Makefile`, `tools/md_to_html.py`,
+  `docs/report.css`) - converts an existing `audit_report.md` to a
+  standalone HTML file without re-running the full report pipeline or the
+  AI analysis. Usage: `make to-html BUNDLE=<dir>` or
+  `make to-html MD=<file.md>`. Output is written next to the source `.md`
+  file.
+  - Uses pandoc when available (`--standalone --embed-resources --toc
+    --toc-depth=2`); warns and falls back to `tools/md_to_html.py` (Python
+    `markdown` package) when pandoc is not installed.
+  - `docs/report.css` - GitHub Markdown-inspired stylesheet (Inter/system
+    font stack, bordered tables with alternating rows, TOC box, code
+    blocks, blockquote style, red bold for FAIL/PARTIAL verdict markers).
+    Embedded into the HTML by pandoc (`--embed-resources`) so the file is
+    fully self-contained. The Python fallback uses the same file when
+    available, with a compact inline stylesheet as a last resort.
+  - `make to-html` without arguments prints usage with examples.
+  - New "Report" section in `make help`.
+
 ## [1.3.2] - 2026-05-28
 
 ### Fixed

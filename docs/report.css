@@ -1,0 +1,140 @@
+/* ----------------------------------------------------------------------------
+ * report.css - GitHub Markdown-inspired stylesheet for ora-db-audit HTML reports
+ * Used by: make to-html  (pandoc --css docs/report.css --embed-resources)
+ * ---------------------------------------------------------------------------- */
+
+/* --- Base / typography ----------------------------------------------------- */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+        Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #24292f;
+    background: #ffffff;
+    max-width: 1100px;
+    margin: 2rem auto;
+    padding: 0 2rem;
+    word-wrap: break-word;
+}
+
+/* --- Headings -------------------------------------------------------------- */
+h1, h2, h3, h4, h5, h6 {
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    font-weight: 600;
+    line-height: 1.25;
+}
+h1 {
+    font-size: 2em;
+    border-bottom: 1px solid #d0d7de;
+    padding-bottom: 0.3em;
+}
+h2 {
+    font-size: 1.5em;
+    border-bottom: 1px solid #d0d7de;
+    padding-bottom: 0.3em;
+}
+h3 { font-size: 1.25em; }
+h4 { font-size: 1em; }
+
+/* --- Links ----------------------------------------------------------------- */
+a { color: #0969da; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* --- Paragraphs / lists ---------------------------------------------------- */
+p { margin: 0.8em 0; }
+ul, ol { padding-left: 2em; margin: 0.5em 0; }
+li { margin: 0.2em 0; }
+
+/* --- Tables ---------------------------------------------------------------- */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1em 0;
+    display: block;
+    overflow-x: auto;
+    font-size: 0.93em;
+}
+th, td {
+    border: 1px solid #d0d7de;
+    padding: 0.375em 0.75em;
+    text-align: left;
+    vertical-align: top;
+}
+th {
+    background: #f6f8fa;
+    font-weight: 600;
+    white-space: nowrap;
+}
+tr:nth-child(even) { background: #f6f8fa; }
+tr:hover { background: #eaf0f9; }
+
+/* --- Inline code ----------------------------------------------------------- */
+code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas,
+        "Liberation Mono", Menlo, monospace;
+    font-size: 85%;
+    background: #f6f8fa;
+    padding: 0.2em 0.4em;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+/* --- Code blocks ----------------------------------------------------------- */
+pre {
+    background: #f6f8fa;
+    border-radius: 6px;
+    padding: 1em;
+    overflow-x: auto;
+    line-height: 1.45;
+    margin: 1em 0;
+}
+pre code {
+    background: none;
+    padding: 0;
+    font-size: 100%;
+    white-space: pre;
+}
+
+/* --- Blockquotes ----------------------------------------------------------- */
+blockquote {
+    margin: 0.8em 0;
+    padding: 0.2em 1em;
+    color: #57606a;
+    border-left: 0.25em solid #d0d7de;
+}
+blockquote p { margin: 0.3em 0; }
+
+/* --- Horizontal rule ------------------------------------------------------- */
+hr {
+    height: 0.25em;
+    background: #d0d7de;
+    border: 0;
+    margin: 1.5em 0;
+}
+
+/* --- Bold / emphasis in verdict cells (FAIL / PARTIAL markers) ------------ */
+td strong { color: #cf222e; }
+
+/* --- Table of contents (pandoc injects <nav id="TOC">) -------------------- */
+nav#TOC, #TOC {
+    background: #f6f8fa;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    padding: 1em 1.5em;
+    margin: 1em 0 2em 0;
+    display: inline-block;
+    min-width: 220px;
+    max-width: 480px;
+}
+nav#TOC::before, #TOC::before {
+    content: "Inhalt";
+    display: block;
+    font-weight: 600;
+    font-size: 0.95em;
+    margin-bottom: 0.5em;
+    color: #24292f;
+}
+nav#TOC ul, #TOC ul { margin: 0.2em 0; padding-left: 1.4em; }
+nav#TOC li, #TOC li { margin: 0.2em 0; }
+nav#TOC a, #TOC a  { color: #0969da; font-size: 0.9em; }

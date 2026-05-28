@@ -1,6 +1,6 @@
 # Roadmap
 
-Current release: **v1.3.2** - Updated: 2026-05-28
+Current release: **v1.3.3** - Updated: 2026-05-28
 
 ---
 
@@ -23,6 +23,7 @@ Current release: **v1.3.2** - Updated: 2026-05-28
 | 1.3.0   | released | 2026-05-28 | CIS action-based coverage; top-n from manifest default; ORA$MANDATORY metric; UNIFIED AUDIT TRAIL FILES non-legacy; --export-prompt optional FILE |
 | 1.3.1   | released | 2026-05-28 | --export-prompt and --ai output now match --lang (language-keyed AI prompts) |
 | 1.3.2   | released | 2026-05-28 | Fix ORA-00904 in CIS SQL; Section 3 overview+detail; Section 9 CIS detail |
+| 1.3.3   | released | 2026-05-28 | make to-html target: pandoc with Python fallback, no re-render required |
 <!-- markdownlint-enable MD013 MD060 -->
 
 ---
