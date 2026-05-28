@@ -302,6 +302,10 @@ Anonymisation:
 
 Reporting:
   --report             Render audit_report.md from the bundle.
+  --lang de|en         Report language (default: de). Requires --report.
+  --export-prompt FILE Write the full AI prompt to FILE instead of calling
+                       the API. Self-contained for any LLM chat UI.
+                       Requires --report. No API key needed.
   --patterns FILE      Host-pattern config JSON for report classification.
   --tools-dir DIR      Override Python tools location.
 
