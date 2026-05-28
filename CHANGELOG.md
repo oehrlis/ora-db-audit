@@ -43,12 +43,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (migration plan decision D6 amendment).
 - CLAUDE.md repo layout reflects `bin/` instead of `src/`.
 
+### Fixed
+
+- **F3** - SQL queries 04, 05, 06, 07, 15 now apply the canonical UAP-concat
+  split CTE (`REGEXP_SUBSTR` + `CONNECT BY LEVEL`) per
+  `docs/ai-analysis-rules.md` Section 3. Previously these aggregated on
+  the raw concatenated `UNIFIED_AUDIT_POLICIES` column, producing one
+  row per concat-string instead of per individual policy. Per-policy
+  semantics now correct.
+- **F5** - `sql/01-config.sql` emits `# audit_mode:` metadata
+  (`pure | pure-intent | pure-contaminated | mixed | unsupported`) per
+  `docs/ai-analysis-rules.md` Section 6, and tags legacy parameters
+  (`audit_trail`, `audit_sys_operations`, `audit_syslog_level`,
+  `audit_file_dest`) via a new `legacy_param` schema-hint column so the
+  reporter can suppress false-positive findings on them when mode is
+  pure-ish.
+- **F4** - `sql/02-storage.sql` exposes three distinct tablespace
+  metadata values (default-for-new-partitions, current-partition,
+  older-partitions) per `docs/ai-analysis-rules.md` Section 5. The
+  reporter can now apply the D/C/O decision matrix and distinguish
+  MISCONFIGURATION from TRANSIENT state after `ALTER TABLE MODIFY
+  DEFAULT ATTRIBUTES TABLESPACE`.
+
 ### Notes
 
-These are the work-in-progress entries leading to v0.2.0. Promotion to
-a tagged release happens once Phases B (UAP-split SQL rewrites),
-C (config + storage interpretation fixes), and D (audit_report.py
-Section 8.1 rewrite) are complete and tests are green.
+Phase B (UAP-split SQL rewrites) and Phase C (config + storage
+interpretation fixes) are complete. Phase D (audit_report.py Section
+8.1 rewrite + AI prompt cleanup + i18n-ready message dict) and Phase E
+(CIS / STIG / Oracle BP compliance mapping doc) remain before a tagged
+v0.2.0 release.
+
+Commit-history footnote: the Phase B 04-07 changes are bundled with
+the CHANGELOG update in commit `25e5c6d` due to sub-agent worktree
+sync ordering; subsequent Phase B commits (`240620d`, `be8de1d`) land
+cleanly. A pre-public-release rebase may tidy this if desired.
 
 ## [0.1.0] - 2026-05-27
 
