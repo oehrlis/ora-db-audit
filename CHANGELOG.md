@@ -96,13 +96,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   MISCONFIGURATION from TRANSIENT state after `ALTER TABLE MODIFY
   DEFAULT ATTRIBUTES TABLESPACE`.
 
+- `docs/compliance-mapping.md` (new) - CIS Benchmark (19c v2.0.0, 23ai v1.1.0, 26ai v1.0.0),
+  DISA STIG 19c V1R5, and Oracle Unified Audit Best Practice Guidelines v2.0 compliance mapping.
+  Includes SQL coverage matrix, gap analysis (GAP-01 CIS coverage check, GAP-02 audit roles,
+  GAP-03 trail health), and proposed SQL rework plan for v1.0.1 and v1.1.
+
 ### Notes
 
 Phases B (UAP-split SQL rewrites), C (config + storage interpretation
-fixes), and D (audit_report.py Section 8.1 rewrite + AI prompt cleanup +
-Pure-Mode-aware Section 1+2 interpretation + i18n-ready message dict)
-are complete. Phase E (CIS / STIG / Oracle BP compliance mapping doc)
-and Group F (tests) remain before a tagged v0.2.0 release.
+fixes), D (audit_report.py Section 8.1 rewrite + AI prompt cleanup +
+Pure-Mode-aware Section 1+2 interpretation + i18n-ready message dict),
+and E (CIS / STIG / Oracle BP compliance mapping doc) are complete.
+Group F (tests) remains before a tagged v0.2.0 release.
 
 Commit-history footnote: the Phase B 04-07 changes are bundled with
 the CHANGELOG update in commit `25e5c6d` due to sub-agent worktree
