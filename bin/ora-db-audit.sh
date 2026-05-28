@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 1.2.3
+# Version....: 1.2.4
 # Purpose....: Extract Oracle Unified Audit Trail data from a target database,
 #              produce a self-contained CSV bundle, optionally anonymise it,
 #              and render a Markdown analysis report. Designed to be executed
@@ -31,6 +31,7 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.28  oes  Fix: auto-detect lang from manifest on --from-bundle. 1.2.4
 # 2026.05.28  oes  Fix: include PDB name in bundle dir/tarball name.     1.2.3
 # 2026.05.28  oes  Fix: wire --lang, --export-prompt, --customer-prefix  1.2.2
 #                  through to audit_report.py (render_report).
@@ -60,6 +61,7 @@ MAPPING_FILE=""
 CUSTOMER_PREFIX=""
 REPORT=0
 LANG_REPORT="de"
+LANG_REPORT_EXPLICIT=0
 EXPORT_PROMPT=""
 PATTERNS_FILE=""
 TOOLS_DIR_OVERRIDE=""
@@ -223,7 +225,7 @@ parse_args() {
             --mapping)          MAPPING_FILE="$2"; shift 2 ;;
             --customer-prefix)  CUSTOMER_PREFIX="$2"; shift 2 ;;
             --report)           REPORT=1; shift ;;
-            --lang)             LANG_REPORT="$2"; shift 2 ;;
+            --lang)             LANG_REPORT="$2"; LANG_REPORT_EXPLICIT=1; shift 2 ;;
             --export-prompt)    EXPORT_PROMPT="$2"; shift 2 ;;
             --patterns)         PATTERNS_FILE="$2"; shift 2 ;;
             --tools-dir)        TOOLS_DIR_OVERRIDE="$2"; shift 2 ;;
@@ -304,7 +306,7 @@ write_manifest() {
     local bundle_dir="$1" dbsid="$2" ts="$3"
     cat > "${bundle_dir}/manifest.json" <<EOF
 {
-  "bundle_version": "1.2.0",
+  "bundle_version": "1.2.4",
   "generated_at":   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
   "dbsid":          "${dbsid}",
   "pdb":            "${PDB}",
@@ -312,11 +314,12 @@ write_manifest() {
   "time_window_days": ${DAYS},
   "top_n":          ${TOP_N},
   "sample_rows":    ${SAMPLE_ROWS},
+  "lang":           "${LANG_REPORT}",
   "queries": [
 $(printf '    "%s",\n' "${QUERIES[@]:1}" | sed '$ s/,$//')
   ],
   "tool":           "ora-db-audit.sh",
-  "tool_version":   "1.2.3"
+  "tool_version":   "1.2.4"
 }
 EOF
 }
@@ -607,6 +610,21 @@ run_from_bundle() {
         return 1
     fi
     log "bundle dir = ${bundle_dir}"
+
+    # Auto-detect language from bundle manifest when --lang was not explicitly set.
+    if [[ ${LANG_REPORT_EXPLICIT} -eq 0 && -f "${bundle_dir}/manifest.json" ]]; then
+        local manifest_content manifest_lang
+        manifest_content="$(<"${bundle_dir}/manifest.json")"
+        if [[ "${manifest_content}" =~ \"lang\"[[:space:]]*:[[:space:]]*\"([a-z]+)\" ]]; then
+            manifest_lang="${BASH_REMATCH[1]}"
+            case "${manifest_lang}" in
+                de|en)
+                    LANG_REPORT="${manifest_lang}"
+                    log "auto-detected report language from bundle manifest: ${LANG_REPORT}"
+                    ;;
+            esac
+        fi
+    fi
 
     local report_target="${bundle_dir}"
     if [[ ${ANONYMIZE} -eq 1 ]]; then

@@ -1,6 +1,6 @@
 # Roadmap
 
-Current release: **v1.2.3** - Updated: 2026-05-28
+Current release: **v1.2.4** - Updated: 2026-05-28
 
 ---
 
@@ -19,6 +19,7 @@ Current release: **v1.2.3** - Updated: 2026-05-28
 | 1.2.1   | released | 2026-05-28 | docs/use-cases/ + CHANGELOG.md in dist tarball; comprehensive README.md |
 | 1.2.2   | released | 2026-05-28 | B8: wire --lang, --export-prompt, --customer-prefix to audit_report.py |
 | 1.2.3   | released | 2026-05-28 | B9: include PDB name in bundle dir/tarball name; pdb field in manifest |
+| 1.2.4   | released | 2026-05-28 | B10: auto-detect lang from manifest on --from-bundle; lang field in manifest |
 <!-- markdownlint-enable MD013 MD060 -->
 
 ---
