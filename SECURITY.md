@@ -2,8 +2,8 @@
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
+| Version | Supported                                           |
+|---------|-----------------------------------------------------|
 | 0.x     | Pre-release. Security fixes on a best-effort basis. |
 
 Once v1.0.0 is released, the most recent MINOR version will receive
