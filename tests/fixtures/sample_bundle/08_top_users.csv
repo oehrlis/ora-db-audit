@@ -1,0 +1,16 @@
+# query: top_users
+# query_id: 08
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: -
+# date_range_days: 30
+# top_n: 100
+# schema: dbusername=PSEUDO:DBUSER|events=COUNT|distinct_actions=COUNT|distinct_policies=COUNT|distinct_hosts=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP
+dbusername|events|distinct_actions|distinct_policies|distinct_hosts|first_seen|last_seen
+SYS|10000|45|6|1|2026-04-12 09:00:00|2026-05-12 09:30:00
+SYSTEM|2500|12|3|1|2026-04-13 10:00:00|2026-05-12 09:00:00
+TVD_HR|820|8|2|2|2026-04-15 08:30:00|2026-05-12 09:25:00
+SCOTT|410|5|1|1|2026-04-16 08:30:00|2026-05-12 09:20:00
+stefan.oehrli|55|3|1|1|2026-04-20 14:00:00|2026-05-11 18:00:00
+ODB_AUDIT_ADMIN|200|2|1|1|2026-04-20 09:00:00|2026-05-12 08:00:00

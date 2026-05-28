@@ -1,0 +1,12 @@
+# query: policy_ddl
+# query_id: 16
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: 5.1,5.2,5.3,5.4,5.5
+# date_range_days: 30
+# top_n: 100
+# schema: policy_name=KEEP|policy_ddl=KEEP_MULTILINE
+policy_name|policy_ddl
+ORA_LOGON_FAILURES|CREATE AUDIT POLICY ORA_LOGON_FAILURES ACTIONS LOGON;
+ORA_SECURECONFIG|CREATE AUDIT POLICY ORA_SECURECONFIG PRIVILEGES CREATE USER, ALTER USER, DROP USER, GRANT, REVOKE;

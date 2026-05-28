@@ -1,0 +1,13 @@
+# query: noise_candidates
+# query_id: 15
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: -
+# date_range_days: 30
+# top_n: 100
+# schema: policy_name=KEEP|dbusername=PSEUDO:DBUSER|action_name=KEEP|client_program_name=PSEUDO:CLIENT|return_code=KEEP|events=COUNT|events_per_day=COUNT|distinct_hosts=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP
+policy_name|dbusername|action_name|client_program_name|return_code|events|events_per_day|distinct_hosts|first_seen|last_seen
+ODB_LOC_LOGON_EVENTS_V1|SYSTEM|LOGON|sqlplus@auditlab-db (TNS V1-V3)|0|6000|200|1|2026-04-12 09:00:00|2026-05-12 09:30:00
+ODB_LOC_LOGON_EVENTS_V1|TVD_HR|LOGON|JDBC Thin Client|0|800|26|2|2026-04-15 08:30:00|2026-05-12 09:25:00
+ODB_LOC_DIRECT_ACCESS_V1|SCOTT|SELECT|JDBC Thin Client|0|410|13|1|2026-04-16 08:30:00|2026-05-12 09:20:00

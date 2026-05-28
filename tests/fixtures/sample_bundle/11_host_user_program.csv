@@ -1,0 +1,14 @@
+# query: host_user_program
+# query_id: 11
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: -
+# date_range_days: 30
+# top_n: 100
+# schema: userhost=PSEUDO:HOST|dbusername=PSEUDO:DBUSER|os_username=PSEUDO:OSUSER|client_program_name=PSEUDO:CLIENT|events=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP
+userhost|dbusername|os_username|client_program_name|events|first_seen|last_seen
+auditlab-app-classic.example.com|TVD_HR|oracle|sqlplus@auditlab-app-classic|800|2026-04-15 08:30:00|2026-05-12 09:25:00
+auditlab-app-paas.example.com|SCOTT|appuser|JDBC Thin Client|410|2026-04-16 08:30:00|2026-05-12 09:20:00
+laptop-001.example.com|stefan.oehrli|stefan.oehrli|SQL Developer|55|2026-04-20 14:00:00|2026-05-11 18:00:00
+auditlab-db.example.com|SYS|oracle|sqlplus|3000|2026-04-12 09:00:00|2026-05-12 09:30:00

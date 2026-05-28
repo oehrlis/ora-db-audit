@@ -60,6 +60,8 @@ AI_OP_PATH=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Repo root = one level up (bin/ -> repo).
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# SQL files live in sql/ next to bin/.
+SQL_DIR="${REPO_ROOT}/sql"
 
 # Query files - executed in this order (00 = setup).
 QUERIES=(
@@ -221,8 +223,8 @@ preflight() {
     fi
 
     for q in "${QUERIES[@]}"; do
-        if [[ ! -f "${SCRIPT_DIR}/${q}" ]]; then
-            err "missing query file: ${SCRIPT_DIR}/${q}"
+        if [[ ! -f "${SQL_DIR}/${q}" ]]; then
+            err "missing query file: ${SQL_DIR}/${q}"
             exit 1
         fi
     done
@@ -561,7 +563,7 @@ run() {
     if [[ ${DRY_RUN} -eq 1 ]]; then
         log "dry-run: would query DBSID, then execute the following:"
         for q in "${QUERIES[@]}"; do
-            log "  @${SCRIPT_DIR}/${q}"
+            log "  @${SQL_DIR}/${q}"
         done
         log "dry-run: bundle would land in ${OUTPUT_DIR}/ora-db-audit_<DBSID>_<TS>/"
         return 0
@@ -599,7 +601,7 @@ run() {
     # Build the @-chain. Setup must be the first script.
     local -a sqlplus_cmds=()
     for q in "${QUERIES[@]}"; do
-        sqlplus_cmds+=( "@${SCRIPT_DIR}/${q}" )
+        sqlplus_cmds+=( "@${SQL_DIR}/${q}" )
     done
     sqlplus_cmds+=( "EXIT" )
 

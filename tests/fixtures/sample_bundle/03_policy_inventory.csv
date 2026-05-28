@@ -1,0 +1,11 @@
+# query: policy_inventory
+# query_id: 03
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: 5.1,5.2,5.3,5.4,5.5
+# schema: policy_name=KEEP|audit_option=KEEP|audit_condition=REDACT|entity_name=PSEUDO:DBUSER|success=KEEP|failure=KEEP
+"policy_name"|"audit_option"|"audit_condition"|"entity_name"|"success"|"failure"
+"ODB_LOC_LOGON_EVENTS_V1"|"LOGON"|"SYS_CONTEXT('USERENV','CURRENT_USER') != 'SYSTEM'"|"TVD_HR"|"YES"|"YES"
+"ODB_LOC_DIRECT_ACCESS_V1"|"SELECT"|""|"SCOTT"|"YES"|"NO"
+"ORA_LOGON_FAILURES"|"LOGON"|""|""|"NO"|"YES"

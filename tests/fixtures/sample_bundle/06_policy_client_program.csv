@@ -1,0 +1,13 @@
+# query: policy_client_program
+# query_id: 06
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: -
+# date_range_days: 30
+# top_n: 100
+# schema: policy_name=KEEP|client_program_name=PSEUDO:CLIENT|events=COUNT|distinct_users=COUNT|distinct_hosts=COUNT
+policy_name|client_program_name|events|distinct_users|distinct_hosts
+ODB_LOC_LOGON_EVENTS_V1|sqlplus@auditlab-db (TNS V1-V3)|6200|2|1
+ODB_LOC_LOGON_EVENTS_V1|JDBC Thin Client|420|1|1
+ODB_LOC_DIRECT_ACCESS_V1|SQL Developer|55|1|1

@@ -1,0 +1,30 @@
+{
+  "bundle_version": "0.2.0",
+  "generated_at":   "2026-05-12T10:00:00Z",
+  "dbsid":          "free",
+  "timestamp_tag":  "20260512_100000",
+  "time_window_days": 30,
+  "top_n":          100,
+  "queries": [
+    "01-config.sql",
+    "02-storage.sql",
+    "03-policy-inventory.sql",
+    "04-policy-volume.sql",
+    "05-policy-user-action.sql",
+    "06-policy-client-program.sql",
+    "07-policy-host.sql",
+    "08-top-users.sql",
+    "09-top-actions.sql",
+    "10-top-objects.sql",
+    "11-host-user-program.sql",
+    "12-distinct-hosts.sql",
+    "13-failed-logins.sql",
+    "14-privileged-activity.sql",
+    "15-noise-candidates.sql",
+    "16-policy-ddl.sql",
+    "17-cis-coverage.sql",
+    "18-audit-roles.sql"
+  ],
+  "tool":           "ora-db-audit.sh",
+  "tool_version":   "0.2.0"
+}

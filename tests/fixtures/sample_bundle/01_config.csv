@@ -1,0 +1,15 @@
+# query: config
+# query_id: 01
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# audit_mode: pure
+# cis_controls: -
+# schema: source=KEEP|name=KEEP|value=KEEP|trail=KEEP
+"source"|"name"|"value"|"trail"
+"audit_mgmt"|"AUDIT_TRAIL_WRITE_MODE"|"IMMEDIATE WRITE MODE"|"UNIFIED AUDIT TRAIL"
+"init_param"|"audit_sys_operations"|"TRUE"|""
+"instance"|"host_name"|"auditlab-db.example.com"|""
+"instance"|"instance_name"|"FREE"|""
+"instance"|"version"|"23.4.0.24.05"|""
+"unified_audit"|"pure_mode"|"TRUE"|""

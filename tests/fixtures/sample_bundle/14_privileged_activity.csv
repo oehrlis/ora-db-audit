@@ -1,0 +1,13 @@
+# query: privileged_activity
+# query_id: 14
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: 5.5
+# date_range_days: 30
+# top_n: 100
+# schema: dbusername=KEEP|action_name=KEEP|object_schema=PSEUDO:SCHEMA|object_name=PSEUDO:OBJECT|return_code=KEEP|events=COUNT|distinct_hosts=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP
+dbusername|action_name|object_schema|object_name|return_code|events|distinct_hosts|first_seen|last_seen
+SYS|ALTER USER|SYS|SCOTT|0|3|1|2026-05-01 09:00:00|2026-05-10 11:00:00
+SYS|GRANT|SYS|ROLE_DBA|0|2|1|2026-05-02 10:00:00|2026-05-11 12:00:00
+SYSTEM|CREATE TABLE|SYSTEM|AUDIT_BACKUP|0|1|1|2026-05-05 14:00:00|2026-05-05 14:00:00

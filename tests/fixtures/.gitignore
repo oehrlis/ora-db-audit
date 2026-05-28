@@ -1,0 +1,6 @@
+# Generated during test runs - not committed.
+# sample_bundle.tar.gz is created by test-from-bundle.bats setup().
+*.tar.gz
+*.anon/
+*.mapping.json
+sample_input.log
