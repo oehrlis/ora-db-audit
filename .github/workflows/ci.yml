@@ -64,19 +64,28 @@ jobs:
         run: python -m pytest tests/python/ -v
 
   build-dist:
-    name: Build distribution
+    name: Build and release
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [ lint-markdown, lint-shell, test-bats, test-pytest ]
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Build tarball and base64 copy
         run: make dist
-      - name: Upload dist artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ora-db-audit-dist-${{ github.ref_name }}
-          path: |
-            dist/*.tar.gz
-            dist/*.tar.gz.b64
-          retention-days: 90
+      - name: Extract release notes from CHANGELOG
+        run: |
+          version="${{ github.ref_name }}"
+          version="${version#v}"
+          awk "/^## \[${version}\]/{found=1; next} found && /^## \[/{exit} found{print}" \
+            CHANGELOG.md > release-notes.md
+      - name: Create GitHub release with assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            dist/*.tar.gz \
+            dist/*.tar.gz.b64 \
+            --title "Release ${{ github.ref_name }}" \
+            --notes-file release-notes.md
