@@ -116,6 +116,34 @@ def test_export_prompt_contains_report(tmp_path):
     assert "TEST" in content or "Analyse" in content
 
 
+def test_en_catalog_complete():
+    """validate_catalog must return no missing keys for EN."""
+    import audit_report_messages
+    missing = audit_report_messages.validate_catalog("en")
+    assert not missing, f"EN catalog missing keys: {missing}"
+
+
+def test_en_report_is_english(tmp_path):
+    """--lang en report must contain English section headers."""
+    import audit_report
+
+    bundle = audit_report.read_bundle(SAMPLE_BUNDLE)
+    orig_lang = audit_report.LANG
+    audit_report.LANG = "en"
+    try:
+        classifier = audit_report.HostClassifier({})
+        report = audit_report.render_report(
+            bundle, classifier=classifier,
+            top_n=5, include_appendix=False, policy_ddl_map={},
+        )
+    finally:
+        audit_report.LANG = orig_lang
+
+    assert "Audit Trail Analysis" in report or "Executive Summary" in report
+    assert "Policy Inventory" in report or "Policy Coverage" in report
+    assert "Konfiguration" not in report
+
+
 def test_report_no_exception_on_missing_query(tmp_path):
     """Reporter must not crash when an optional CSV is missing."""
     import shutil
