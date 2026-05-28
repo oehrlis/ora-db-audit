@@ -75,64 +75,136 @@ DEFAULT_AI_OP_PATH = ""
 LANG = DEFAULT_LANGUAGE
 
 AI_SYSTEM_PROMPT = (
-    "Du bist ein Oracle Security Architect mit Expertise in Oracle Unified "
-    "Auditing (Pure Mode). Analysiere Oracle Audit-Reports und identifiziere "
-    "Security-Risiken, Konfigurationslücken sowie Compliance-Abweichungen. "
-    "Bewerte automatisch generierte Tuning-Empfehlungen auf Korrektheit und "
-    "Compliance-Verträglichkeit. "
-    "Antworte auf Deutsch. Oracle-Objekt-Namen, SQL und Code-Blöcke bleiben Englisch."
+    "Du bist ein Oracle Security Architect mit Expertise in Oracle "
+    "Unified Auditing (Pure Mode) auf 19c und 26ai. Analysiere "
+    "Audit-Reports nach den unten verbindlichen Pure-Mode-Regeln. "
+    "Strikte Trennung: Findings zu Traditional / Mixed-Mode-Artefakten "
+    "sind ausdruecklich KEINE gueltigen Findings - der Tool-Scope ist "
+    "Pure Mode. Bewerte die im Report generierten Tuning-Vorschlaege "
+    "(Abschnitt 8.1) als Bedingungs-Ausdruecke, die manuell via "
+    "DROP + CREATE AUDIT POLICY anzuwenden sind. Antworte auf Deutsch; "
+    "Oracle-Objekt-Namen, SQL und Code-Bloecke bleiben Englisch."
 )
 
+# This template is grounded in docs/ai-analysis-rules.md - that doc is
+# the canonical rules contract. The prompt below summarises its key
+# suppression rules inline so the LLM has them in working context;
+# updating the rules doc + this template together keeps them in sync.
 AI_USER_PROMPT_TEMPLATE = """\
 Analysiere den folgenden Oracle Unified Audit-Report.
 
+## Audit-Modus pruefen (zuerst!)
+
+Im Report-Header steht `audit_mode: <wert>`. Vor jeder weiteren Analyse:
+
+- `audit_mode = mixed` -> Tool-Scope ueberschritten. Gib EIN Finding aus:
+  HIGH-Severity "Mixed-Mode-Kontamination", Empfehlung "Migration nach
+  Pure Mode" (siehe `/oracle-audit` skill Mixed-to-Pure Section).
+  KEINE weiteren Pure-Mode-Findings produzieren.
+- `audit_mode = unsupported` -> EIN Finding: HIGH "Unified Auditing nicht
+  aktiviert; Tool-Scope nicht anwendbar".
+- `audit_mode in (pure, pure-intent, pure-contaminated)` -> normal weiter.
+
 ## Kontext
 
-- Audit-Modus: Pure Unified Auditing (kein Mixed Mode)
-- Policy-Namensraum: {customer_prefix}_* (Custom), ORA_* nur als Referenz (nicht aktivieren)
-- Phase A aktiv: Login-Events, DDL, DataPump, Anti-Tampering
-- Hostnamen und Benutzernamen können anonymisiert sein (HOST_NNN, DBUSER_NNN)
+- Audit-Modus laut Report: siehe `audit_mode` Metadata oben
+- Policy-Namensraum: {customer_prefix}_* (Custom), ORA_* nur als Referenz
+- Hostnamen / Benutzernamen koennen anonymisiert sein (HOST_NNN, DBUSER_NNN, ...)
+- Audit-Kontext-Variable (z.B. zur Off-Path-Klassifizierung): typisch
+  `<CUSTOMER>_AUDIT_CTX` - falls nicht konfiguriert, fehlt Applikationskontext
+
+## Regel-Kontrakt (Pure-Mode) - aus docs/ai-analysis-rules.md
+
+### Out of scope (NICHT als Finding melden)
+
+Findings, die folgende Legacy-Artefakte zitieren, sind ungueltig und
+muessen UNTERDRUECKT werden:
+
+- `audit_trail` Init-Parameter (Legacy; in Pure Mode ohne Effekt -
+  auch der Wert `DB` ist KEIN Finding)
+- `audit_sys_operations` (Legacy; in Pure Mode wird SYS per Policy auditiert)
+- `audit_syslog_level` (Legacy)
+- `audit_file_dest` als Audit-Trail-Konfiguration (Legacy)
+- Traditional-AUDIT-Syntax in Empfehlungen (`AUDIT <stmt> BY ...`,
+  `NOAUDIT <stmt>`); ausschliesslich Unified-Syntax verwenden
+- Einzelne AUD$UNIFIED-Partitionen in SYSAUX wenn
+  `audit_data_tablespace_default = AUDIT_DATA` (transient nach
+  `ALTER TABLE MODIFY DEFAULT ATTRIBUTES TABLESPACE` - keine
+  Misconfiguration)
+
+### Gueltige Findings (Pure Mode)
+
+Diese Finding-Klassen sind erwuenscht:
+
+- DBMS_AUDIT_MGMT.CLEAN_AUDIT_TRAIL Job: konfiguriert?
+- LAST_ARCHIVE_TIMESTAMP gesetzt vor Cleanup?
+- AUD$UNIFIED Default-Tablespace ist SYSAUX (Misconfiguration)
+- Policy-Coverage-Luecken (z.B. CIS-Pflicht-Bereiche ohne enabled policy)
+- ORA_*-Policies (Oracle-supplied) aktiv obwohl Custom-Policies dieselben
+  Events besser zugeschnitten abdecken
+- Failed-Login-Muster (ORA-01017 Spitzen, Brute-Force-Verdacht,
+  fehlkonfigurierter Job mit altem Passwort)
+- Privilegierte Aktivitaet (SYS, SYSDBA, AUDIT_ADMIN, SYSBACKUP, ...)
+- Off-Path-Hosts (nicht in App/Infra/DBA-Pattern klassifiziert)
+- Mixed-Mode-Kontamination (AUD$ mit aktuellen Zeilen trotz Pure)
+- Mandatory binary `*.aud` files: ungesteuertes Wachstum / keine Rotation
+
+### Tuning-Vorschlaege (Abschnitt 8.1)
+
+Die im Report gelisteten WHEN-Klausel-Vorschlaege sind Bedingungs-
+Ausdruecke. Sie sind manuell anzuwenden via:
+
+```sql
+DROP AUDIT POLICY <name>;
+CREATE AUDIT POLICY <name> ... WHEN '(<bestehend>) AND (<vorschlag>)' ...;
+```
+
+Bewerte jeden Vorschlag:
+
+- Compliance-Risiko: Darf laut Site-Policy supprimiert werden?
+- Praezision: Kombination User+Programm ist enger als nur User - bevorzugen
+- Falls KEIN Vorschlag sicher anwendbar: alternativen Ansatz begruenden
+  (Audit-Context, Whitelist, separate Suppression-Policy)
 
 ## Audit-Report
 
 {report_text}
 
-## Aufgabe
+## Ausgabe
 
-Erstelle ein strukturiertes Findings-Dokument mit drei Abschnitten:
+Falls `audit_mode = mixed` oder `unsupported`: nur das Einzel-Finding
+gemaess "Audit-Modus pruefen" - keine Tabelle, keine A/B/C-Sektionen.
 
-### A - Security Signals
-
-Risikobewertung HIGH / MEDIUM / LOW / INFO:
-- Unterscheide echte Security-Events von erwartetem Betriebsverhalten
-- Failed Logins (ORA-01017): Brute-Force-Verdacht oder Konfigurationsfehler?
-- Off-Path-Hosts: echte Bedrohung oder fehlendes Applikationskontext-Setup (<CUSTOMER>_AUDIT_CTX)?
-- Ungewöhnliche Kombinationen User + Host + Programm
-
-### B - Konfigurationslücken (CIS Oracle Benchmark)
-
-- DBMS_AUDIT_MGMT-Konfiguration: fehlende oder falsche Parameter
-- audit_sys_operations und audit_trail Status
-- Oracle-supplied Policies (ORA_*): in Pure Mode deaktivieren
-- Trail-Storage: AUDIT_DATA Tablespace korrekt zugewiesen (nicht SYSAUX)?
-- Retention: Cleanup-Job konfiguriert und LAST_ARCHIVE_TIME gesetzt?
-
-### C - Tuning-Empfehlungen qualifizieren
-
-Für jeden WHEN-Klausel-Vorschlag aus Abschnitt 8:
-- Compliance-Risiko: Darf dieses Event supprimiert werden?
-- Varianten-Bewertung: Welche Variante (User / Programm / Kombination) ist korrekt?
-- Alternativer Ansatz wenn kein Vorschlag sicher anwendbar ist
-
-## Ausgabeformat
-
-Findings-Tabelle (Übersicht):
+Sonst Findings-Tabelle (Uebersicht):
 
 | # | Finding | Abschnitt | Risiko | Massnahme |
 |---|---------|-----------|--------|-----------|
 
-Dann pro Finding (Nummer aus Tabelle) ein Absatz mit Begründung und ggf. konkretem SQL \
-oder Konfigurationsschritt.
+Dann drei strukturierte Abschnitte:
+
+### A - Security Signals
+
+Risikobewertung HIGH / MEDIUM / LOW / INFO:
+
+- Echte Security-Events vs. erwartetes Betriebsverhalten
+- Failed Logins (ORA-01017): Brute-Force, Konfig-Fehler, automatisierter Job?
+- Off-Path-Hosts: echte Bedrohung oder fehlende App-Kontext-Konfiguration?
+- Ungewoehnliche User + Host + Programm-Kombinationen
+
+### B - Konfigurationsluecken (Pure-Mode-CIS, nicht Legacy)
+
+Beziehe dich AUSSCHLIESSLICH auf Pure-Mode-Konfiguration (siehe Out-of-Scope
+Liste oben). Insbesondere KEINE Findings zu `audit_trail`,
+`audit_sys_operations`, `audit_syslog_level` und keine Traditional-
+AUDIT-Empfehlungen.
+
+### C - Tuning-Empfehlungen qualifizieren
+
+Pro Kandidat aus Abschnitt 8.1: empfohlene Variante + Begruendung
+ODER alternativer Ansatz wenn keine sicher anwendbar ist.
+
+Pro Finding (Nummer aus Tabelle): ein Absatz mit Begruendung und ggf.
+konkretem Unified-SQL oder Konfigurations-Schritt.
 """
 
 # Built-in pattern set. Community / customer-configurable default;
