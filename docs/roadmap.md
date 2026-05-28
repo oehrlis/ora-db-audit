@@ -155,5 +155,6 @@ feedback after release.
 ## How to evolve this roadmap
 
 - Stefan owns priority changes. Discuss in `~/notes/projects/audit-tool.md` first, then update this file.
-- New candidate features: append to "Beyond v1.0" section; do not promote to a versioned milestone without a deliverable/acceptance pair defined.
+- New candidate features: append to "Beyond v1.0" section; do not promote to a
+  versioned milestone without a deliverable/acceptance pair defined.
 - Release dates are aspirational. Real cadence is logged via git tags + CHANGELOG entries.
