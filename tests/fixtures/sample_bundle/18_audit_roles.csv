@@ -3,7 +3,7 @@
 # dbsid: free
 # pdb: AUDITPDB1
 # generated: 2026-05-12T10:00:00+02:00
-# cis_controls: -
+# cis_controls:
 # schema: target_role=KEEP|grantee=PSEUDO:DBUSER|grantee_type=KEEP|grant_path=KEEP|admin_option=KEEP|default_role=KEEP|grant_depth=COUNT|risk_flag=KEEP
 target_role|grantee|grantee_type|grant_path|admin_option|default_role|grant_depth|risk_flag
 AUDIT_ADMIN|SYS|USER|DIRECT|YES|YES|1|STANDARD

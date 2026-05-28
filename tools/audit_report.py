@@ -241,6 +241,8 @@ QUERY_FILES = {
     "13": "13_failed_logins",
     "14": "14_privileged_activity",
     "15": "15_noise_candidates",
+    "17": "17_cis_coverage",
+    "18": "18_audit_roles",
 }
 
 
@@ -317,8 +319,8 @@ def _read_csv_file(path):
 
 def read_bundle(bundle_dir):
     """Load manifest.json + every known query CSV into a dict keyed by
-    query id ('01' .. '15'). Missing files are silently skipped (older
-    bundle versions or partial runs)."""
+    query id ('01'..'15', '17', '18'). Missing files are silently skipped
+    (older bundle versions or partial runs)."""
     bundle = {"_path": bundle_dir, "_manifest": {}, "_files": {}}
     manifest = bundle_dir / "manifest.json"
     if manifest.is_file():

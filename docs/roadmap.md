@@ -1,164 +1,168 @@
 # Roadmap
 
-Status: **DRAFT - aligned with `tasks/migration-plan.md` (2026-05-27)**
-
-This roadmap supersedes the milestone block in
-`~/notes/projects/audit-tool.md` once Stefan confirms the migration plan.
-The earlier audit-tool.md milestones were written before the reality of
-audit_pack-0.5.0 (already includes anonymisation + AI) was reconciled into
-the plan.
+Current release: **v1.0.2** - Updated: 2026-05-28
 
 ---
 
-## Version Table
+## Version History
 
-| Version | State    | Date target | Scope                                                                                  |
-|---------|----------|-------------|----------------------------------------------------------------------------------------|
-| 0.1.0   | released | 2026-05-27  | Scaffolding (this commit history start)                                                |
-| 0.2.0   | planned  | +1 week     | SQL + Python tools migrated, sanitised, no integration tests yet                       |
-| 0.5.0   | planned  | +2 weeks    | Full feature parity with audit_pack-0.5.0; tests green; internal RC                    |
-| 0.9.0   | planned  | +3 weeks    | CIS-mapping formalised, OSS polish, security review pass                               |
-| 1.0.0   | planned  | +4 weeks    | Public release on github.com/oehrlis/ora-db-audit                                      |
-| 1.x     | future   | -           | Off-Path-Detection use case, additional CIS controls, Mixed-to-Pure helpers            |
-| 2.0     | future   | -           | Policy generator, Compliance-Report module (PCI-DSS / ISO 27001 mapping), STIG profile |
-
-Dates assume 1-2 evenings + 1 weekend day per week of effort. Adjust as
-real cadence emerges.
+<!-- markdownlint-disable MD013 MD060 -->
+| Version | State    | Released   | Scope |
+|---------|----------|------------|-------|
+| 0.1.0   | released | 2026-05-27 | Repository scaffold, Apache 2.0, CLAUDE.md |
+| 1.0.0   | released | 2026-05-28 | Full feature port from audit_pack-0.5.0; 19 SQL queries; Python reporter + anonymizer; bats + pytest; CIS/STIG compliance mapping; CI/CD |
+| 1.0.1   | released | 2026-05-28 | Dist tarball layout fix (REPO_ROOT path), `--from-bundle` output dir default, base64 dist artifact, root wrapper without `.sh` |
+| 1.0.2   | released | 2026-05-28 | Bundle quality fixes B1-B5: SQL*Plus continuation char, Phase 3 variable defaults, ORA-22848 CLOB DISTINCT, legacy_param for audit_mgmt rows, context-aware PSEUDO:OBJECT anonymization |
+<!-- markdownlint-enable MD013 MD060 -->
 
 ---
 
-## v0.2.0 - "SQL + Tools landed"
+## v1.1.0 - "Report completeness + usability"
 
-Goal: every file from audit_pack-0.5.0 lives in this repo, sanitised, with
-Apache 2.0 headers and the new naming convention. No CIS-mapping yet, no
-new tests yet. The bash entry-point runs end-to-end against a sample
-bundle.
+Goal: surface CIS coverage and audit-role membership in the Markdown
+report (currently collected but not rendered), improve usability for
+large audit trails, and add an offline AI prompt export for use with
+any provider.
 
-Acceptance:
+### Deliverables
 
-- `bin/ora-db-audit.sh --help` prints the full flag set
-- `bin/ora-db-audit.sh --from-bundle tests/fixtures/sample_bundle.anon.tar.gz --report` produces `audit_report.md`
-- `git grep -E '\bODB\b' -- ':!docs/history/' ':!tests/fixtures/*.mapping.json'` returns 0 matches
-- `make lint` passes (shellcheck + markdownlint + ruff/mypy)
+**R1 - CIS coverage section in report** (`audit_report.py`)
 
-Deliverables: Migration commits B-E from `tasks/migration-plan.md`.
+- Add `render_section_09_cis_coverage(file_data)` that reads
+  `17_cis_coverage.csv` and emits a per-control PASS/WARN/FAIL table.
+- Wire into `render_report()` after Section 8 (tuning).
+- Acceptance: report contains a "CIS 5.1-5.5 Abdeckung" section;
+  FAIL rows are clearly highlighted.
 
----
+**R2 - Audit roles section in report** (`audit_report.py`)
 
-## v0.5.0 - "Feature parity + tests"
+- Add `render_section_10_audit_roles(file_data)` that reads
+  `18_audit_roles.csv` and emits WARN/REVIEW rows prominently.
+- Add `render_report()` call.
+- Acceptance: report surfaces any non-STANDARD risk flags for
+  AUDIT_ADMIN / AUDIT_VIEWER grantees.
 
-Goal: same capability surface as audit_pack-0.5.0, but verified by tests
-and ready for an internal release candidate review by Stefan + selected
-trusted reviewers.
+#### R3 - Large audit trail performance
 
-Acceptance:
+- Add `--sample-rows N` flag to `bin/ora-db-audit.sh` (default: no
+  limit) that injects `FETCH FIRST N ROWS ONLY` into the heavy
+  profiling queries (08-12, 15).
+- Add a `# sampled: true` metadata line when sampling is active so
+  the reporter and AI prompt can note the blind spot.
+- Acceptance: on a 10M-row trail, `--sample-rows 500000` completes
+  in under 5 minutes.
 
-- `make test` green (bats + pytest)
-- `tests/python/test_anonymizer_roundtrip.py` proves anon -> de-anon is
-  identity outside the whitelist
-- Sample bundle round-trip works in offline `--from-bundle` mode
-- AI integration smoke-tested with one real `--ai` run (needs ANTHROPIC_API_KEY)
+**R4 - `--export-prompt` flag** (`tools/audit_report.py`)
 
-Deliverables: Migration commits F + initial CI workflow.
+- New flag: `--export-prompt FILE`. Builds the full AI prompt (with
+  report data embedded) and writes it to FILE instead of sending to
+  the API.
+- Output includes a short header comment: provider-agnostic
+  instructions (paste into claude.ai, ChatGPT, etc.).
+- Acceptance: `--export-prompt prompt.txt` writes a self-contained
+  file that produces useful analysis when pasted into any LLM chat UI.
 
----
+#### R5 - Dual-language output (DE / EN)
 
-## v0.9.0 - "Compliance-aware + OSS-polished"
+- Architecture is ready (`tools/audit_report_messages.py` exists).
+- Populate `MESSAGES["en"]` with English translations of all
+  user-facing strings.
+- Wire `--lang en|de` flag (default `de`).
+- Acceptance: `--lang en` produces a fully English Markdown report;
+  `--lang de` (default) is unchanged.
 
-Goal: each SQL is tagged with its CIS-Oracle-Benchmark control(s). README
-and use-case docs target the OSS audience (no Accenture-internal framing).
-Security review pass against own SECURITY.md threats.
+### Acceptance (v1.1.0 release gate)
 
-Acceptance:
-
-- Every SQL has a `# cis_controls:` metadata line (or explicit `# cis_controls: none`)
-- `docs/compliance-mapping.md` documents the full CIS mapping with control IDs and benchmark version
-- `audit_report.py` surfaces CIS controls in the executive summary
-- README walks a new user from zero -> first bundle without referencing internal Accenture-engineering vocabulary
-- `/security-check` run produces no actionable findings on the staged changes
-
-Deliverables: Migration commits G + H + reviewer agent pass.
-
----
-
-## v1.0.0 - "Public release"
-
-Goal: the tool is on `github.com/oehrlis/ora-db-audit`, tagged, with
-release notes, ready for the blog announcement.
-
-Acceptance:
-
-- GitHub repository created (public, Apache 2.0, default branch `main`)
-- v1.0.0 tag pushed
-- Release notes derived from `CHANGELOG.md`
-- README badges: license, CI status, latest release
-- Blog announcement drafted on oradba.ch (not necessarily published yet)
-- `audit-tool.md` PKM project Status flipped to `done`
-- `INITIAL_PROMPT.md` archived under `docs/history/`
+- `make test` green (bats + pytest, ≥ 31 passing)
+- `make lint` clean
+- `bin/ora-db-audit.sh --help` documents `--sample-rows`
+- Report contains CIS coverage section and audit-roles section
+- `--export-prompt` works without API key or Claude CLI installed
 
 ---
 
-## Highly Recommended v1.0.1 - "Post-release fixes and features"
+## v1.2.0 - "Off-path detection + SIEM adapters"
 
-- Handle usability for audit trails with several million records. What kind of
-  possibilities do we have? Right now we have several queries with join, group by etc.
-- Find a solution to have a good overview also for large audit trails. Maybe a
-  summary report with the most important KPIs and only a sample of the findings?
-  But clearly identify blind spots when not all data can be processed in a
-  reasonable time frame.
-- `--export-prompt` flag: export the complete AI prompt (with report data
-  embedded) to a file so the user can paste it into claude.ai, ChatGPT, or
-  any other AI provider when the Anthropic API is unavailable.
-- Rules transparency: expose the `docs/ai-analysis-rules.md` reference doc
-  to the end user so analysis logic is auditable without reading Python source.
+Goal: formalise the off-path detection use case (currently lab-only
+in the eng repo) and add an optional SIEM-friendly output format.
+
+### Deliverables
+
+#### D1 - Off-path detection use case doc
+
+- Import and sanitise `uc_offpath_detection.md` from the eng repo.
+- Target: `docs/use-cases/off-path-detection.md`.
+- Supplement with a new SQL query `19-offpath-candidates.sql` that
+  surfaces host + user combinations not matching the expected
+  application-tier pattern, without requiring `ODB_AUDIT_CTX` to
+  be deployed.
+
+**D2 - SIEM export adapter** (`tools/`)
+
+- New script `tools/export_siem.py`: reads an anonymised bundle and
+  writes OCSF-flavoured JSON (or CSV-to-Sentinel schema) for ingestion
+  into a SIEM.
+- Opt-in via `bin/ora-db-audit.sh --export-siem FORMAT OUTPUT`.
 
 ---
 
-## Beyond v1.0 - candidate features (no commitment yet)
+## v2.0.0 - "Policy Generator + Migration helper"
 
-The list below is intentionally not prioritised. It is the staging area
-for ideas surfaced during the audit_pack engagement work or community
-feedback after release.
+Goal: close the audit lifecycle loop - go from compliance requirement
+to ready-to-deploy DDL, and assist Mixed-to-Pure migrations.
 
-- **v1.1 - Dual-language output (DE + EN)**: v1.0 ships German-only.
-  v1.1 adds English translations via `--lang en|de` flag. Phase D
-  rewrite in v1.0 already designs for this (centralised message dict),
-  so v1.1 is an additive change.
-- **v1.1 - Off-Path-Detection use case**: import
-  `uc_offpath_detection.md` from eng repo; sanitised + new SQL queries
-  detecting unexpected host/user combinations beyond the existing
-  host-pattern classification.
-- **v1.1 - Additional SQL queries**: per-policy success/failure breakdown,
-  long-running session detection, audit-trail-vs-listener log cross-check.
-- **v1.2 - SIEM export adapters**: opt-in OCS / CSV-to-OCSF / Sentinel
-  format helpers (the audit data structure is already there, just an
-  output adapter).
-- **v1.x - Oracle 26ai-specific checks**: leverage 26ai unified audit
-  enhancements once the public docs stabilise.
-- **v2.0 - Policy Generator**: from a "I want to audit X actions by role
-  Y" requirement, generate the unified audit policy DDL + cleanup
-  NOAUDIT. Cross-references the existing `/oracle-audit` skill.
-- **v2.0 - Mixed-to-Pure Unified Audit migration helper**: detect mixed
-  mode artefacts, propose migration order, generate the cutover script.
-- **v2.0 - Compliance-Report module**: PCI-DSS / ISO 27001 / STIG mapping
-  on top of the CIS base, with gap-analysis report rendering.
-- **v2.0 - GUI / dashboard**: out of scope unless community demand emerges.
+### Deliverables
+
+#### P1 - Policy Generator
+
+- Interactive CLI: `bin/ora-db-audit.sh --generate-policy`.
+- Input: compliance requirement (CIS control ID, STIG rule ID, or
+  free-text action list) + scope (CDB / PDB, user/role, object).
+- Output: ready-to-run `CREATE AUDIT POLICY ... AUDIT ... WHEN ...` +
+  matching `NOAUDIT POLICY ...` cleanup stub.
+- Integrates with `/oracle-audit` skill for policy-design guidance.
+
+#### P2 - Mixed-to-Pure migration helper
+
+- New SQL `sql/20-legacy-audit-inventory.sql`: lists `AUD$`,
+  `FGA_LOG$`, `AUDIT TRAIL` entries from Traditional Auditing.
+- Report section: migration impact assessment - row counts, retained
+  policies, estimated cutover risk.
+- Generates a phased cutover script:
+  `NOAUDIT ALL; ALTER SYSTEM SET audit_trail=NONE SCOPE=SPFILE;`
+  with required `DBMS_AUDIT_MGMT` cleanup sequence.
+
+#### P3 - Extended compliance mapping
+
+- Add PCI-DSS v4.0 and ISO 27001:2022 controls to
+  `docs/compliance-mapping.md`.
+- New report section: compliance gap table per standard.
+
+---
+
+## Beyond v2.0 - candidate ideas (no commitment)
+
+- Oracle 26ai-specific unified audit enhancements (once docs stabilise)
+- GUI / dashboard (out of scope unless community demand emerges)
+- `ora-db-audit` as a Python package (pip-installable)
+- Multi-PDB parallel collection mode
 
 ---
 
 ## Out of scope (permanent)
 
 - Traditional auditing (`AUDIT_TRAIL=DB|OS|XML` legacy mode) -
-  desupported in 23ai+, no point.
-- Read-from-binary mandatory `*.aud` files - already covered by Oracle's
-  shipped utilities.
-- GUI dashboard as a v1.0 deliverable - Markdown report is the contract.
+  desupported in 23ai+.
+- Reading binary mandatory `*.aud` files - covered by Oracle utilities.
+- GUI dashboard as a primary deliverable.
 
 ---
 
 ## How to evolve this roadmap
 
-- Stefan owns priority changes. Discuss in `~/notes/projects/audit-tool.md` first, then update this file.
-- New candidate features: append to "Beyond v1.0" section; do not promote to a
-  versioned milestone without a deliverable/acceptance pair defined.
-- Release dates are aspirational. Real cadence is logged via git tags + CHANGELOG entries.
+- Stefan owns priority changes. Discuss in
+  `~/notes/projects/audit-tool.md` first, then update this file.
+- New candidate features: append to "Beyond v2.0" section; do not
+  promote to a versioned milestone without deliverable + acceptance
+  criteria defined.
+- Real cadence is tracked via git tags + `CHANGELOG.md` entries.
