@@ -667,6 +667,45 @@ def _dedup_policy_rows(inv_data, filter_policies=None):
 
 
 # ---------------------------------------------------------------------------
+_ALWAYS_ACTIVE_POLICIES = frozenset({"ORA$MANDATORY"})
+
+
+def _ghost_event_policies(vol_data, inv_data):
+    """Return (policy_name, event_count) pairs for policies that have events
+    in the audit trail but are not currently enabled (empty enabled_option
+    in the inventory). These represent historical events from policies that
+    were active when the events were recorded but have since been disabled.
+
+    ORA$MANDATORY is excluded: it is always internally active by Oracle design
+    and never appears in audit_unified_enabled_policies."""
+    if vol_data is None or inv_data is None:
+        return []
+    idx_inv_pol = _col_index(inv_data, "policy_name")
+    idx_inv_opt = _col_index(inv_data, "enabled_option")
+    enabled: set[str] = set()
+    for r in inv_data.get("rows", []):
+        opt = _row_get(r, idx_inv_opt).strip().strip("'\"")
+        if opt:
+            enabled.add(_row_get(r, idx_inv_pol).strip().strip("'\""))
+    idx_vol_pol = _col_index(vol_data, "policy_name")
+    idx_vol_evt = _col_index(vol_data, "events")
+    ghost: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    for r in vol_data.get("rows", []):
+        pol = _row_get(r, idx_vol_pol).strip().strip("'\"")
+        if not pol or pol in seen or pol in _ALWAYS_ACTIVE_POLICIES:
+            continue
+        seen.add(pol)
+        if pol not in enabled:
+            try:
+                events = int(_row_get(r, idx_vol_evt).replace("'", ""))
+            except (ValueError, AttributeError):
+                events = 0
+            if events > 0:
+                ghost.append((pol, events))
+    return sorted(ghost, key=lambda x: -x[1])
+
+
 # Host-pattern classification
 # ---------------------------------------------------------------------------
 
@@ -1210,6 +1249,36 @@ def render_section_02_storage(file_data):
              mb=fmt_int(round(total_mb, 2))) + "\n\n"
     out += render_table(file_data["headers"], rows)
     out += "\n"
+
+    # Trail management health from Phase 3 metadata (purge job + archive ts).
+    purge_count_raw = (meta.get("purge_job_count") or "0").strip()
+    purge_status = (meta.get("purge_job_status") or "NONE").strip()
+    last_arch = (meta.get("last_archive_timestamp") or "(not set)").strip()
+    part_interval = (meta.get("partition_interval") or "(unknown)").strip()
+
+    try:
+        purge_count = int(purge_count_raw)
+    except ValueError:
+        purge_count = 0
+
+    out += t("storage.trail_mgmt", lang=LANG) + "\n\n"
+    out += render_table(
+        ["", ""],
+        [
+            [t("storage.purge_job_row", lang=LANG),
+             f"{purge_count} ({purge_status})"],
+            [t("storage.last_arch_row", lang=LANG), last_arch],
+            [t("storage.part_interval_row", lang=LANG), part_interval],
+        ],
+    )
+    out += "\n"
+
+    last_arch_missing = not last_arch or last_arch.startswith("(not")
+    if purge_count == 0:
+        out += t("storage.purge_warn_no_job", lang=LANG) + "\n\n"
+    elif last_arch_missing:
+        out += t("storage.purge_warn_no_ts", lang=LANG) + "\n\n"
+
     return out
 
 
@@ -1298,6 +1367,15 @@ def render_section_04_07_volumes(files, top_n):
             continue
         out += render_table(fd["headers"], fd["rows"], max_rows=top_n)
         out += "\n"
+        if qid == "04":
+            ghost = _ghost_event_policies(fd, files.get("03"))
+            if ghost:
+                total = sum(e for _, e in ghost)
+                out += t("vol.ghost_events_note", lang=LANG,
+                         n=len(ghost), total=fmt_int(total)) + "\n"
+                for pol, evts in ghost:
+                    out += f"  - `{pol}` ({fmt_int(evts)})\n"
+                out += "\n"
     return out
 
 

@@ -162,8 +162,8 @@ Options:
                        this flag only the overview table is included and
                        a hint is shown. Only used with --report.
   --to-html            Convert audit_report.md to audit_report.html after
-                       report generation (implies --report). Uses
-                       tools/md_to_html.py with docs/report.css if found.
+                       report generation (implies --report). Uses pandoc
+                       when available, falls back to tools/md_to_html.py.
                        Produces a self-contained HTML file in the bundle dir.
   --lang de|en         Report language (default: de). Passed to
                        audit_report.py. Only used with --report.
@@ -600,9 +600,9 @@ deanonymize_report() {
 }
 
 # ------------------------------------------------------------------------------
-# to_html - convert audit_report.md -> audit_report.html using md_to_html.py
-# Uses docs/report.css from REPO_ROOT when available; md_to_html.py falls back
-# to an inline stylesheet when the CSS file is absent (self-contained dist).
+# to_html - convert audit_report.md -> audit_report.html
+# Prefers pandoc (richer output, no Python dep); falls back to md_to_html.py.
+# Uses docs/report.css from REPO_ROOT when available.
 # ------------------------------------------------------------------------------
 to_html() {
     local report_target="$1"
@@ -613,6 +613,29 @@ to_html() {
         return 1
     fi
 
+    local html_file="${report_target}/audit_report.html"
+    local title
+    title="$(basename "${report_target}")"
+    local css_file="${REPO_ROOT}/docs/report.css"
+
+    # Prefer pandoc - better output quality, no Python package dependency
+    local pandoc_bin
+    pandoc_bin="$(command -v pandoc 2>/dev/null || true)"
+    if [[ -n "${pandoc_bin}" ]]; then
+        log "converting ${md_file} -> ${html_file} (pandoc)..."
+        local css_args=()
+        [[ -f "${css_file}" ]] && css_args=(--css "${css_file}")
+        "${pandoc_bin}" "${md_file}" \
+            --standalone --embed-resources \
+            "${css_args[@]}" \
+            --metadata title="${title}" \
+            --toc --toc-depth=2 \
+            -o "${html_file}"
+        log "HTML report: ${html_file}"
+        return 0
+    fi
+
+    # pandoc not found - fall back to Python md_to_html.py
     local tools_dir
     if ! tools_dir="$(resolve_tools_dir)"; then
         return 1
@@ -629,18 +652,14 @@ to_html() {
         return 1
     fi
     if ! "${python_bin}" -c "import markdown" 2>/dev/null; then
-        err "--to-html requires the 'markdown' Python package"
-        err "Install it with: ${python_bin} -m pip install markdown"
-        err "Or: pip install -r requirements.txt  (repo root)"
+        err "--to-html requires pandoc or the Python 'markdown' package"
+        err "Install pandoc:         brew install pandoc"
+        err "Or Python package:      ${python_bin} -m pip install markdown"
+        err "Or via requirements:    pip install -r requirements.txt"
         return 1
     fi
 
-    local html_file="${report_target}/audit_report.html"
-    local title
-    title="$(basename "${report_target}")"
-    local css_file="${REPO_ROOT}/docs/report.css"
-
-    log "converting ${md_file} -> ${html_file}..."
+    log "converting ${md_file} -> ${html_file} (Python markdown)..."
     if [[ -f "${css_file}" ]]; then
         "${python_bin}" "${script}" "${md_file}" "${html_file}" "${title}" "${css_file}"
     else

@@ -4,8 +4,8 @@
 -- -----------------------------------------------------------------------------
 -- Name......: 02-storage.sql
 -- Author....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
--- Date......: 2026.05.12
--- Revision..: 0.4.0
+-- Date......: 2026.05.28
+-- Revision..: 0.5.0
 -- Purpose...: Audit-trail storage analysis with partition tablespace
 --             disambiguation plus trail-management health metadata.
 --             Captures per-partition details for AUDSYS.AUD$UNIFIED and emits
@@ -116,11 +116,11 @@ FROM
     (SELECT COUNT(*)        AS job_count,
             MAX(job_status) AS job_status
      FROM   dba_audit_mgmt_cleanup_jobs
-     WHERE  audit_trail_type = 'UNIFIED AUDIT TRAIL') j,
+     WHERE  audit_trail = 'UNIFIED AUDIT TRAIL') j,
     -- Last archive timestamp used by the purge job to bound deletions
     (SELECT MAX(last_archive_ts) AS last_ts
      FROM   dba_audit_mgmt_last_arch_ts
-     WHERE  audit_trail_type = 'UNIFIED AUDIT TRAIL') a,
+     WHERE  audit_trail = 'UNIFIED AUDIT TRAIL') a,
     -- INTERVAL is a reserved word in Oracle SQL and must be quoted.
     (SELECT NVL("INTERVAL", '(none)') AS part_interval
      FROM   dba_part_tables
