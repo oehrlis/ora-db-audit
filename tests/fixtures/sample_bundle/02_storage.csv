@@ -1,0 +1,18 @@
+# query: storage
+# query_id: 02
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: -
+# audit_data_tablespace_default: AUDIT_TS
+# audit_data_tablespace_current: AUDIT_TS
+# audit_data_tablespace_older_partitions: AUDIT_TS
+# purge_job_count: 1
+# purge_job_status: ENABLED
+# last_archive_timestamp: 2026-05-11 00:00:00
+# partition_interval: NUMTOYMINTERVAL(1,'MONTH')
+# schema: partition_name=KEEP|num_rows=COUNT|size_mb=COUNT|last_analyzed=TIMESTAMP|tablespace_name=TABLESPACE_STATE|partition_position=KEEP|creation_time=TIMESTAMP
+partition_name|num_rows|size_mb|last_analyzed|tablespace_name|partition_position|creation_time
+SYS_P10001|50000|12.50|2026-05-11 23:00:00|AUDIT_TS|1|2026-04-01 00:00:00
+SYS_P10002|125000|31.25|2026-05-12 09:30:00|AUDIT_TS|2|2026-04-01 00:00:00
+SYS_P10003|7800|2.10|2026-05-12 09:45:00|AUDIT_TS|3|2026-04-01 00:00:00

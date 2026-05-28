@@ -1,0 +1,12 @@
+# query: failed_logins
+# query_id: 13
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: 5.2
+# date_range_days: 30
+# top_n: 100
+# schema: dbusername=PSEUDO:DBUSER|userhost=PSEUDO:HOST|client_program_name=PSEUDO:CLIENT|return_code=KEEP|failed_attempts=COUNT|distinct_programs=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP
+dbusername|userhost|client_program_name|return_code|failed_attempts|distinct_programs|first_seen|last_seen
+stefan.oehrli|laptop-001.example.com|SQL Developer|1017|8|1|2026-04-20 14:00:00|2026-05-11 18:00:00
+admin|unknown-host-99.acme.com|sqlplus|1017|4|1|2026-04-25 11:00:00|2026-05-11 22:00:00

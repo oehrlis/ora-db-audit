@@ -1,0 +1,14 @@
+# query: top_objects
+# query_id: 10
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: -
+# schema: object_schema=PSEUDO:SCHEMA|object_name=PSEUDO:OBJECT|object_type=KEEP|events=COUNT|distinct_users=COUNT|distinct_actions=COUNT
+object_schema|object_name|object_type|events|distinct_users|distinct_actions
+SYS|DUAL|TABLE|9999|10|2
+TVD_HR|EMPLOYEES|TABLE|450|3|4
+TVD_HR|DEPARTMENTS|TABLE|150|2|3
+SCOTT|EMP|TABLE|120|2|2
+ODB|AUDIT_CONFIG|TABLE|44|1|2
+DBA_USERS||VIEW|10|1|1

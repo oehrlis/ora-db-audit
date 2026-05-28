@@ -1,0 +1,13 @@
+# query: policy_host
+# query_id: 07
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: -
+# date_range_days: 30
+# top_n: 100
+# schema: policy_name=KEEP|userhost=PSEUDO:HOST|events=COUNT|distinct_users=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP
+policy_name|userhost|events|distinct_users|first_seen|last_seen
+ODB_LOC_LOGON_EVENTS_V1|auditlab-db.example.com|6200|2|2026-04-12 09:00:00|2026-05-12 09:30:00
+ODB_LOC_LOGON_EVENTS_V1|auditlab-app-classic.example.com|800|1|2026-04-15 08:30:00|2026-05-12 09:25:00
+ODB_LOC_DIRECT_ACCESS_V1|laptop-001.example.com|55|1|2026-04-20 14:00:00|2026-05-11 18:00:00

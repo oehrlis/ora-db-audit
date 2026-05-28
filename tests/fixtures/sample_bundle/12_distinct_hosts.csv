@@ -1,0 +1,15 @@
+# query: distinct_hosts
+# query_id: 12
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: -
+# date_range_days: 30
+# top_n: 100
+# schema: userhost=PSEUDO:HOST|logins=COUNT|distinct_users=COUNT|distinct_programs=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP
+userhost|logins|distinct_users|distinct_programs|first_seen|last_seen
+auditlab-db.example.com|6200|2|2|2026-04-12 09:00:00|2026-05-12 09:30:00
+auditlab-app-classic.example.com|800|1|1|2026-04-15 08:30:00|2026-05-12 09:25:00
+auditlab-app-paas.example.com|410|1|1|2026-04-16 08:30:00|2026-05-12 09:20:00
+laptop-001.example.com|55|1|1|2026-04-20 14:00:00|2026-05-11 18:00:00
+unknown-host-99.acme.com|12|1|1|2026-04-25 11:00:00|2026-05-11 22:00:00

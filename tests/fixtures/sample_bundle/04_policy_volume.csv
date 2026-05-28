@@ -1,0 +1,13 @@
+# query: policy_volume
+# query_id: 04
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: -
+# date_range_days: 30
+# top_n: 100
+# schema: policy_name=KEEP|events=COUNT|distinct_users=COUNT|distinct_hosts=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP
+policy_name|events|distinct_users|distinct_hosts|first_seen|last_seen
+ODB_LOC_LOGON_EVENTS_V1, ODB_LOC_DIRECT_ACCESS_V1|12345|7|3|2026-04-12 09:00:00|2026-05-12 09:30:00
+ODB_LOC_LOGON_EVENTS_V1|5421|5|2|2026-04-12 09:01:00|2026-05-12 09:29:00
+ORA_LOGON_FAILURES|18|2|1|2026-04-20 10:00:00|2026-05-11 23:00:00

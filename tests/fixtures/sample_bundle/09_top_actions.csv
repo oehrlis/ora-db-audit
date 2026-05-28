@@ -1,0 +1,15 @@
+# query: top_actions
+# query_id: 09
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: -
+# date_range_days: 30
+# top_n: 100
+# schema: action_name=KEEP|events=COUNT|distinct_users=COUNT|distinct_objects=COUNT|distinct_policies=COUNT
+action_name|events|distinct_users|distinct_objects|distinct_policies
+LOGON|10500|6|0|2
+SELECT|2400|4|18|3
+INSERT|600|3|5|2
+UPDATE|420|2|4|1
+DELETE|85|1|1|1
