@@ -38,6 +38,9 @@ artefacts/*.pdf
 workspace/*
 !workspace/.gitkeep
 
+# Claude Code agent worktrees - transient sub-agent state
+.claude/worktrees/
+
 # AI toolkit symlinks - managed by init-repo.sh, not committed
 .claude/commands/idea-capture.md
 .claude/commands/idea-sparring.md
