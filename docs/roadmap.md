@@ -14,6 +14,7 @@ Current release: **v1.1.1** - Updated: 2026-05-28
 | 1.0.1   | released | 2026-05-28 | Dist tarball layout fix (REPO_ROOT path), `--from-bundle` output dir default, base64 dist artifact, root wrapper without `.sh` |
 | 1.0.2   | released | 2026-05-28 | Bundle quality fixes B1-B5: SQL*Plus continuation char, Phase 3 variable defaults, ORA-22848 CLOB DISTINCT, legacy_param for audit_mgmt rows, context-aware PSEUDO:OBJECT anonymization |
 | 1.1.0   | released | 2026-05-28 | R1+R2: CIS coverage (Section 9) + Audit-Roles (Section 10) report sections; R4: --export-prompt flag; AI section renumbered to 11 |
+| 1.1.1   | released | 2026-05-28 | R5: dual-language DE/EN output; D1: off-path detection doc + sql/19-offpath-candidates.sql |
 <!-- markdownlint-enable MD013 MD060 -->
 
 ---

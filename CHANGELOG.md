@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-05-28
+
+### Added
+
+- **R5** - Dual-language output (`--lang en|de`, default `de`) in
+  `tools/audit_report.py`. `MESSAGES["en"]` populated in
+  `tools/audit_report_messages.py` with full English translations of all
+  user-facing strings: section titles, table column headers, verdict messages,
+  audit-mode blockquotes, storage verdicts, CIS and audit-roles notes, tuning
+  rationale strings. `SUPPORTED_LANGUAGES` extended to `("de", "en")`.
+  `validate_catalog("en")` returns empty (no drift).
+- **D1** - Off-path detection use case (`docs/use-cases/off-path-detection.md`):
+  covers pattern-based vs. application-context-based detection, configuration
+  options, triage heuristic, and comparison table.
+- **D1** - `sql/19-offpath-candidates.sql`: surfaces host + user combinations
+  not matching `APP_PATTERN` / `INFRA_PATTERN` / `DBA_PATTERN`. No
+  `ODB_AUDIT_CTX` deployment required. Output schema compatible with
+  `anonymize_bundle.py` (PSEUDO:HOST, PSEUDO:DBUSER, COUNT anonymisation).
+- 2 new pytest tests for EN catalog completeness and EN report content
+  (38 total, all passing).
+
+### Changed
+
+- `tools/audit_report_messages.py` version `0.2.0` -> `0.3.0`.
+
 ## [1.1.0] - 2026-05-28
 
 ### Added

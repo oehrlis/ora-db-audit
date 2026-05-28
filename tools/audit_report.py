@@ -657,12 +657,8 @@ def when_clause_for(noise_row, headers, policy_ddl_map):
             "condition_expr": (
                 f"SYS_CONTEXT(''USERENV'',''SESSION_USER'') != ''{user}''"
             ),
-            "rationale": (
-                f"Filtere Events vom Benutzer `{user}` aus. Anwendbar "
-                f"wenn `{user}` ein deterministischer Service-Account "
-                f"ist und seine Aktionen aus dem Audit-Scope ausgeschlossen "
-                f"werden duerfen (Compliance-Pruefung erforderlich)."
-            ),
+            "rationale": t("tuning.rationale_user", lang=LANG,
+                           user=user, policy=policy),
         })
 
     if program:
@@ -673,11 +669,8 @@ def when_clause_for(noise_row, headers, policy_ddl_map):
                 f"SYS_CONTEXT(''USERENV'',''CLIENT_PROGRAM_NAME'') "
                 f"!= ''{program}''"
             ),
-            "rationale": (
-                f"Filtere Events vom Client-Programm `{program}` aus. "
-                f"Sinnvoll bei automatisierten Monitoring- oder "
-                f"Backup-Tools mit hohem Aktivitaets-Volumen."
-            ),
+            "rationale": t("tuning.rationale_program", lang=LANG,
+                           program=program),
         })
 
     if user and program and user.upper() not in {"(NULL)", ""}:
@@ -689,23 +682,16 @@ def when_clause_for(noise_row, headers, policy_ddl_map):
                 f"AND SYS_CONTEXT(''USERENV'',''CLIENT_PROGRAM_NAME'') "
                 f"= ''{program}'')"
             ),
-            "rationale": (
-                f"Engste Suppression: nur die exakte Kombination "
-                f"`{user}` / `{program}` wird ausgeblendet. Andere "
-                f"Benutzer mit dem gleichen Programm und `{user}` mit "
-                f"anderen Programmen bleiben weiterhin auditiert."
-            ),
+            "rationale": t("tuning.rationale_combo", lang=LANG,
+                           user=user, program=program),
         })
 
     if not suggestions:
         suggestions.append({
             "label": t("tuning.no_template", lang=LANG, policy=policy),
             "condition_expr": None,
-            "rationale": (
-                f"Weder `dbusername` noch `client_program_name` liefern "
-                f"eine eindeutige Suppression-Heuristik. Manuelle Analyse "
-                f"der Action `{action or '<n/a>'}` erforderlich."
-            ),
+            "rationale": t("tuning.rationale_no_template", lang=LANG,
+                           action=action or "<n/a>"),
         })
 
     return {
@@ -742,34 +728,33 @@ def render_executive_summary(bundle, classifier, top_n):
     days = manifest.get("time_window_days", "?")
     top_n_pack = manifest.get("top_n", "?")
 
-    out = section_header(1, f"Audit-Trail Analyse - {dbsid} / {pdb or '?'}")
+    out = section_header(1, t("report.page_title", lang=LANG,
+                              dbsid=dbsid, pdb=pdb or "?"))
 
-    out += section_header(2, "Executive Summary")
+    out += section_header(2, t("section.executive_summary", lang=LANG))
     out += (
-        f"- **DBSID:** `{dbsid}`\n"
-        f"- **PDB:** `{pdb or '?'}`\n"
-        f"- **Zeitfenster:** letzte {days} Tage\n"
-        f"- **Bundle Top-N:** {top_n_pack}\n"
-        f"- **Bundle erzeugt:** "
-        f"{manifest.get('generated_at', '?')}\n"
-        f"- **Bundle-Version:** "
-        f"{manifest.get('bundle_version', '?')}\n\n"
+        f"- {t('exec.dbsid', lang=LANG, dbsid=dbsid)}\n"
+        f"- {t('exec.pdb', lang=LANG, pdb=pdb or '?')}\n"
+        f"- {t('exec.window', lang=LANG, days=days)}\n"
+        f"- {t('exec.top_n', lang=LANG, top_n=top_n_pack)}\n"
+        f"- {t('exec.generated', lang=LANG, ts=manifest.get('generated_at', '?'))}\n"
+        f"- {t('exec.version', lang=LANG, version=manifest.get('bundle_version', '?'))}\n\n"
     )
 
     pol_events = _sum_column(files.get("04"), "events")
     user_events = _sum_column(files.get("08"), "events")
     failed_total = _sum_column(files.get("13"), "failed_attempts")
 
-    out += section_header(3, "Kennzahlen")
+    out += section_header(3, t("section.metrics", lang=LANG))
     out += render_table(
-        ["Metrik", "Wert"],
+        [t("label.metric", lang=LANG), t("label.value", lang=LANG)],
         [
-            ["Events (Policy-getrieben, Summe Top-N)", fmt_int(pol_events)],
-            ["Events (User-Summe Top-N)", fmt_int(user_events)],
-            ["Failed Logins (Summe Top-N)", fmt_int(failed_total)],
-            ["Aktive Audit-Policies (Inventar)",
+            [t("metric.pol_events", lang=LANG), fmt_int(pol_events)],
+            [t("metric.user_events", lang=LANG), fmt_int(user_events)],
+            [t("metric.failed_logins", lang=LANG), fmt_int(failed_total)],
+            [t("metric.active_policies", lang=LANG),
              fmt_int(len(files.get("03", {}).get("rows", [])))],
-            ["Storage-Partitionen",
+            [t("metric.storage_partitions", lang=LANG),
              fmt_int(len(files.get("02", {}).get("rows", [])))],
         ],
     )
@@ -781,14 +766,17 @@ def render_executive_summary(bundle, classifier, top_n):
         idx_events = _col_index(pol, "events")
         rows = pol.get("rows", [])[:3]
         if rows:
-            out += "\n" + section_header(3, "Top 3 Volume-Treiber (Policy)")
+            out += "\n" + section_header(3, t("section.top3_volume", lang=LANG))
             top_rows = []
             for r in rows:
                 top_rows.append([
                     _row_get(r, idx_policy),
                     fmt_int(_row_get(r, idx_events)),
                 ])
-            out += render_table(["Policy", "Events"], top_rows)
+            out += render_table(
+                [t("label.policy", lang=LANG), t("label.events", lang=LANG)],
+                top_rows,
+            )
 
     # Off-path indicator via host pattern check on 12_distinct_hosts.
     if "12" in files:
@@ -797,9 +785,9 @@ def render_executive_summary(bundle, classifier, top_n):
         for cls in offpath.values():
             counts[cls] += 1
         if counts:
-            out += "\n" + section_header(3, "Host-Klassifizierung (Zusammenfassung)")
+            out += "\n" + section_header(3, t("section.host_summary", lang=LANG))
             out += render_table(
-                ["Klasse", "Anzahl Hosts"],
+                [t("label.class", lang=LANG), t("label.host_count", lang=LANG)],
                 [
                     ["APP", fmt_int(counts.get("APP", 0))],
                     ["INFRA", fmt_int(counts.get("INFRA", 0))],
@@ -808,10 +796,7 @@ def render_executive_summary(bundle, classifier, top_n):
                 ],
             )
             if counts.get("OFF-PATH", 0):
-                out += (
-                    "\n> **Hinweis:** OFF-PATH-Hosts identifiziert. "
-                    "Detail in Kapitel 7 (Security Signals).\n\n"
-                )
+                out += "\n" + t("offpath.hint", lang=LANG) + "\n\n"
     return out
 
 
@@ -862,47 +847,22 @@ def render_section_01_config(file_data):
     out += f"**{t('report.audit_mode', lang=LANG, audit_mode=mode_label)}**\n\n"
 
     if audit_mode == "mixed":
-        out += (
-            "> **Mixed Mode erkannt** - dieser Bericht-Scope ist Pure Mode. "
-            "Findings unterhalb sind unter dieser Annahme zu lesen; eine "
-            "vollstaendige Analyse erfordert vorher die Migration auf "
-            "Pure Mode (siehe /oracle-audit skill, Mixed-to-Pure).\n\n"
-        )
+        out += t("mode.mixed_note", lang=LANG) + "\n\n"
     elif audit_mode == "pure-contaminated":
-        out += (
-            "> **Pure Mode mit Alt-Daten** - keine neuen Legacy-Schreibvorgaenge, "
-            "aber `SYS.AUD$` enthaelt noch alte Zeilen. Optional purgen mit "
-            "`DBMS_AUDIT_MGMT.CLEAN_AUDIT_TRAIL(AUDIT_TRAIL_AUD_STD,...)`.\n\n"
-        )
+        out += t("mode.pure_contaminated_note", lang=LANG) + "\n\n"
     elif audit_mode == "pure-intent":
-        out += (
-            "> **Pure Mode, Legacy-Parameter gesetzt** - `audit_trail` Wert "
-            "ist nicht `NONE`, hat in Pure Mode aber keine Wirkung. "
-            "Empfehlung: beim naechsten Bounce `audit_trail = NONE` setzen.\n\n"
-        )
+        out += t("mode.pure_intent_note", lang=LANG) + "\n\n"
     elif audit_mode == "unsupported":
-        out += (
-            "> **Unified Auditing nicht aktiv** - dieser Tool-Scope ist nicht "
-            "anwendbar. Vor weiterer Analyse Unified Auditing aktivieren.\n\n"
-        )
+        out += t("mode.unsupported_note", lang=LANG) + "\n\n"
     elif audit_mode == "pure":
-        # No warning needed - clean state.
         pass
     else:
-        out += (
-            "> _(audit_mode-Metadata fehlt - 01-config.sql wurde "
-            "moeglicherweise vor Phase C generiert. Pure-Mode-Annahmen "
-            "gelten implizit; legacy-Parameter-Findings bitte selbst pruefen.)_\n\n"
-        )
+        out += t("mode.unknown_note", lang=LANG) + "\n\n"
 
     if recent_legacy and recent_legacy != "0" and recent_legacy.lower() != "null":
-        out += (
-            f"> **Hinweis:** `SYS.AUD$` enthaelt {recent_legacy} Zeilen aus "
-            f"den letzten 7 Tagen - aktive Mixed-Mode-Schreibvorgaenge? "
-            f"Quelle pruefen (Traditional-AUDIT-Statements aktiv?).\n\n"
-        )
+        out += t("mode.aud_recent_rows", lang=LANG, n=recent_legacy) + "\n\n"
 
-    out += "Quelle: `01-config.csv` (DBMS_AUDIT_MGMT, init-Parameter, Instanz)\n\n"
+    out += t("note.source_01", lang=LANG) + "\n\n"
 
     # Find the legacy_param column to mark legacy parameters in the table.
     idx_legacy = _col_index(file_data, "legacy_param")
@@ -921,11 +881,7 @@ def render_section_01_config(file_data):
                     new_r[0] = f"{new_r[0]} _(legacy)_"
             annotated_rows.append(new_r)
         out += render_table(headers, annotated_rows)
-        out += (
-            "\n_Parameter mit `_(legacy)_` Markierung sind Mixed-Mode-Artefakte. "
-            "Sie haben in Pure Mode keinen Effekt - Findings darauf sind "
-            "False-Positive (siehe `docs/ai-analysis-rules.md` Section 2)._\n\n"
-        )
+        out += "\n" + t("mode.legacy_params_footer", lang=LANG) + "\n\n"
     else:
         out += render_table(file_data["headers"], rows)
         out += "\n"
@@ -976,79 +932,57 @@ def render_section_02_storage(file_data):
     if tbs_default:
         if tbs_default.upper() == "SYSAUX":
             verdict_label = "MISCONFIGURATION"
-            verdict_note = (
-                "AUD$UNIFIED Default-Tablespace ist `SYSAUX`. Audit-Daten "
-                "und Data-Dictionary teilen sich denselben Tablespace - "
-                "Empfehlung: `ALTER TABLE AUDSYS.AUD$UNIFIED MODIFY DEFAULT "
-                "ATTRIBUTES TABLESPACE AUDIT_DATA;` (Tablespace `AUDIT_DATA` "
-                "ggf. zuerst anlegen)."
-            )
+            verdict_note = t("storage.verdict_misconfig", lang=LANG)
         elif tbs_default.upper() == tbs_current.upper() and not older_set - {tbs_default.upper()}:
             verdict_label = "OK"
-            verdict_note = (
-                f"Default- und alle Partitions-Tablespaces stehen auf "
-                f"`{tbs_default}`. Keine Massnahme erforderlich."
-            )
+            verdict_note = t("storage.verdict_ok", lang=LANG, tbs=tbs_default)
         elif tbs_default.upper() == tbs_current.upper():
             verdict_label = "TRANSIENT"
-            verdict_note = (
-                f"Default-Tablespace ist `{tbs_default}` (korrekt), aber "
-                f"aeltere Partitionen liegen noch in: "
-                f"`{', '.join(sorted(older_set))}`. Optional: pro Partition "
-                f"`ALTER TABLE AUDSYS.AUD$UNIFIED MOVE PARTITION <name> "
-                f"TABLESPACE {tbs_default};` - keine Pflicht (kein Finding)."
-            )
+            verdict_note = t("storage.verdict_transient_older", lang=LANG,
+                             tbs_default=tbs_default,
+                             tbs_older=", ".join(sorted(older_set)))
         elif tbs_current and tbs_default.upper() != tbs_current.upper():
             verdict_label = "TRANSIENT"
-            verdict_note = (
-                f"Default-Tablespace wurde auf `{tbs_default}` umgestellt, "
-                f"aktuelle Partition liegt aber noch in `{tbs_current}`. "
-                f"Naechste Range-Partition wird in `{tbs_default}` angelegt "
-                f"(Auto-Partitionierung). Kein Finding."
-            )
+            verdict_note = t("storage.verdict_transient_current", lang=LANG,
+                             tbs_default=tbs_default, tbs_current=tbs_current)
         elif not tbs_current:
             verdict_label = "EMPTY"
-            verdict_note = (
-                f"AUD$UNIFIED hat noch keine Partition - das erste Event "
-                f"erzeugt eine Partition in `{tbs_default}`. Kein Finding."
-            )
+            verdict_note = t("storage.verdict_empty", lang=LANG,
+                             tbs_default=tbs_default)
 
     if verdict_label:
-        out += f"**Verdict:** `{verdict_label}` - {verdict_note}\n\n"
+        out += t("storage.verdict_fmt", lang=LANG,
+                 label=verdict_label, note=verdict_note) + "\n\n"
     else:
-        out += (
-            "> _(Tablespace-Metadata fehlt - 02-storage.sql wurde "
-            "moeglicherweise vor Phase C generiert. Manuelle Pruefung "
-            "der Tablespace-Zuordnung erforderlich.)_\n\n"
-        )
+        out += t("storage.verdict_unknown", lang=LANG) + "\n\n"
 
     if tbs_default or tbs_current or tbs_older:
         out += render_table(
-            ["Wert", "Tablespace"],
+            [t("label.value", lang=LANG), "Tablespace"],
             [
-                ["Default fuer neue Partitionen", tbs_default or "_(n/a)_"],
-                ["Aktuelle Partition", tbs_current or "_(n/a)_"],
-                ["Aeltere Partitionen", tbs_older or "_(keine)_"],
+                [t("storage.row_default", lang=LANG), tbs_default or "_(n/a)_"],
+                [t("storage.row_current", lang=LANG), tbs_current or "_(n/a)_"],
+                [t("storage.row_older", lang=LANG), tbs_older or t("storage.none", lang=LANG)],
             ],
         )
         out += "\n"
 
-    out += (
-        f"Partitionen: {len(rows)} - Gesamt {fmt_int(total_rows)} Zeilen / "
-        f"{fmt_int(round(total_mb, 2))} MB.\n\n"
-    )
+    out += t("storage.partitions_summary", lang=LANG,
+             n=len(rows), rows=fmt_int(total_rows),
+             mb=fmt_int(round(total_mb, 2))) + "\n\n"
     out += render_table(file_data["headers"], rows)
     out += "\n"
     return out
 
 
 def render_section_03_policy_inventory(file_data, top_n, include_appendix):
-    out = section_header(2, "3. Policy-Inventar")
+    out = section_header(2, t("section.03_policy_inventory", lang=LANG))
     if file_data is None:
-        out += "_(03_policy_inventory.csv nicht im Bundle)_\n\n"
+        out += t("note.csv_missing", lang=LANG,
+                 fname="03_policy_inventory.csv") + "\n\n"
         return out
     rows = file_data.get("rows", [])
-    out += f"Policies erfasst: **{len(rows)}**.\n\n"
+    out += t("policy.count", lang=LANG, n=len(rows)) + "\n\n"
 
     idx_supplied = _col_index(file_data, "oracle_supplied")
     ora_count = 0
@@ -1061,35 +995,33 @@ def render_section_03_policy_inventory(file_data, top_n, include_appendix):
             cust_count += 1
     if idx_supplied >= 0:
         out += (
-            f"- Oracle-supplied (`ORA_*`): {ora_count}\n"
-            f"- Kunden-/Custom-Policies: {cust_count}\n\n"
+            t("policy.ora_count", lang=LANG, n=ora_count) + "\n"
+            + t("policy.cust_count", lang=LANG, n=cust_count) + "\n\n"
         )
 
     out += render_table(file_data["headers"], rows, max_rows=top_n)
     out += "\n"
     if include_appendix and len(rows) > top_n:
-        out += (
-            "_Vollständige Liste siehe Appendix (alle Policies)._\n\n"
-        )
+        out += t("policy.see_appendix", lang=LANG) + "\n\n"
     return out
 
 
 def render_section_04_07_volumes(files, top_n):
-    out = section_header(2, "4. Volumen-Verteilung")
+    out = section_header(2, t("section.04_07_volumes", lang=LANG))
     sub_specs = [
-        ("04", "4.1 Policies", "04_policy_volume.csv"),
-        ("08", "4.2 User", "08_top_users.csv"),
-        ("09", "4.3 Actions", "09_top_actions.csv"),
-        ("10", "4.4 Objekte", "10_top_objects.csv"),
-        ("06", "4.5 Client-Programme", "06_policy_client_program.csv"),
-        ("07", "4.6 Policies x Hosts", "07_policy_host.csv"),
-        ("05", "4.7 Policies x User x Action", "05_policy_user_action.csv"),
+        ("04", "section.04_1", "04_policy_volume.csv"),
+        ("08", "section.04_2", "08_top_users.csv"),
+        ("09", "section.04_3", "09_top_actions.csv"),
+        ("10", "section.04_4", "10_top_objects.csv"),
+        ("06", "section.04_5", "06_policy_client_program.csv"),
+        ("07", "section.04_6", "07_policy_host.csv"),
+        ("05", "section.04_7", "05_policy_user_action.csv"),
     ]
-    for qid, title, fname in sub_specs:
-        out += section_header(3, title)
+    for qid, title_key, fname in sub_specs:
+        out += section_header(3, t(title_key, lang=LANG))
         fd = files.get(qid)
         if fd is None:
-            out += f"_({fname} nicht im Bundle)_\n\n"
+            out += t("note.csv_missing", lang=LANG, fname=fname) + "\n\n"
             continue
         out += render_table(fd["headers"], fd["rows"], max_rows=top_n)
         out += "\n"
@@ -1097,16 +1029,17 @@ def render_section_04_07_volumes(files, top_n):
 
 
 def render_section_05_connect_profile(files, classifier, top_n):
-    out = section_header(2, "5. Connect-Profil")
-    out += section_header(3, "5.1 Hosts")
+    out = section_header(2, t("section.05_connect_profile", lang=LANG))
+    out += section_header(3, t("section.05_1_hosts", lang=LANG))
     fd12 = files.get("12")
     if fd12 is None:
-        out += "_(12_distinct_hosts.csv nicht im Bundle)_\n\n"
+        out += t("note.csv_missing", lang=LANG,
+                 fname="12_distinct_hosts.csv") + "\n\n"
     else:
         out += render_table(fd12["headers"], fd12["rows"], max_rows=top_n)
         out += "\n"
 
-    out += section_header(3, "5.2 Host-Pattern-Analyse")
+    out += section_header(3, t("section.05_2_pattern", lang=LANG))
     if fd12 is not None:
         idx_host = _col_index(fd12, "userhost")
         idx_logins = _col_index(fd12, "logins")
@@ -1118,16 +1051,20 @@ def render_section_05_connect_profile(files, classifier, top_n):
             cls = classifier.classify(host)
             rows.append([host, cls, fmt_int(_row_get(row, idx_logins))])
         out += render_table(
-            ["Host", "Klasse", "Logins"], rows, max_rows=top_n
+            [t("label.host", lang=LANG),
+             t("label.class", lang=LANG),
+             t("label.logins", lang=LANG)],
+            rows, max_rows=top_n,
         )
         out += "\n"
     else:
-        out += "_(Hosts nicht klassifizierbar - 12_distinct_hosts fehlt)_\n\n"
+        out += t("note.hosts_unclassifiable", lang=LANG) + "\n\n"
 
-    out += section_header(3, "5.3 Connect-Matrix (Host x User x Programm)")
+    out += section_header(3, t("section.05_3_matrix", lang=LANG))
     fd11 = files.get("11")
     if fd11 is None:
-        out += "_(11_host_user_program.csv nicht im Bundle)_\n\n"
+        out += t("note.csv_missing", lang=LANG,
+                 fname="11_host_user_program.csv") + "\n\n"
     else:
         out += render_table(fd11["headers"], fd11["rows"], max_rows=top_n)
         out += "\n"
@@ -1135,14 +1072,12 @@ def render_section_05_connect_profile(files, classifier, top_n):
 
 
 def render_section_06_privileged(file_data, top_n):
-    out = section_header(2, "6. Privileged Activity")
+    out = section_header(2, t("section.06_privileged", lang=LANG))
     if file_data is None:
-        out += "_(14_privileged_activity.csv nicht im Bundle)_\n\n"
+        out += t("note.csv_missing", lang=LANG,
+                 fname="14_privileged_activity.csv") + "\n\n"
         return out
-    out += (
-        "Aktivität privilegierter User (SYS, SYSTEM, "
-        "Customer-DBA-Accounts).\n\n"
-    )
+    out += t("section.06_intro", lang=LANG) + "\n\n"
     out += render_table(file_data["headers"], file_data["rows"],
                         max_rows=top_n)
     out += "\n"
@@ -1150,22 +1085,20 @@ def render_section_06_privileged(file_data, top_n):
 
 
 def render_section_07_security_signals(files, classifier, top_n):
-    out = section_header(2, "7. Security Signals")
-    out += section_header(3, "7.1 Failed Logins")
+    out = section_header(2, t("section.07_security_signals", lang=LANG))
+    out += section_header(3, t("section.07_1_failed", lang=LANG))
     fd13 = files.get("13")
     if fd13 is None:
-        out += "_(13_failed_logins.csv nicht im Bundle)_\n\n"
+        out += t("note.csv_missing", lang=LANG,
+                 fname="13_failed_logins.csv") + "\n\n"
     else:
         out += render_table(fd13["headers"], fd13["rows"], max_rows=top_n)
         out += "\n"
 
-    out += section_header(3, "7.2 Off-Path Candidates")
+    out += section_header(3, t("section.07_2_offpath", lang=LANG))
     fd12 = files.get("12")
     if fd12 is None:
-        out += (
-            "_(Off-Path-Analyse übersprungen - 12_distinct_hosts "
-            "fehlt)_\n\n"
-        )
+        out += t("note.offpath_skipped", lang=LANG) + "\n\n"
         return out
 
     idx_host = _col_index(fd12, "userhost")
@@ -1184,17 +1117,13 @@ def render_section_07_security_signals(files, classifier, top_n):
             fmt_int(_row_get(row, idx_users)),
         ])
     if not offpath_rows:
-        out += (
-            "_Keine OFF-PATH-Hosts identifiziert - alle Quell-Hosts "
-            "matchen App/Infra/DBA-Pattern._\n\n"
-        )
+        out += t("offpath.none", lang=LANG) + "\n\n"
     else:
-        out += (
-            f"**{len(offpath_rows)} Off-Path-Host(s)** - Hosts die "
-            "weder dem App-, Infra- noch DBA-Pattern entsprechen:\n\n"
-        )
+        out += t("offpath.found", lang=LANG, n=len(offpath_rows)) + "\n\n"
         out += render_table(
-            ["Host", "Logins", "Distinct Users"],
+            [t("label.host", lang=LANG),
+             t("label.logins", lang=LANG),
+             t("label.distinct_users", lang=LANG)],
             offpath_rows, max_rows=top_n,
         )
         out += "\n"
@@ -1277,8 +1206,8 @@ def render_section_08_tuning(file_data, top_n, policy_ddl_map):
 
 
 def render_appendix(bundle, top_n):
-    out = section_header(2, "Appendix")
-    out += section_header(3, "Manifest")
+    out = section_header(2, t("section.appendix", lang=LANG))
+    out += section_header(3, t("section.appendix_manifest", lang=LANG))
     manifest = bundle.get("_manifest", {})
     out += "```json\n"
     out += json.dumps(manifest, indent=2, ensure_ascii=False)
@@ -1287,7 +1216,8 @@ def render_appendix(bundle, top_n):
         fd = bundle["_files"].get(qid)
         if fd is None:
             continue
-        out += section_header(3, f"Vollständige Daten - {QUERY_FILES[qid]}")
+        out += section_header(3, t("section.appendix_full_data", lang=LANG,
+                                   name=QUERY_FILES[qid]))
         out += render_table(fd["headers"], fd["rows"])
         out += "\n"
     return out
@@ -1305,16 +1235,14 @@ def render_section_09_cis_coverage(file_data):
     Verdict values: PASS (exists + enabled), WARN (exists but disabled),
     FAIL (policy absent).
     """
-    out = section_header(2, "CIS Benchmark 5.1-5.5 - Policy-Abdeckung")
+    out = section_header(2, t("section.09_cis_coverage", lang=LANG))
     if file_data is None:
-        out += "> _(17_cis_coverage.csv fehlt im Bundle - "
-        out += "SQL/17-cis-coverage.sql wurde nicht ausgefuehrt oder ist "
-        out += "nicht in diesem Bundle enthalten.)_\n\n"
+        out += t("note.csv_missing_cis", lang=LANG) + "\n\n"
         return out
 
     rows = file_data.get("rows", [])
     if not rows:
-        out += "> _(Keine CIS-Coverage-Daten vorhanden.)_\n\n"
+        out += t("note.cis_no_data", lang=LANG) + "\n\n"
         return out
 
     idx_control = _col_index(file_data, "cis_control")
@@ -1338,17 +1266,12 @@ def render_section_09_cis_coverage(file_data):
     )
 
     if fail_count:
-        out += (
-            f"> **{fail_count} von {len(rows)} CIS-Pflicht-Policies fehlen** "
-            f"(FAIL). Betroffene Policies sind nicht deployt.\n\n"
-        )
+        out += t("cis.fail_count", lang=LANG,
+                 n=fail_count, total=len(rows)) + "\n\n"
     if warn_count:
-        out += (
-            f"> **{warn_count} CIS-Policy/ies vorhanden aber deaktiviert** "
-            f"(WARN). Policies existieren, sind aber nicht aktiv.\n\n"
-        )
+        out += t("cis.warn_count", lang=LANG, n=warn_count) + "\n\n"
     if pass_count == len(rows):
-        out += "> Alle CIS 5.1-5.5 Pflicht-Policies sind aktiv (PASS).\n\n"
+        out += t("cis.all_pass", lang=LANG) + "\n\n"
 
     table_rows = []
     for r in rows:
@@ -1368,10 +1291,12 @@ def render_section_09_cis_coverage(file_data):
         ])
 
     out += render_table(
-        ["CIS Control", "Titel", "Policy", "Exists", "Enabled", "Verdict"],
+        [t("label.cis_control", lang=LANG), t("label.cis_title", lang=LANG),
+         t("label.cis_policy", lang=LANG), t("label.cis_exists", lang=LANG),
+         t("label.cis_enabled", lang=LANG), t("label.cis_verdict", lang=LANG)],
         table_rows,
     )
-    out += "\nQuelle: `17_cis_coverage.csv`\n\n"
+    out += "\n" + t("cis.source", lang=LANG) + "\n\n"
     return out
 
 
@@ -1381,16 +1306,14 @@ def render_section_10_audit_roles(file_data):
     Reads 18_audit_roles.csv. Highlights WARN and REVIEW grantees prominently.
     SYS and STANDARD entries are listed without special emphasis.
     """
-    out = section_header(2, "Audit-Rollen - Mitglieder und Risiko-Flags")
+    out = section_header(2, t("section.10_audit_roles", lang=LANG))
     if file_data is None:
-        out += "> _(18_audit_roles.csv fehlt im Bundle - "
-        out += "SQL/18-audit-roles.sql wurde nicht ausgefuehrt oder ist "
-        out += "nicht in diesem Bundle enthalten.)_\n\n"
+        out += t("note.csv_missing_roles", lang=LANG) + "\n\n"
         return out
 
     rows = file_data.get("rows", [])
     if not rows:
-        out += "> _(Keine Audit-Rollen-Daten vorhanden.)_\n\n"
+        out += t("note.roles_no_data", lang=LANG) + "\n\n"
         return out
 
     idx_role = _col_index(file_data, "target_role")
@@ -1405,10 +1328,7 @@ def render_section_10_audit_roles(file_data):
         if _row_get(r, idx_flag).upper() in {"WARN", "REVIEW"}
     ]
     if review_rows:
-        out += (
-            f"> **{len(review_rows)} Eintrag/Eintraege mit erhoehtem Risiko** "
-            f"(WARN/REVIEW) - manuelle Pruefung der Grantees empfohlen.\n\n"
-        )
+        out += t("roles.review_count", lang=LANG, n=len(review_rows)) + "\n\n"
 
     table_rows = []
     for r in rows:
@@ -1427,11 +1347,12 @@ def render_section_10_audit_roles(file_data):
         ])
 
     out += render_table(
-        ["Ziel-Rolle", "Grantee", "Typ", "Grant-Pfad", "Admin-Option",
-         "Risk-Flag"],
+        [t("label.role_target", lang=LANG), t("label.role_grantee", lang=LANG),
+         t("label.role_type", lang=LANG), t("label.role_path", lang=LANG),
+         t("label.role_admin", lang=LANG), t("label.role_flag", lang=LANG)],
         table_rows,
     )
-    out += "\nQuelle: `18_audit_roles.csv`\n\n"
+    out += "\n" + t("roles.source", lang=LANG) + "\n\n"
     return out
 
 
