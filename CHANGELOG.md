@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-05-28
+
+### Added
+
+- `sql/17-cis-coverage.sql` (GAP-01) - CIS 5.1-5.5 policy presence and
+  completeness check. Emits PASS/WARN/FAIL verdict per control based on
+  policy existence, enabled status, SUCCESS/FAILURE flags, and EXCEPT USER
+  exclusions.
+- `sql/18-audit-roles.sql` (GAP-02) - AUDIT_ADMIN and AUDIT_VIEWER role
+  membership check. Two-level role chain; classifies grantees as USER/ROLE
+  with STANDARD/INFO/WARN/REVIEW risk flags.
+- `tests/fixtures/sample_bundle/` - 18 anonymised CSV fixture files
+  (Oracle 23ai Free, example.com hostnames, no NDA content), updated with
+  v0.2.0 metadata format (# audit_mode:, # cis_controls:, trail health
+  metadata). Committed fixture-level .gitignore excludes generated artefacts.
+- `tests/bats/test-cli-parse.bats` - 10 bats tests for CLI flag parsing,
+  validation, and error paths. sqlplus-gated tests use `require_sqlplus()`
+  helper to skip cleanly without a live Oracle environment.
+- `tests/bats/test-from-bundle.bats` - 5 bats tests for offline
+  `--from-bundle` mode: extraction, dry-run, and Markdown report rendering.
+  Bundle tarball is created on-demand from the fixture directory in setup().
+- `tests/python/test_report_render.py` - 7 pytest tests verifying
+  `audit_report.py` renders on the sample bundle without raising and produces
+  expected output structure.
+- `tests/python/test_anonymizer_roundtrip.py` - 5 pytest tests verifying
+  `anonymize_bundle.py` produces a correct mapping.json, pseudonymises PSEUDO
+  columns, and preserves whitelisted Oracle system accounts.
+- `scripts/bump_version.sh` - SemVer bump script (patch/minor/major) with
+  CHANGELOG stub creation.
+- `.github/workflows/ci.yml` - GitHub Actions CI: markdownlint,
+  shellcheck, bats, pytest (Python 3.10/3.11/3.12).
+
+### Changed
+
+- `Makefile` - full rewrite following OraDBA Makefile standard: grouped
+  sections (Lint, Test, Build/Distribution, Cleanup, Version Management,
+  Release Management, Info), color output, proper tool detection at
+  recipe evaluation time, `make dist` for deployable tarball,
+  `make test-bats` and `make test-pytest` for test runners.
+- `README.md` - rewritten for OSS audience: Quick Start, output structure,
+  SQL query table with CIS mappings, compliance references, CI badge.
+
+### Fixed
+
+- `bin/ora-db-audit.sh` - introduced `SQL_DIR=${REPO_ROOT}/sql` variable;
+  replaced all `${SCRIPT_DIR}/${q}` references with `${SQL_DIR}/${q}`. The
+  previous code looked for SQL files in `bin/` alongside the script, which
+  was always wrong since SQL files live in `sql/`.
+- `sql/02-storage.sql` (GAP-03, rev 0.3.0) - Phase 3 captures
+  `purge_job_count`, `purge_job_status`, `last_archive_timestamp`, and
+  `partition_interval` from `DBA_AUDIT_MGMT_CLEANUP_JOBS`,
+  `DBA_AUDIT_MGMT_LAST_ARCH_TS`, and `DBA_PART_TABLES` into SQL*Plus
+  DEFINEs. Four new PROMPT # metadata lines emitted in the CSV preamble.
+
 ## [Unreleased]
 
 ### Added

@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: Apache-2.0
+# CI workflow for ora-db-audit
+# Runs on push/PR to main and on version tags.
+# Jobs: markdownlint, shellcheck, bats, pytest.
+# No Oracle DB connection required - all tests use fixture bundles.
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-markdown:
+    name: Markdown lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install markdownlint-cli
+        run: npm install -g markdownlint-cli
+      - name: Lint
+        run: markdownlint "**/*.md" --ignore node_modules
+
+  lint-shell:
+    name: Shell lint (shellcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+      - name: Shellcheck bin/ and scripts/
+        run: |
+          find bin/ scripts/ -name "*.sh" -print0 \
+            | xargs -0 shellcheck -x -S warning
+
+  test-bats:
+    name: Bats tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats-core
+        run: |
+          npm install -g bats
+      - name: Run bats tests
+        run: bats tests/bats/
+
+  test-pytest:
+    name: Python tests (pytest)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ "3.10", "3.11", "3.12" ]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install pytest
+        run: pip install pytest
+      - name: Run pytest
+        run: python -m pytest tests/python/ -v
