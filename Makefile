@@ -157,10 +157,10 @@ test-bats: ## Run bats shell tests (requires bats-core)
 .PHONY: test-pytest
 test-pytest: ## Run Python tests with pytest
 	@if [[ -z "$(PYTHON)" ]]; then \
-		echo "Error: python3 not found"; \
+		echo "Error: python3 not found (install: brew install python3)"; \
 		exit 1; \
 	fi
-	@if [[ -z "$(PYTEST)" ]]; then \
+	@if ! "$(PYTHON)" -m pytest --version >/dev/null 2>&1; then \
 		echo "Error: pytest not found (install: pip install pytest)"; \
 		exit 1; \
 	fi

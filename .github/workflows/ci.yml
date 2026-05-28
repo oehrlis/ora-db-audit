@@ -42,8 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install bats-core
-        run: |
-          npm install -g bats
+        run: sudo npm install -g bats
       - name: Run bats tests
         run: bats tests/bats/
 
