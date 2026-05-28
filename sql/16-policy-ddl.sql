@@ -29,6 +29,7 @@ PROMPT # query_id: 16
 PROMPT # dbsid: &DBSID
 PROMPT # pdb: &PDB_NAME
 PROMPT # generated: &GENERATED_ISO
+PROMPT # cis_controls: 5.1,5.2,5.3,5.4,5.5
 PROMPT # date_range_days: &days
 PROMPT # top_n: &top_n
 PROMPT # schema: policy_name=KEEP|policy_ddl=KEEP_MULTILINE

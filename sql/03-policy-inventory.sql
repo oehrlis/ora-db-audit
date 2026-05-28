@@ -16,6 +16,7 @@ PROMPT # query_id: 03
 PROMPT # dbsid: &DBSID
 PROMPT # pdb: &PDB_NAME
 PROMPT # generated: &GENERATED_ISO
+PROMPT # cis_controls: 5.1,5.2,5.3,5.4,5.5
 PROMPT # schema: policy_name=KEEP|audit_option_type=KEEP|audit_option=KEEP|condition_eval_opt=KEEP|audit_condition=REDACT|oracle_supplied=KEEP|entity_name=PSEUDO:DBUSER|entity_type=KEEP|enabled_option=KEEP|success=KEEP|failure=KEEP
 
 SET MARKUP CSV ON DELIMITER '|' QUOTE ON

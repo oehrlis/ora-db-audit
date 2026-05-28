@@ -14,6 +14,7 @@ PROMPT # query_id: 11
 PROMPT # dbsid: &DBSID
 PROMPT # pdb: &PDB_NAME
 PROMPT # generated: &GENERATED_ISO
+PROMPT # cis_controls: -
 PROMPT # date_range_days: &days
 PROMPT # top_n: &top_n
 PROMPT # schema: userhost=PSEUDO:HOST|dbusername=PSEUDO:DBUSER|os_username=PSEUDO:OSUSER|client_program_name=PSEUDO:CLIENT|events=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP

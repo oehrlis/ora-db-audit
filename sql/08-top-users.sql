@@ -13,6 +13,7 @@ PROMPT # query_id: 08
 PROMPT # dbsid: &DBSID
 PROMPT # pdb: &PDB_NAME
 PROMPT # generated: &GENERATED_ISO
+PROMPT # cis_controls: -
 PROMPT # date_range_days: &days
 PROMPT # top_n: &top_n
 PROMPT # schema: dbusername=PSEUDO:DBUSER|events=COUNT|distinct_actions=COUNT|distinct_policies=COUNT|distinct_hosts=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP

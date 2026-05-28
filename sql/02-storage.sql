@@ -84,6 +84,7 @@ PROMPT # query_id: 02
 PROMPT # dbsid: &DBSID
 PROMPT # pdb: &PDB_NAME
 PROMPT # generated: &GENERATED_ISO
+PROMPT # cis_controls: -
 PROMPT # audit_data_tablespace_default: &TBS_DEFAULT
 PROMPT # audit_data_tablespace_current: &TBS_CURRENT
 PROMPT # audit_data_tablespace_older_partitions: &TBS_OLDER

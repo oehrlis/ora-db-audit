@@ -21,6 +21,7 @@ PROMPT # query_id: 07
 PROMPT # dbsid: &DBSID
 PROMPT # pdb: &PDB_NAME
 PROMPT # generated: &GENERATED_ISO
+PROMPT # cis_controls: -
 PROMPT # date_range_days: &days
 PROMPT # top_n: &top_n
 PROMPT # schema: policy_name=KEEP|userhost=PSEUDO:HOST|events=COUNT|distinct_users=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP
