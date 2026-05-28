@@ -106,7 +106,11 @@ Acceptance:
   summary report with the most important KPIs and only a sample of the findings?
   But clearly identify blind spots when not all data can be processed in a
   reasonable time frame.
--
+- `--export-prompt` flag: export the complete AI prompt (with report data
+  embedded) to a file so the user can paste it into claude.ai, ChatGPT, or
+  any other AI provider when the Anthropic API is unavailable.
+- Rules transparency: expose the `docs/ai-analysis-rules.md` reference doc
+  to the end user so analysis logic is auditable without reading Python source.
 
 ---
 
