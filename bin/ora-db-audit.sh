@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 1.4.0
+# Version....: 1.4.2
 # Purpose....: Extract Oracle Unified Audit Trail data from a target database,
 #              produce a self-contained CSV bundle, optionally anonymise it,
 #              and render a Markdown analysis report. Designed to be executed
@@ -31,6 +31,10 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.28  oes  Add --version flag; fix version source (VERSION file);   1.4.2
+#                  fix hardcoded 1.3.6 in manifest; show version in --help.
+# 2026.05.28  oes  Fix audit_trail_type ORA-904; pandoc --to-html;          1.4.1
+#                  Section 2 trail-mgmt table; ghost events note.
 # 2026.05.28  oes  Docs overhaul; requirements.txt; --to-html module check. 1.4.0
 # 2026.05.28  oes  Add --include-appendix flag; wire to audit_report.py. 1.3.6
 # 2026.05.28  oes  Add --to-html flag; include docs/ in dist tarball.    1.3.4
@@ -82,6 +86,12 @@ EXPORT_SIEM_OUTPUT=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Repo root = one level up (bin/ -> repo).
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# Read version from VERSION file; fall back to hardcoded value.
+if [[ -r "${REPO_ROOT}/VERSION" ]]; then
+    SCRIPT_VERSION="$(tr -d '[:space:]' < "${REPO_ROOT}/VERSION")"
+else
+    SCRIPT_VERSION="1.4.2"
+fi
 # SQL files live in sql/ next to bin/.
 SQL_DIR="${REPO_ROOT}/sql"
 
@@ -114,6 +124,8 @@ QUERIES=(
 usage() {
     cat <<EOF
 Usage: $(basename "$0") [OPTIONS]
+
+ora-db-audit.sh ${SCRIPT_VERSION} - Oracle Unified Audit Trail extraction and reporting.
 
 Run Oracle Unified Audit Trail extraction against the local DB and bundle
 the CSV output for off-line analysis.
@@ -203,6 +215,7 @@ Options:
                        OUTPUT: path for the generated file.
   --dry-run            Print actions, do not execute
   --yes,-y             Overwrite existing output without prompting
+  --version,-V         Print version and exit
   --help               Show this help
 
 The bundle directory contains:
@@ -262,6 +275,7 @@ parse_args() {
             --export-siem)  EXPORT_SIEM_FORMAT="$2"; EXPORT_SIEM_OUTPUT="$3"; shift 3 ;;
             --dry-run)      DRY_RUN=1; shift ;;
             --yes|-y)       ASSUME_YES=1; shift ;;
+            --version|-V)   echo "${SCRIPT_VERSION}"; exit 0 ;;
             --help|-h)      usage ;;
             *)              err "unknown option: $1"; exit 2 ;;
         esac
@@ -332,7 +346,7 @@ write_manifest() {
     local bundle_dir="$1" dbsid="$2" ts="$3"
     cat > "${bundle_dir}/manifest.json" <<EOF
 {
-  "bundle_version": "1.3.6",
+  "bundle_version": "${SCRIPT_VERSION}",
   "generated_at":   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
   "dbsid":          "${dbsid}",
   "pdb":            "${PDB}",
@@ -345,7 +359,7 @@ write_manifest() {
 $(printf '    "%s",\n' "${QUERIES[@]:1}" | sed '$ s/,$//')
   ],
   "tool":           "ora-db-audit.sh",
-  "tool_version":   "1.3.6"
+  "tool_version":   "${SCRIPT_VERSION}"
 }
 EOF
 }
