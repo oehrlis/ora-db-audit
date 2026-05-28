@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-05-28
+
+### Fixed
+
+- **CIS Section 9 empty** (`sql/17-cis-coverage.sql`) - `ORA-00904` on
+  `P.ENTITY_TYPE`: `entity_name` and `entity_type` are columns of
+  `AUDIT_UNIFIED_ENABLED_POLICIES` (alias `e`), not `AUDIT_UNIFIED_POLICIES`
+  (alias `p`). Fixed by changing `p.entity_name` / `p.entity_type` to
+  `e.entity_name` / `e.entity_type` in the `active_policies` CTE.
+
+### Changed
+
+- **Section 3 Policy Inventory restructured** (`tools/audit_report.py`):
+  - Header count now shows unique policy names (was raw action-row count -
+    e.g. "3383" instead of the correct number of distinct policies).
+  - New overview table: one row per unique `(policy_name, entity, type,
+    enabled_option)` - mirrors `aud_policies_show_aud.sql` format. Custom
+    policies listed before Oracle-supplied; `audit_condition` shown once
+    per policy (truncated to 60 chars).
+  - Full action-level detail moved to appendix subsection (`--include-appendix`
+    flag); no row cap - never truncated regardless of `--top-n`.
+  - Executive summary "Active Audit Policies" metric also fixed to show
+    unique policy count.
+
+- **Section 9 CIS Coverage - detail subsection added**
+  (`tools/audit_report.py`): after the 5-row summary table a new subsection
+  lists every policy that covers at least one CIS 5.1-5.5 requirement,
+  cross-referenced from `03_policy_inventory.csv`. Columns: CIS controls
+  covered, policy name, ORA flag, enabled option, entity, type, S/F flags.
+  Never truncated.
+
 ## [1.3.1] - 2026-05-28
 
 ### Fixed

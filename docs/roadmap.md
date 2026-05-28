@@ -1,6 +1,6 @@
 # Roadmap
 
-Current release: **v1.3.1** - Updated: 2026-05-28
+Current release: **v1.3.2** - Updated: 2026-05-28
 
 ---
 
@@ -22,6 +22,7 @@ Current release: **v1.3.1** - Updated: 2026-05-28
 | 1.2.4   | released | 2026-05-28 | B10: auto-detect lang from manifest on --from-bundle; lang field in manifest |
 | 1.3.0   | released | 2026-05-28 | CIS action-based coverage; top-n from manifest default; ORA$MANDATORY metric; UNIFIED AUDIT TRAIL FILES non-legacy; --export-prompt optional FILE |
 | 1.3.1   | released | 2026-05-28 | --export-prompt and --ai output now match --lang (language-keyed AI prompts) |
+| 1.3.2   | released | 2026-05-28 | Fix ORA-00904 in CIS SQL; Section 3 overview+detail; Section 9 CIS detail |
 <!-- markdownlint-enable MD013 MD060 -->
 
 ---

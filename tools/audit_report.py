@@ -70,7 +70,7 @@ from audit_report_messages import (  # noqa: E402
 )
 
 
-TOOL_VERSION = "1.3.1"
+TOOL_VERSION = "1.3.2"
 DEFAULT_TOP_N = None  # None = use bundle manifest top_n; 0 = unlimited
 DEFAULT_CUSTOMER_PREFIX = ""
 DEFAULT_AI_MODEL = "claude-sonnet-4-6"
@@ -585,6 +585,87 @@ def _sum_column(file_data, col_name):
     return sum(_to_int(_row_get(r, idx)) for r in file_data.get("rows", []))
 
 
+def _unique_policy_count(inv_data):
+    """Return (unique_total, custom_count, oracle_count) from 03_policy_inventory data."""
+    if not inv_data:
+        return 0, 0, 0
+    rows = inv_data.get("rows", [])
+    idx_pol = _col_index(inv_data, "policy_name")
+    idx_ora = _col_index(inv_data, "oracle_supplied")
+    seen: dict[str, bool] = {}  # policy_name -> is_oracle_supplied
+    for r in rows:
+        pol = _row_get(r, idx_pol)
+        if not pol or pol in seen:
+            continue
+        ora = _row_get(r, idx_ora).upper().startswith("Y")
+        seen[pol] = ora
+    oracle_cnt = sum(1 for v in seen.values() if v)
+    return len(seen), len(seen) - oracle_cnt, oracle_cnt
+
+
+def _parse_policy_names(s: str) -> list[str]:
+    """Extract policy names from a custom_policies / oracle_policies cell value.
+
+    Handles the SQL output formats:
+      - '(none)'                  -> []
+      - 'POL1, POL2'              -> ['POL1', 'POL2']
+      - '(partial) POL1, POL2'    -> ['POL1', 'POL2']
+      - 'POL1 (+partial: P2, P3)' -> ['POL1', 'P2', 'P3']
+    """
+    s = (s or "").strip()
+    if not s or s == "(none)":
+        return []
+    s = s.removeprefix("(partial) ")
+    if " (+partial: " in s:
+        full_part, rest = s.split(" (+partial: ", 1)
+        parts = [full_part, rest.rstrip(")")]
+    else:
+        parts = [s]
+    names = []
+    for part in parts:
+        for name in part.split(","):
+            name = name.strip()
+            if name:
+                names.append(name)
+    return names
+
+
+def _dedup_policy_rows(inv_data, filter_policies=None):
+    """Return a sorted list of ((policy, entity, etype, opt), row) pairs.
+
+    Deduplicates the per-action rows from 03_policy_inventory to one row
+    per unique (policy_name, entity_name, entity_type, enabled_option).
+    filter_policies: if given, only include rows for those policy names.
+    Sort order: inactive last, Oracle-supplied last, then policy name, entity.
+    """
+    if not inv_data:
+        return []
+    rows = inv_data.get("rows", [])
+    idx_pol = _col_index(inv_data, "policy_name")
+    idx_ora = _col_index(inv_data, "oracle_supplied")
+    idx_ent = _col_index(inv_data, "entity_name")
+    idx_etype = _col_index(inv_data, "entity_type")
+    idx_opt = _col_index(inv_data, "enabled_option")
+
+    seen: dict = {}
+    for r in rows:
+        pol = _row_get(r, idx_pol)
+        if filter_policies is not None and pol not in filter_policies:
+            continue
+        key = (pol, _row_get(r, idx_ent), _row_get(r, idx_etype), _row_get(r, idx_opt))
+        if key not in seen:
+            seen[key] = r
+
+    def _sort(item):
+        (pol, ent, _etype, opt), r = item
+        is_inactive = 0 if opt else 1
+        is_oracle = 1 if _row_get(r, idx_ora).upper().startswith("Y") else 0
+        return (is_inactive, is_oracle, pol, ent or "")
+
+    return sorted(seen.items(), key=_sort)
+
+
+
 # ---------------------------------------------------------------------------
 # Host-pattern classification
 # ---------------------------------------------------------------------------
@@ -901,7 +982,7 @@ def render_executive_summary(bundle, classifier, top_n):
         [t("metric.failed_logins", lang=LANG), fmt_int(failed_total)],
         [t("metric.mandatory_events", lang=LANG), fmt_int(mandatory_events)],
         [t("metric.active_policies", lang=LANG),
-         fmt_int(len(files.get("03", {}).get("rows", [])))],
+         fmt_int(_unique_policy_count(files.get("03"))[0])],
         [t("metric.storage_partitions", lang=LANG),
          fmt_int(len(files.get("02", {}).get("rows", [])))],
     ]
@@ -1139,26 +1220,61 @@ def render_section_03_policy_inventory(file_data, top_n, include_appendix):
                  fname="03_policy_inventory.csv") + "\n\n"
         return out
     rows = file_data.get("rows", [])
-    out += t("policy.count", lang=LANG, n=len(rows)) + "\n\n"
 
-    idx_supplied = _col_index(file_data, "oracle_supplied")
-    ora_count = 0
-    cust_count = 0
-    for r in rows:
-        flag = _row_get(r, idx_supplied).upper()
-        if flag.startswith("Y"):
-            ora_count += 1
-        else:
-            cust_count += 1
-    if idx_supplied >= 0:
-        out += (
-            t("policy.ora_count", lang=LANG, n=ora_count) + "\n"
-            + t("policy.cust_count", lang=LANG, n=cust_count) + "\n\n"
-        )
+    # Counts based on unique policy names (not raw action rows)
+    n_total, n_custom, n_oracle = _unique_policy_count(file_data)
+    out += t("policy.unique_count", lang=LANG,
+             n=n_total, n_custom=n_custom, n_oracle=n_oracle) + "\n\n"
 
-    out += render_table(file_data["headers"], rows, max_rows=top_n)
+    # ----------------------------------------------------------------
+    # Overview table: one row per unique (policy, entity, type, option)
+    # audit_condition shown (truncated) only on first entity for each policy
+    # ----------------------------------------------------------------
+    idx_ora = _col_index(file_data, "oracle_supplied")
+    idx_ent = _col_index(file_data, "entity_name")
+    idx_cond = _col_index(file_data, "audit_condition")
+    idx_opt = _col_index(file_data, "enabled_option")
+    idx_suc = _col_index(file_data, "success")
+    idx_fal = _col_index(file_data, "failure")
+
+    deduped = _dedup_policy_rows(file_data)
+    policy_cond_shown: set = set()
+    overview_rows = []
+    for (pol, ent, etype, opt), r in deduped:
+        cond = ""
+        if pol not in policy_cond_shown:
+            raw = _row_get(r, idx_cond)
+            cond = (raw[:57] + "...") if len(raw) > 60 else raw
+            policy_cond_shown.add(pol)
+        overview_rows.append([
+            pol,
+            _row_get(r, idx_ora),
+            opt or "-",
+            ent or "-",
+            etype or "-",
+            _row_get(r, idx_suc),
+            _row_get(r, idx_fal),
+            cond,
+        ])
+
+    out += render_table(
+        [t("label.policy", lang=LANG), t("label.ora", lang=LANG),
+         t("label.policy_option", lang=LANG), t("label.entity", lang=LANG),
+         t("label.entity_type", lang=LANG),
+         t("label.success_short", lang=LANG), t("label.failure_short", lang=LANG),
+         t("label.condition", lang=LANG)],
+        overview_rows,
+    )
     out += "\n"
-    if include_appendix and len(rows) > top_n:
+
+    # ----------------------------------------------------------------
+    # Full action-level detail: appendix only, never truncated
+    # ----------------------------------------------------------------
+    if include_appendix:
+        out += section_header(3, t("section.03_detail", lang=LANG))
+        out += render_table(file_data["headers"], rows)
+        out += "\n"
+    else:
         out += t("policy.see_appendix", lang=LANG) + "\n\n"
     return out
 
@@ -1384,7 +1500,7 @@ def render_appendix(bundle, top_n):
 # Top-level renderer
 # ---------------------------------------------------------------------------
 
-def render_section_09_cis_coverage(file_data):
+def render_section_09_cis_coverage(file_data, inv_data=None):
     """Section 9 - CIS Benchmark 5.1-5.5 coverage per-control PASS/WARN/FAIL table.
 
     Reads 17_cis_coverage.csv (v1.3+ format). Each row represents one CIS
@@ -1478,6 +1594,62 @@ def render_section_09_cis_coverage(file_data):
     )
     out += "\n" + t("cis.coverage_note", lang=LANG) + "\n"
     out += t("cis.source", lang=LANG) + "\n\n"
+
+    # ----------------------------------------------------------------
+    # Detail table: policies from inventory that cover CIS requirements
+    # Cross-referenced from inv_data (03_policy_inventory).
+    # Never truncated.
+    # ----------------------------------------------------------------
+    if inv_data is not None:
+        out += section_header(3, t("section.09_detail", lang=LANG))
+        out += t("cis.detail_intro", lang=LANG) + "\n\n"
+
+        # Build policy -> set of CIS controls mapping from 17 data
+        policy_to_cis: dict[str, list[str]] = {}
+        for r in rows:
+            ctrl = _row_get(r, idx_control)
+            for col_idx in (idx_custom, idx_oracle):
+                if col_idx >= 0:
+                    for pol in _parse_policy_names(_row_get(r, col_idx)):
+                        policy_to_cis.setdefault(pol, [])
+                        if ctrl not in policy_to_cis[pol]:
+                            policy_to_cis[pol].append(ctrl)
+
+        if not policy_to_cis:
+            out += t("note.no_data", lang=LANG) + "\n\n"
+        else:
+            deduped = _dedup_policy_rows(inv_data,
+                                         filter_policies=set(policy_to_cis))
+            inv_idx_ora = _col_index(inv_data, "oracle_supplied")
+            inv_idx_opt = _col_index(inv_data, "enabled_option")
+            inv_idx_ent = _col_index(inv_data, "entity_name")
+            inv_idx_etype = _col_index(inv_data, "entity_type")
+            inv_idx_suc = _col_index(inv_data, "success")
+            inv_idx_fal = _col_index(inv_data, "failure")
+            detail_rows = []
+            for (pol, ent, etype, opt), r in deduped:
+                cis_str = ", ".join(sorted(policy_to_cis.get(pol, [])))
+                detail_rows.append([
+                    cis_str,
+                    pol,
+                    _row_get(r, inv_idx_ora),
+                    opt or "-",
+                    ent or "-",
+                    etype or "-",
+                    _row_get(r, inv_idx_suc),
+                    _row_get(r, inv_idx_fal),
+                ])
+            out += render_table(
+                [t("label.cis_controls", lang=LANG),
+                 t("label.policy", lang=LANG), t("label.ora", lang=LANG),
+                 t("label.policy_option", lang=LANG),
+                 t("label.entity", lang=LANG), t("label.entity_type", lang=LANG),
+                 t("label.success_short", lang=LANG),
+                 t("label.failure_short", lang=LANG)],
+                detail_rows,
+            )
+            out += "\n"
+
     return out
 
 
@@ -1554,7 +1726,7 @@ def render_report(bundle, classifier, top_n, include_appendix,
     out += render_section_06_privileged(files.get("14"), top_n)
     out += render_section_07_security_signals(files, classifier, top_n)
     out += render_section_08_tuning(files.get("15"), top_n, policy_ddl_map)
-    out += render_section_09_cis_coverage(files.get("17"))
+    out += render_section_09_cis_coverage(files.get("17"), inv_data=files.get("03"))
     out += render_section_10_audit_roles(files.get("18"))
     if include_appendix:
         out += render_appendix(bundle, top_n)
