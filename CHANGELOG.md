@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.4] - 2026-05-28
+
+### Fixed
+
+- **B10** - `bin/ora-db-audit.sh`: when `--from-bundle` is used without an
+  explicit `--lang` flag, the report language is now auto-detected from the
+  `"lang"` field in the bundle's `manifest.json`. Previously, reprocessing a
+  bundle always defaulted to `de` regardless of the language used during
+  collection, so `--report --ai --from-bundle <bundle>` would produce a German
+  report even when the original run used `--lang en`. An explicit `--lang`
+  still takes precedence over the manifest value.
+
+### Changed
+
+- `write_manifest()` now records the active report language as `"lang"` in
+  `manifest.json` so future `--from-bundle` runs can restore it automatically.
+- `bin/ora-db-audit.sh` version `1.2.3` -> `1.2.4`.
+
 ## [1.2.3] - 2026-05-28
 
 ### Fixed
