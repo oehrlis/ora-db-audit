@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 1.3.0
+# Version....: 1.3.4
 # Purpose....: Extract Oracle Unified Audit Trail data from a target database,
 #              produce a self-contained CSV bundle, optionally anonymise it,
 #              and render a Markdown analysis report. Designed to be executed
@@ -23,7 +23,7 @@
 # Usage......: ./ora-db-audit.sh [--days N] [--top-n N]
 #                                [--connect "CONN"] [--output DIR]
 #                                [--anonymize] [--customer-prefix P]
-#                                [--report] [--patterns FILE]
+#                                [--report] [--to-html] [--patterns FILE]
 #                                [--tools-dir DIR]
 #                                [--dry-run] [--yes] [--help]
 # Reference..: https://github.com/oehrlis/ora-db-audit
@@ -31,6 +31,7 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.28  oes  Add --to-html flag; include docs/ in dist tarball.    1.3.4
 # 2026.05.28  oes  CIS action-based coverage; top-n from manifest;       1.3.0
 #                  ORA$MANDATORY metric; UNIFIED AUDIT TRAIL FILES non-
 #                  legacy; --export-prompt optional FILE + default name.
@@ -70,6 +71,7 @@ PATTERNS_FILE=""
 TOOLS_DIR_OVERRIDE=""
 FROM_BUNDLE=""
 AI=0
+TO_HTML=0
 AI_MODEL="claude-sonnet-4-6"
 AI_OP_PATH=""
 EXPORT_SIEM_FORMAT=""
@@ -152,6 +154,10 @@ Options:
                        tools/audit_report.py). When combined with
                        --anonymize the report runs on the anonymised
                        bundle and is safe to share externally.
+  --to-html            Convert audit_report.md to audit_report.html after
+                       report generation (implies --report). Uses
+                       tools/md_to_html.py with docs/report.css if found.
+                       Produces a self-contained HTML file in the bundle dir.
   --lang de|en         Report language (default: de). Passed to
                        audit_report.py. Only used with --report.
   --export-prompt [FILE] Write the full AI analysis prompt to FILE instead
@@ -242,6 +248,7 @@ parse_args() {
             --tools-dir)        TOOLS_DIR_OVERRIDE="$2"; shift 2 ;;
             --from-bundle)  FROM_BUNDLE="$2"; shift 2 ;;
             --ai)           AI=1; shift ;;
+            --to-html)      TO_HTML=1; shift ;;
             --ai-model)     AI_MODEL="$2"; shift 2 ;;
             --ai-op-path)   AI_OP_PATH="$2"; shift 2 ;;
             --export-siem)  EXPORT_SIEM_FORMAT="$2"; EXPORT_SIEM_OUTPUT="$3"; shift 3 ;;
@@ -317,7 +324,7 @@ write_manifest() {
     local bundle_dir="$1" dbsid="$2" ts="$3"
     cat > "${bundle_dir}/manifest.json" <<EOF
 {
-  "bundle_version": "1.3.0",
+  "bundle_version": "1.3.4",
   "generated_at":   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
   "dbsid":          "${dbsid}",
   "pdb":            "${PDB}",
@@ -330,7 +337,7 @@ write_manifest() {
 $(printf '    "%s",\n' "${QUERIES[@]:1}" | sed '$ s/,$//')
   ],
   "tool":           "ora-db-audit.sh",
-  "tool_version":   "1.3.0"
+  "tool_version":   "1.3.4"
 }
 EOF
 }
@@ -582,6 +589,50 @@ deanonymize_report() {
 }
 
 # ------------------------------------------------------------------------------
+# to_html - convert audit_report.md -> audit_report.html using md_to_html.py
+# Uses docs/report.css from REPO_ROOT when available; md_to_html.py falls back
+# to an inline stylesheet when the CSS file is absent (self-contained dist).
+# ------------------------------------------------------------------------------
+to_html() {
+    local report_target="$1"
+    local md_file="${report_target}/audit_report.md"
+
+    if [[ ! -f "${md_file}" ]]; then
+        err "--to-html: no report found at ${md_file} (run with --report first)"
+        return 1
+    fi
+
+    local tools_dir
+    if ! tools_dir="$(resolve_tools_dir)"; then
+        return 1
+    fi
+    local script="${tools_dir}/md_to_html.py"
+    if [[ ! -f "${script}" ]]; then
+        err "md_to_html.py not found in tools dir: ${tools_dir}"
+        return 1
+    fi
+
+    local python_bin
+    if ! python_bin="$(resolve_python)"; then
+        err "no python3 interpreter found"
+        return 1
+    fi
+
+    local html_file="${report_target}/audit_report.html"
+    local title
+    title="$(basename "${report_target}")"
+    local css_file="${REPO_ROOT}/docs/report.css"
+
+    log "converting ${md_file} -> ${html_file}..."
+    if [[ -f "${css_file}" ]]; then
+        "${python_bin}" "${script}" "${md_file}" "${html_file}" "${title}" "${css_file}"
+    else
+        "${python_bin}" "${script}" "${md_file}" "${html_file}" "${title}"
+    fi
+    log "HTML report: ${html_file}"
+}
+
+# ------------------------------------------------------------------------------
 # extract_bundle - extract a .tar.gz bundle to OUTPUT_DIR
 # Prints the extracted directory path on stdout.
 # ------------------------------------------------------------------------------
@@ -618,6 +669,7 @@ run_from_bundle() {
         [[ ${ANONYMIZE} -eq 1 ]] && log "dry-run: would anonymise bundle"
         [[ ${REPORT} -eq 1 ]] && log "dry-run: would render report"
         [[ ${AI} -eq 1 ]] && log "dry-run: would call Claude API (model: ${AI_MODEL})"
+        [[ ${TO_HTML} -eq 1 ]] && log "dry-run: would convert audit_report.md -> audit_report.html"
         [[ ${DEANONYMIZE} -eq 1 ]] && log "dry-run: would de-anonymise report .md files"
         return 0
     fi
@@ -660,6 +712,9 @@ run_from_bundle() {
             log "AI findings appended into ${report_target}/audit_report.md"
             log "standalone: ${report_target}/audit_ai_findings.md"
         fi
+        if [[ ${TO_HTML} -eq 1 ]]; then
+            to_html "${report_target}"
+        fi
     fi
 
     if [[ ${DEANONYMIZE} -eq 1 ]]; then
@@ -685,8 +740,11 @@ run() {
 
     parse_args "$@"
 
-    # --ai implies --report
+    # --ai and --to-html both imply --report
     if [[ ${AI} -eq 1 ]]; then
+        REPORT=1
+    fi
+    if [[ ${TO_HTML} -eq 1 ]]; then
         REPORT=1
     fi
 
@@ -815,6 +873,9 @@ run() {
         if [[ ${AI} -eq 1 ]]; then
             log "AI findings appended into ${report_target}/audit_report.md"
             log "standalone: ${report_target}/audit_ai_findings.md"
+        fi
+        if [[ ${TO_HTML} -eq 1 ]]; then
+            to_html "${report_target}"
         fi
     fi
 
