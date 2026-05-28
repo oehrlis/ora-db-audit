@@ -1,6 +1,6 @@
 # Roadmap
 
-Current release: **v1.2.0** - Updated: 2026-05-28
+Current release: **v1.2.1** - Updated: 2026-05-28
 
 ---
 
@@ -16,6 +16,7 @@ Current release: **v1.2.0** - Updated: 2026-05-28
 | 1.1.0   | released | 2026-05-28 | R1+R2: CIS coverage (Section 9) + Audit-Roles (Section 10) report sections; R4: --export-prompt flag; AI section renumbered to 11 |
 | 1.1.1   | released | 2026-05-28 | R5: dual-language DE/EN output; D1: off-path detection doc + sql/19-offpath-candidates.sql |
 | 1.2.0   | released | 2026-05-28 | R3: --sample-rows flag; D2: export_siem.py (OCSF + Sentinel); B6: CSV sanity check; B7: TABLESPACE_STATE; UX1: no-arg -> --help; version alignment |
+| 1.2.1   | released | 2026-05-28 | docs/use-cases/ + CHANGELOG.md in dist tarball; comprehensive README.md |
 <!-- markdownlint-enable MD013 MD060 -->
 
 ---
