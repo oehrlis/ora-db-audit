@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-05-28
+
+### Added
+
+- **ORA$MANDATORY metric** - executive summary Kennzahlen now shows the event
+  count for the mandatory audit policy (`ORA$MANDATORY`) as a dedicated row,
+  read from `04_policy_volume.csv`.
+- **CIS action-based coverage** (`sql/17-cis-coverage.sql`,
+  `tools/audit_report.py`) - Section 9 now compares the actual audit actions
+  of enabled policies against CIS 5.1-5.5 requirements instead of checking
+  for hard-coded policy names (`CIS_CDB_*`). New output columns:
+  `custom_policies` (covering custom policies, drives the verdict) and
+  `oracle_policies` (Oracle-supplied policies, informational only). Verdicts:
+  PASS (full unconditional coverage by a custom policy), PARTIAL (only
+  conditional or user-scoped coverage), FAIL (no custom policy covers it).
+- **`--export-prompt` optional FILE** - the FILE argument to `--export-prompt`
+  is now optional. Without it, the prompt is written to
+  `<bundle_dir>/<bundle_name>_prompt.txt` automatically.
+
+### Fixed
+
+- **top-n display default** - `tools/audit_report.py` now defaults the table
+  row cap to the bundle manifest's `top_n` value (set during collection) rather
+  than a hard-coded 20. Pass `--top-n N` to override explicitly; `--top-n 0`
+  removes the cap entirely (show all rows).
+- **UNIFIED AUDIT TRAIL FILES not legacy** - `sql/01-config.sql` now correctly
+  marks `UNIFIED AUDIT TRAIL FILES` entries as `legacy_param=0` (not legacy).
+  Previously they were labelled `_(legacy)_` in Section 1 despite being part
+  of the Unified Audit infrastructure.
+- **`--export-prompt` unbound variable** - running `--export-prompt` without
+  a file argument no longer causes an `unbound variable` crash (`$2` guard
+  added). The flag now accepts an optional filename.
+
+### Changed
+
+- `sql/17-cis-coverage.sql` CSV schema changed: old 9-column format
+  (`policy_name`, `policy_exists`, `policy_enabled`, `except_user_count`, ...)
+  replaced by 5-column action-coverage format
+  (`cis_control`, `cis_title`, `verdict`, `custom_policies`, `oracle_policies`).
+  Bundles generated with earlier versions render with a legacy fallback path.
+- `tools/audit_report.py` version `1.2.0` -> `1.3.0`.
+- `bin/ora-db-audit.sh` version `1.2.4` -> `1.3.0`.
+
 ## [1.2.4] - 2026-05-28
 
 ### Fixed
