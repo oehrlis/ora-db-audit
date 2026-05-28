@@ -88,19 +88,19 @@ ora-db-audit/
 
 ## SQL Queries
 
-| File | Purpose | CIS Controls |
-|---|---|---|
-| `01-config.sql` | Audit configuration, mode detection | - |
-| `02-storage.sql` | AUD$UNIFIED partition + trail mgmt health | - |
-| `03-policy-inventory.sql` | All enabled policies | 5.1-5.5 |
-| `04-07-*.sql` | Volume by policy, user, client, host | 5.1, 5.2 |
-| `08-12-*.sql` | Top users, actions, objects, hosts | - |
-| `13-failed-logins.sql` | Failed logon attempts | 5.2 |
-| `14-privileged-activity.sql` | SYS/SYSTEM/AUDIT_ADMIN events | 5.5 |
-| `15-noise-candidates.sql` | High-volume low-risk candidates | - |
-| `16-policy-ddl.sql` | DBMS_METADATA DDL per policy | 5.1-5.5 |
-| `17-cis-coverage.sql` | CIS 5.1-5.5 policy coverage check | 5.1-5.5 |
-| `18-audit-roles.sql` | AUDIT_ADMIN/AUDIT_VIEWER membership | - |
+| File                         | Purpose                                   | CIS Controls |
+|------------------------------|-------------------------------------------|--------------|
+| `01-config.sql`              | Audit configuration, mode detection       | -            |
+| `02-storage.sql`             | AUD$UNIFIED partition + trail mgmt health | -            |
+| `03-policy-inventory.sql`    | All enabled policies                      | 5.1-5.5      |
+| `04-07-*.sql`                | Volume by policy, user, client, host      | 5.1, 5.2     |
+| `08-12-*.sql`                | Top users, actions, objects, hosts        | -            |
+| `13-failed-logins.sql`       | Failed logon attempts                     | 5.2          |
+| `14-privileged-activity.sql` | SYS/SYSTEM/AUDIT_ADMIN events             | 5.5          |
+| `15-noise-candidates.sql`    | High-volume low-risk candidates           | -            |
+| `16-policy-ddl.sql`          | DBMS_METADATA DDL per policy              | 5.1-5.5      |
+| `17-cis-coverage.sql`        | CIS 5.1-5.5 policy coverage check         | 5.1-5.5      |
+| `18-audit-roles.sql`         | AUDIT_ADMIN/AUDIT_VIEWER membership       | -            |
 
 ## Development
 
