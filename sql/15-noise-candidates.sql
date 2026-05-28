@@ -33,6 +33,7 @@ PROMPT # generated: &GENERATED_ISO
 PROMPT # cis_controls:
 PROMPT # date_range_days: &days
 PROMPT # top_n: &top_n
+PROMPT # sampled: &sampled
 PROMPT # threshold: 10_events_per_day_average
 PROMPT # schema: policy_name=KEEP|dbusername=PSEUDO:DBUSER|action_name=KEEP|client_program_name=PSEUDO:CLIENT|return_code=KEEP|events=COUNT|events_per_day=COUNT|distinct_hosts=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP
 
@@ -55,6 +56,7 @@ WITH split_uap AS (
       AND lvl.col_pos <= REGEXP_COUNT(t.unified_audit_policies, ',') + 1
       AND t.event_timestamp_utc >= SYSTIMESTAMP - NUMTODSINTERVAL(TO_NUMBER('&days'), 'DAY')
       AND t.dbid = con_id_to_dbid(SYS_CONTEXT('USERENV','CON_ID'))
+      &SAMPLE_WHERE
 )
 SELECT
     policy_name                                                  AS "policy_name",

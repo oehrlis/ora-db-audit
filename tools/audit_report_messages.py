@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 0.3.0
+# Version....: 1.2.0
 # Purpose....: Centralised user-facing message dictionary for audit_report.py.
 #              Keeps every German string in one place so v1.1 can add an EN
 #              translation by extending the dict; no code changes required.
@@ -22,10 +22,12 @@
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
-# 2026.05.28  oes  R5: populate MESSAGES["en"] with full EN translations;    0.3.0
+# 2026.05.28  oes  R3: add exec.sampling_note key (DE+EN); align version   1.2.0
+#                  to repo SemVer.
+# 2026.05.28  oes  R5: populate MESSAGES["en"] with full EN translations;  1.1.1
 #                  add message keys for sections 3-10, executive summary,
 #                  storage verdicts, and all remaining inline strings.
-# 2026.05.28  oes  v1.1.0 initial: MESSAGES["de"] complete; architecture    0.2.0
+# 2026.05.28  oes  v1.1.0 initial: MESSAGES["de"] complete; architecture  1.1.0
 #                  ready for EN via SUPPORTED_LANGUAGES extension.
 # ------------------------------------------------------------------------------
 """Centralised message dictionary for audit_report.py.
@@ -66,6 +68,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "exec.top_n": "**Bundle Top-N:** {top_n}",
         "exec.generated": "**Bundle erzeugt:** {ts}",
         "exec.version": "**Bundle-Version:** {version}",
+        "exec.sampling_note": (
+            "> **Hinweis:** Sampling aktiv - Abfragen 08-12, 15 wurden auf "
+            "{n} Zeilen begrenzt (`ROWNUM <= {n}`). Absolute Zaehler sind "
+            "Schaetzwerte; relative Rangfolgen bleiben repraesentativ."
+        ),
 
         # --- Section titles ---
         "section.executive_summary": "Executive Summary",
@@ -366,6 +373,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "exec.top_n": "**Bundle Top-N:** {top_n}",
         "exec.generated": "**Bundle generated:** {ts}",
         "exec.version": "**Bundle version:** {version}",
+        "exec.sampling_note": (
+            "> **Note:** Sampling active - queries 08-12, 15 were limited to "
+            "{n} rows (`ROWNUM <= {n}`). Absolute counts are estimates; "
+            "relative rankings remain representative."
+        ),
 
         # --- Section titles ---
         "section.executive_summary": "Executive Summary",

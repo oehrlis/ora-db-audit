@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 0.2.0
+# Version....: 1.2.0
 # Purpose....: Extract Oracle Unified Audit Trail data from a target database,
 #              produce a self-contained CSV bundle, optionally anonymise it,
 #              and render a Markdown analysis report. Designed to be executed
@@ -31,7 +31,10 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
-# 2026.05.28  oes  Initial release (port from audit_pack-0.5.0)         0.2.0
+# 2026.05.28  oes  R3: --sample-rows flag; fix CSV sanity-check name;    1.2.0
+#                  no-arg -> --help; export ORADBA_SAMPLE_ROWS; align
+#                  version to repo SemVer.
+# 2026.05.28  oes  Initial release (port from audit_pack-0.5.0)         1.0.0
 # ------------------------------------------------------------------------------
 
 set -euo pipefail
@@ -41,6 +44,7 @@ set -euo pipefail
 # ------------------------------------------------------------------------------
 DAYS=30
 TOP_N=100
+SAMPLE_ROWS=0
 CONNECT="/ as sysdba"
 PDB=""
 OUTPUT_DIR="${PWD}/audit_bundle"
@@ -58,6 +62,8 @@ FROM_BUNDLE=""
 AI=0
 AI_MODEL="claude-sonnet-4-6"
 AI_OP_PATH=""
+EXPORT_SIEM_FORMAT=""
+EXPORT_SIEM_OUTPUT=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Repo root = one level up (bin/ -> repo).
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -100,6 +106,14 @@ the CSV output for off-line analysis.
 Options:
   --days N             Time window in days (default: ${DAYS})
   --top-n N            Top N rows per query (default: ${TOP_N})
+  --sample-rows N      Limit the source rows fed into the heavy profiling
+                       queries (08-12, 15) to at most N rows via
+                       ROWNUM <= N. Default: 0 (no limit).
+                       Use on large audit trails (>10M rows) to keep
+                       collection under 5 minutes. Absolute counts in
+                       the report become estimates; relative rankings
+                       remain representative. Reported as a note in the
+                       executive summary.
   --connect "CONN"     sqlplus connect string (default: "${CONNECT}")
                        Examples: "/ as sysdba"
                                  "auditadmin/secret@ISC"
@@ -150,6 +164,11 @@ Options:
   --ai-op-path PATH    1Password op:// path for the Anthropic API key.
                        Used when ANTHROPIC_API_KEY is not set.
                        Example: op://Private/Anthropic/credential
+  --export-siem FORMAT OUTPUT
+                       After report generation, run tools/export_siem.py
+                       to convert the bundle to a SIEM-ingestible file.
+                       FORMAT: ocsf (JSON Lines) or sentinel (CSV).
+                       OUTPUT: path for the generated file.
   --dry-run            Print actions, do not execute
   --yes,-y             Overwrite existing output without prompting
   --help               Show this help
@@ -181,9 +200,10 @@ err() {
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --days)     DAYS="$2"; shift 2 ;;
-            --top-n)    TOP_N="$2"; shift 2 ;;
-            --connect)  CONNECT="$2"; shift 2 ;;
+            --days)         DAYS="$2"; shift 2 ;;
+            --top-n)        TOP_N="$2"; shift 2 ;;
+            --sample-rows)  SAMPLE_ROWS="$2"; shift 2 ;;
+            --connect)      CONNECT="$2"; shift 2 ;;
             --pdb)      PDB="$2"; shift 2 ;;
             --output)           OUTPUT_DIR="$2"; OUTPUT_DIR_EXPLICIT=1; shift 2 ;;
             --anonymize)        ANONYMIZE=1; shift ;;
@@ -197,6 +217,7 @@ parse_args() {
             --ai)           AI=1; shift ;;
             --ai-model)     AI_MODEL="$2"; shift 2 ;;
             --ai-op-path)   AI_OP_PATH="$2"; shift 2 ;;
+            --export-siem)  EXPORT_SIEM_FORMAT="$2"; EXPORT_SIEM_OUTPUT="$3"; shift 3 ;;
             --dry-run)      DRY_RUN=1; shift ;;
             --yes|-y)       ASSUME_YES=1; shift ;;
             --help|-h)      usage ;;
@@ -211,6 +232,20 @@ parse_args() {
     if ! [[ "${TOP_N}" =~ ^[0-9]+$ ]]; then
         err "--top-n must be a positive integer (got: ${TOP_N})"
         exit 2
+    fi
+    if ! [[ "${SAMPLE_ROWS}" =~ ^[0-9]+$ ]]; then
+        err "--sample-rows must be a non-negative integer (got: ${SAMPLE_ROWS})"
+        exit 2
+    fi
+    if [[ -n "${EXPORT_SIEM_FORMAT}" ]]; then
+        case "${EXPORT_SIEM_FORMAT}" in
+            ocsf|sentinel) ;;
+            *) err "--export-siem format must be 'ocsf' or 'sentinel' (got: ${EXPORT_SIEM_FORMAT})"; exit 2 ;;
+        esac
+        if [[ -z "${EXPORT_SIEM_OUTPUT}" ]]; then
+            err "--export-siem requires both FORMAT and OUTPUT arguments"
+            exit 2
+        fi
     fi
 }
 
@@ -251,17 +286,18 @@ write_manifest() {
     local bundle_dir="$1" dbsid="$2" ts="$3"
     cat > "${bundle_dir}/manifest.json" <<EOF
 {
-  "bundle_version": "0.2.0",
+  "bundle_version": "1.2.0",
   "generated_at":   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
   "dbsid":          "${dbsid}",
   "timestamp_tag":  "${ts}",
   "time_window_days": ${DAYS},
   "top_n":          ${TOP_N},
+  "sample_rows":    ${SAMPLE_ROWS},
   "queries": [
 $(printf '    "%s",\n' "${QUERIES[@]:1}" | sed '$ s/,$//')
   ],
   "tool":           "ora-db-audit.sh",
-  "tool_version":   "0.2.0"
+  "tool_version":   "1.2.0"
 }
 EOF
 }
@@ -436,6 +472,36 @@ render_report() {
 }
 
 # ------------------------------------------------------------------------------
+# export_siem - run tools/export_siem.py against the bundle dir
+# ------------------------------------------------------------------------------
+export_siem() {
+    local bundle_dir="$1" format="$2" output="$3"
+    local tools_dir
+    if ! tools_dir="$(resolve_tools_dir)"; then
+        return 1
+    fi
+    local script="${tools_dir}/export_siem.py"
+    if [[ ! -f "${script}" ]]; then
+        err "export_siem.py not found in tools dir: ${tools_dir}"
+        return 1
+    fi
+
+    local python_bin
+    if ! python_bin="$(resolve_python)"; then
+        err "no python3 interpreter found"
+        return 1
+    fi
+
+    local -a siem_args=( "${bundle_dir}" --format "${format}" --output "${output}" )
+    if [[ ${DRY_RUN} -eq 1 ]]; then
+        siem_args+=( --dry-run )
+    fi
+
+    log "exporting SIEM bundle (format: ${format}) -> ${output}..."
+    "${python_bin}" "${script}" "${siem_args[@]}"
+}
+
+# ------------------------------------------------------------------------------
 # deanonymize_report - restore real values in report .md files
 # Uses deanonymize_report.py with the .mapping.json next to the bundle,
 # or MAPPING_FILE if set explicitly via --mapping.
@@ -537,12 +603,24 @@ run_from_bundle() {
     if [[ ${DEANONYMIZE} -eq 1 ]]; then
         deanonymize_report "${report_target}"
     fi
+
+    if [[ -n "${EXPORT_SIEM_FORMAT}" ]]; then
+        export_siem "${report_target}" "${EXPORT_SIEM_FORMAT}" "${EXPORT_SIEM_OUTPUT}"
+    fi
 }
 
 # ------------------------------------------------------------------------------
 # run - execute the queries in one sqlplus session
 # ------------------------------------------------------------------------------
 run() {
+    # Show help when invoked without any arguments. Running without parameters
+    # against a multitenant DB (default on 21c+) would query CDB$ROOT as
+    # sysdba instead of the intended PDB, which almost never gives useful
+    # results.
+    if [[ $# -eq 0 ]]; then
+        usage
+    fi
+
     parse_args "$@"
 
     # --ai implies --report
@@ -605,6 +683,7 @@ run() {
     export ORADBA_LOG="${bundle_dir}"
     export ORADBA_DAYS="${DAYS}"
     export ORADBA_TOP_N="${TOP_N}"
+    export ORADBA_SAMPLE_ROWS="${SAMPLE_ROWS}"
     export ORADBA_PDB="${PDB}"
 
     # Build the @-chain. Setup must be the first script.
@@ -620,9 +699,12 @@ run() {
         | tee "${bundle_dir}/_sqlplus.log"
 
     # Quick sanity-check: did each query produce a CSV?
+    # SQL files use underscores (08_top_users.csv); the QUERIES array uses
+    # hyphens (08-top-users.sql) - normalise before the existence check.
     local missing=0
     for q in "${QUERIES[@]:1}"; do
-        local csv="${bundle_dir}/${q%.sql}.csv"
+        local stem="${q%.sql}"
+        local csv="${bundle_dir}/${stem//-/_}.csv"
         if [[ ! -s "${csv}" ]]; then
             err "missing or empty output: ${csv}"
             missing=$((missing + 1))
@@ -671,6 +753,10 @@ run() {
 
     if [[ ${DEANONYMIZE} -eq 1 ]]; then
         deanonymize_report "${report_target}"
+    fi
+
+    if [[ -n "${EXPORT_SIEM_FORMAT}" ]]; then
+        export_siem "${report_target}" "${EXPORT_SIEM_FORMAT}" "${EXPORT_SIEM_OUTPUT}"
     fi
 }
 

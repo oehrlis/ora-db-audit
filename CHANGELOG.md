@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-05-28
+
+### Added
+
+- **R3** - `--sample-rows N` flag in `bin/ora-db-audit.sh`: limits the source
+  rows fed into the heavy profiling queries (08-12, 15) via `ROWNUM <= N`
+  in the WHERE clause. Default `0` (no limit). Export `ORADBA_SAMPLE_ROWS`
+  injected via `sql/00-setup.sql` into `DEFINE SAMPLE_WHERE` and
+  `DEFINE sampled`. Each affected query emits `# sampled: true/false` in
+  its CSV preamble. The executive summary notes the sampling blind spot when
+  `manifest.json` reports `sample_rows > 0`.
+- **D2** - `tools/export_siem.py`: reads an anonymised (or raw) bundle and
+  writes OCSF 1.3 Database Activity JSON Lines (`--format ocsf`) or a
+  Microsoft Sentinel / Log Analytics CSV (`--format sentinel`). Default
+  sources: queries 08, 11, 13, 14, 19 (off-path candidates if present).
+  Wired into `bin/ora-db-audit.sh` via `--export-siem FORMAT OUTPUT`.
+- `sql/00-setup.sql`: sampling DEFINE injection block (single-line HOST
+  conditional for `SAMPLE_WHERE` and `sampled` SQL*Plus DEFINEs).
+
+### Fixed
+
+- **B6** - `bin/ora-db-audit.sh` sanity check used `${q%.sql}.csv`
+  (hyphenated, e.g. `01-config.csv`) but SQL SPOOL commands produce
+  underscored filenames (`01_config.csv`). Fixed by normalising
+  `${stem//-/_}` before the existence check. All 18 outputs were
+  previously reported as missing even when they existed.
+- **B7** - `tools/anonymize_bundle.py`: `TABLESPACE_STATE` schema hint
+  (used by `sql/02-storage.sql` for tablespace_name) was not in
+  `VALID_KEEP_TYPES`, causing a spurious `WARN: unknown schema type`
+  on every anonymisation run. Added to `VALID_KEEP_TYPES`.
+- **UX1** - `bin/ora-db-audit.sh` invoked without arguments now displays
+  `--help` instead of attempting a `/ as sysdba` collection against the
+  CDB$ROOT. On 21c+ multitenant databases (the default), a no-arg run
+  almost never yields useful results.
+
+### Changed
+
+- File-level version numbers (`# Version:` headers, `TOOL_VERSION`
+  constants, `bundle_version` / `tool_version` in `manifest.json`) now
+  align with the repo SemVer (`VERSION` file). Previously internal tool
+  files used a separate `0.x.x` numbering, causing confusion when the
+  manifest reported `tool_version: 0.x.x` against a `1.x.x` release.
+- `bin/ora-db-audit.sh` version bumped to `1.2.0`.
+- `tools/audit_report.py` `TOOL_VERSION` bumped to `1.2.0`.
+- `tools/audit_report_messages.py` version bumped to `1.2.0`.
+- `tools/anonymize_bundle.py` `VALID_KEEP_TYPES` extended with
+  `TABLESPACE_STATE`.
+
 ## [1.1.1] - 2026-05-28
 
 ### Added

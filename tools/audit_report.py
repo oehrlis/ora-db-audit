@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 0.3.0
+# Version....: 1.2.0
 # Purpose....: Read a (raw or anonymised) ora-db-audit bundle and render a
 #              structured Markdown report for DBA, Security Engineer and
 #              Auditor audiences. Generates an executive summary plus
@@ -33,10 +33,12 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
-# 2026.05.28  oes  R1+R2: CIS coverage (Section 9) and Audit-Roles          0.3.0
+# 2026.05.28  oes  R3: sampling note in exec summary; align version to     1.2.0
+#                  repo SemVer (VERSION file = single source of truth).
+# 2026.05.28  oes  R1+R2: CIS coverage (Section 9) and Audit-Roles        1.1.0
 #                  (Section 10) report sections; R4: --export-prompt flag;
 #                  AI section renumbered to 11.
-# 2026.05.28  oes  Sanitised port from audit_pack-0.5.0 (renamed from      0.2.0
+# 2026.05.28  oes  Sanitised port from audit_pack-0.5.0 (renamed from     1.0.0
 #                  audit_pack_report.py). DEFAULT_CUSTOMER_PREFIX cleared,
 #                  ODB_AUDIT_CTX placeholder generalised.
 # ------------------------------------------------------------------------------
@@ -68,7 +70,7 @@ from audit_report_messages import (  # noqa: E402
 )
 
 
-TOOL_VERSION = "0.3.0"
+TOOL_VERSION = "1.2.0"
 DEFAULT_TOP_N = 20
 DEFAULT_CUSTOMER_PREFIX = ""
 DEFAULT_AI_MODEL = "claude-sonnet-4-6"
@@ -777,6 +779,12 @@ def render_executive_summary(bundle, classifier, top_n):
                 [t("label.policy", lang=LANG), t("label.events", lang=LANG)],
                 top_rows,
             )
+
+    # Sampling notice when --sample-rows was active during collection.
+    sample_rows = manifest.get("sample_rows", 0)
+    if sample_rows and int(sample_rows) > 0:
+        out += "\n" + t("exec.sampling_note", lang=LANG,
+                        n=fmt_int(sample_rows)) + "\n\n"
 
     # Off-path indicator via host pattern check on 12_distinct_hosts.
     if "12" in files:
