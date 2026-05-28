@@ -35,13 +35,13 @@ roadmap.
 
 All four sources live in `~/repos/own/oehrlis/ora-db-audit-eng/`:
 
-| Source | Purpose | Target in this repo |
-|--------|---------|---------------------|
-| `artefacts/audit_pack-0.5.0/run_analysis_pack.sh` | Main bash entry point (~24KB) | `src/ora-db-audit` (rename, refactor) |
-| `artefacts/audit_pack-0.5.0/*.sql` (16 files: 00_setup.sql ... 15_noise_candidates.sql) | SQL analysis queries | `sql/` (keep numbering or rename to descriptive names - design decision) |
-| `tools/audit_pack_report.py` | Python reporter | `tools/audit_report.py` (check if newer than `artefacts/.../tools/audit_pack_report.py`) |
-| `templates/customer_audit_pack_handover.md` | Customer handover template (currently `ODB`-prefixed) | `templates/customer_handover.md` (genericise prefix to variable) |
-| `doc/use-cases/uc_audit_pack_analysis.md` | Use-case documentation | `docs/use-case-analysis.md` |
+| Source                                                                                  | Purpose                                               | Target in this repo                                                                      |
+|-----------------------------------------------------------------------------------------|-------------------------------------------------------|------------------------------------------------------------------------------------------|
+| `artefacts/audit_pack-0.5.0/run_analysis_pack.sh`                                       | Main bash entry point (~24KB)                         | `src/ora-db-audit` (rename, refactor)                                                    |
+| `artefacts/audit_pack-0.5.0/*.sql` (16 files: 00_setup.sql ... 15_noise_candidates.sql) | SQL analysis queries                                  | `sql/` (keep numbering or rename to descriptive names - design decision)                 |
+| `tools/audit_pack_report.py`                                                            | Python reporter                                       | `tools/audit_report.py` (check if newer than `artefacts/.../tools/audit_pack_report.py`) |
+| `templates/customer_audit_pack_handover.md`                                             | Customer handover template (currently `ODB`-prefixed) | `templates/customer_handover.md` (genericise prefix to variable)                         |
+| `doc/use-cases/uc_audit_pack_analysis.md`                                               | Use-case documentation                                | `docs/use-case-analysis.md`                                                              |
 
 Also worth pulling for context (do not migrate, but read):
 

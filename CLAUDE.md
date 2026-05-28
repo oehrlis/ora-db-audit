@@ -20,7 +20,7 @@ ora-db-audit/
 ├── .claude/                ← claude commands, rules, skills (symlinks)
 ├── .github/                ← GitHub workflows (later)
 ├── docs/                   ← documentation, use cases, handover guides
-├── src/                    ← main bash entry point + modules
+├── bin/                    ← main bash entry point (ora-db-audit.sh)
 ├── sql/                    ← SQL analysis queries
 ├── tools/                  ← optional Python reporters
 ├── scripts/                ← build / release / helper scripts
