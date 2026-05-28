@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.5] - 2026-05-28
+
+### Fixed
+
+- **Misleading "Full list in Appendix" hint** (`tools/audit_report_messages.py`)
+  - Section 3 showed "_Full list in Appendix (all policies)._" even when
+    `--include-appendix` was not passed and therefore no appendix was rendered.
+  - Message updated (DE + EN) to "_Full action list available with
+    `--include-appendix`._" - accurately describes the flag required to
+    generate the detail table.
+
 ## [1.3.4] - 2026-05-28
 
 ### Added
