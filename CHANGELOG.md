@@ -25,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `sql/00-setup.sql` through `sql/15-noise-candidates.sql` - 16 audit
   analysis SQL queries migrated from audit_pack-0.5.0, sanitised, with
   Apache 2.0 SPDX headers and hyphenated naming.
+- `sql/16-policy-ddl.sql` (new) - sources `DBMS_METADATA.GET_DDL('AUDIT_POLICY',
+  policy_name)` per enabled policy. Replaces the F2 bug where Section 8.1
+  generated wrong DDL from `UNIFIED_AUDIT_POLICIES` concat strings.
 - `bin/ora-db-audit.sh` - bash entry-point (was run_analysis_pack.sh),
   sanitised, OraDBA header, CUSTOMER_PREFIX default removed,
   shellcheck-clean.
