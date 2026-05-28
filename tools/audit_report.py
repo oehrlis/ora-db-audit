@@ -57,6 +57,11 @@ from anonymize_bundle import (  # noqa: E402
     parse_schema_line,
     split_preamble,
 )
+from audit_report_messages import (  # noqa: E402
+    DEFAULT_LANGUAGE,
+    SUPPORTED_LANGUAGES,
+    t,
+)
 
 
 TOOL_VERSION = "0.2.0"
@@ -64,6 +69,10 @@ DEFAULT_TOP_N = 20
 DEFAULT_CUSTOMER_PREFIX = ""
 DEFAULT_AI_MODEL = "claude-sonnet-4-6"
 DEFAULT_AI_OP_PATH = ""
+# Active language for user-facing strings. Set by parse_args(); the
+# renderers read this module-level state via the t() helper.
+# v1.0.0 ships German-only; v1.1+ adds EN via SUPPORTED_LANGUAGES.
+LANG = DEFAULT_LANGUAGE
 
 AI_SYSTEM_PROMPT = (
     "Du bist ein Oracle Security Architect mit Expertise in Oracle Unified "
@@ -1095,6 +1104,12 @@ def parse_args(argv):
     p.add_argument("--customer-prefix", default=DEFAULT_CUSTOMER_PREFIX,
                    help=f"Customer prefix for narrative passages "
                         f"(default: {DEFAULT_CUSTOMER_PREFIX!r} - empty).")
+    p.add_argument("--lang", default=DEFAULT_LANGUAGE,
+                   choices=list(SUPPORTED_LANGUAGES),
+                   help=f"Report language (default: {DEFAULT_LANGUAGE}). "
+                        f"v1.0.0 ships German-only; additional languages "
+                        f"land in v1.1+ - the message catalog is already "
+                        f"structured to receive them without code changes.")
     p.add_argument("--include-appendix", action="store_true",
                    help="Append manifest + full tables for "
                         "03/04/05 to the report.")
@@ -1143,6 +1158,11 @@ def _confirm_overwrite(path, assume_yes):
 
 def main(argv=None):
     args = parse_args(argv)
+
+    # Activate selected language for all subsequent t() calls.
+    global LANG
+    LANG = args.lang
+
     bundle_dir = args.bundle.resolve()
     if not bundle_dir.is_dir():
         print(f"ERROR: bundle directory not found: {bundle_dir}",
