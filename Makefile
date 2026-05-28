@@ -201,6 +201,7 @@ dist: ## Build ora-db-audit-<VERSION>.tar.gz + .tar.gz.b64 for deployment
 	cp $(TOOLS_DIR)/*.py                       "$$stage/$(TOOLS_DIR)/"; \
 	chmod 0644 "$$stage/$(TOOLS_DIR)/"*.py; \
 	cp $(DOCS_DIR)/*.md                        "$$stage/$(DOCS_DIR)/" 2>/dev/null || true; \
+	cp $(DOCS_DIR)/*.css                       "$$stage/$(DOCS_DIR)/" 2>/dev/null || true; \
 	cp $(DOCS_DIR)/use-cases/*.md              "$$stage/$(DOCS_DIR)/use-cases/" 2>/dev/null || true; \
 	cp README.md LICENSE DISCLAIMER.md CHANGELOG.md "$$stage/"; \
 	printf '%s\n' "$(VERSION)"                 > "$$stage/VERSION"; \

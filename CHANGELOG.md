@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.4] - 2026-05-28
+
+### Added
+
+- **`--to-html` flag** (`bin/ora-db-audit.sh`) - converts `audit_report.md`
+  to `audit_report.html` after report generation. Implies `--report`.
+  Works in both live collection and `--from-bundle` mode. Uses
+  `tools/md_to_html.py` with `docs/report.css` when available; falls back to
+  the inline stylesheet automatically. Output is written as
+  `audit_report.html` next to the source `.md` in the bundle directory.
+- **`docs/` included in dist tarball** (`Makefile`) - `docs/*.css` (including
+  `report.css`) is now copied into the distribution package alongside
+  `docs/*.md`. The `--to-html` flag therefore works correctly in a deployed
+  dist installation without a full repository checkout.
+
 ## [1.3.3] - 2026-05-28
 
 ### Added
