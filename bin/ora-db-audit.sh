@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 1.4.2
+# Version....: 1.4.3
 # Purpose....: Extract Oracle Unified Audit Trail data from a target database,
 #              produce a self-contained CSV bundle, optionally anonymise it,
 #              and render a Markdown analysis report. Designed to be executed
@@ -31,6 +31,7 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.28  oes  §2.6 off-path two-scenario model; ^app- default pattern. 1.4.3
 # 2026.05.28  oes  Add --version flag; fix version source (VERSION file);   1.4.2
 #                  fix hardcoded 1.3.6 in manifest; show version in --help.
 # 2026.05.28  oes  Fix audit_trail_type ORA-904; pandoc --to-html;          1.4.1
@@ -90,7 +91,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 if [[ -r "${REPO_ROOT}/VERSION" ]]; then
     SCRIPT_VERSION="$(tr -d '[:space:]' < "${REPO_ROOT}/VERSION")"
 else
-    SCRIPT_VERSION="1.4.2"
+    SCRIPT_VERSION="1.4.3"
 fi
 # SQL files live in sql/ next to bin/.
 SQL_DIR="${REPO_ROOT}/sql"

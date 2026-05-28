@@ -182,30 +182,85 @@ is the evidence, e.g. `BY USER`, `BY GRANTED ROLE`, `ALL USERS`).
 
 ---
 
-## 2.6 Off-path events - distinguish "not configured" from "historical"
+## 2.6 Off-path events - two deployment scenarios
 
-Off-path events in the audit trail (events from `ODB_LOC_APP_OFFPATH_V1`
-or equivalent) do NOT by themselves prove that the context trigger is
-missing or misconfigured.
+Off-path detection works in two fundamentally different ways depending on
+whether an Oracle Application Context is deployed in the target database.
+**Always identify which scenario applies before raising a finding.**
 
-**Rule:** When raising an off-path finding, check the context/trigger
-status metadata (if available in the report):
+### How to tell which scenario is in place
 
-- Context registered (`dba_context` entry with correct schema and package) +
-  trigger ENABLED → infrastructure is in place. Off-path events are either:
-  a. Historical (predating trigger deployment), or
-  b. Current (host not yet registered in the package whitelist).
+Inspect the policy conditions in Section 3 (policy inventory) of the report
+or query `dba_audit_policies.condition_eval_opt` / `dba_audit_policy_actions`.
+If any policy carries a condition of the form:
 
-Finding text MUST distinguish these two cases:
+```sql
+CONDITION: SYS_CONTEXT('<any_name>', 'IS_APP_ACCESS') = 'FALSE'
+-- or IS_KNOWN_CLIENT, IS_DEV_TOOL, or any equivalent flag
+```
 
-- Infrastructure in place + historical events only → INFO / LOW severity.
-- Infrastructure in place + ongoing events → MEDIUM (host not registered).
-- Infrastructure missing → HIGH (trigger or context not deployed).
+then **Scenario A** applies. Otherwise assume **Scenario B**.
+
+---
+
+### Scenario A - Application Context deployed
+
+An Application Context (any name, customer-specific) is deployed on the
+database. A LOGON trigger (or equivalent) sets session-level flags such as
+`IS_APP_ACCESS`, `IS_KNOWN_CLIENT`, or `IS_DEV_TOOL` at connect time.
+Audit policies that reference these flags via `SYS_CONTEXT(...)` fire
+**only when the flag is FALSE** - i.e. only for off-path access.
+
+**Consequence:** every record from a context-conditioned policy is off-path
+by definition. The audit trail is already the filtered off-path view.
+
+Finding rules:
+
+- Context (`dba_context`) registered + LOGON trigger ENABLED + events:
+  - Historical events only (timestamps before trigger deployment) →
+    **INFO** or **LOW**.
+  - Ongoing events → **MEDIUM** - host or client not yet registered in
+    the context package whitelist. Add to the pattern list in the package.
+  - Many distinct users from same unknown host → **HIGH** (active bypass).
+- Context registered but LOGON trigger DISABLED or missing → **HIGH**
+  (infrastructure incomplete; IS_APP_ACCESS always evaluates to FALSE,
+  meaning the policy would fire for all sessions, not just off-path ones).
+- Context not in `dba_context` at all → **HIGH** (not deployed).
+
+Correct finding text when trigger is in place:
+"Host `<NAME>` does not match any registered app-server pattern in the
+context package; verify the host and add it to the whitelist if correct."
 
 Never write "IS_APP_ACCESS not configured" when the context is registered
-and the trigger is enabled. The correct text is:
-"host `<NAME>` not matched by current app-server host pattern in
-`ODB_AUDIT_CTX_PKG`; verify and add to `C_APP_HOST_PATTERN` if correct."
+and the trigger is enabled - that phrasing implies missing infrastructure
+when the real issue is an unregistered host.
+
+---
+
+### Scenario B - Pattern-based only (no Application Context)
+
+No context condition appears in any audit policy. The tool derives
+off-path classification from the USERHOST value alone, using the
+pattern lists from `--patterns` / `DEFAULT_PATTERNS`:
+
+- `app_host_patterns` match → **APP** (expected application tier)
+- `infra_host_patterns` match → **INFRA** (database server, OEM, backup)
+- `dba_host_patterns` match → **DBA** (jump hosts, admin laptops)
+- No match → **OFF-PATH** (shown in Section 7.2)
+
+Finding severity from triage heuristics (`docs/use-cases/off-path-detection.md`):
+
+- High volume + broad action profile (`distinct_actions >= 5`) → **HIGH**
+- JDBC / application client on unknown host → **MEDIUM** (possible new
+  app server not yet added to patterns)
+- Single login, stale timestamp → **LOW**
+- `os_username = dbusername`, SQL developer tool → **INFO** (likely
+  developer direct-connect; discuss policy)
+
+**Important before raising:** a host in Section 7.2 may simply be a
+legitimate server not yet added to the patterns configuration. Check
+login volume, distinct users, and client program name. If it looks like
+a known server, add it to the `--patterns` file - not a security finding.
 
 ---
 
@@ -515,11 +570,12 @@ changes, future versions will too). Amendments to this document:
    an issue tagged `breaking-rule-change` so downstream consumers
    (audit_report.py, CI tests) update in sync.
 
-**Version**: 0.2.0 (2026-05-28)
+**Version**: 0.3.0 (2026-05-28)
 
 **Change log**:
 
 | Date       | Version | Change                                                                        |
 |------------|---------|-------------------------------------------------------------------------------|
+| 2026-05-28 | 0.3.0   | Rewrite §2.6: two-scenario model (Context vs. Pattern-based); remove tool-specific names. |
 | 2026-05-28 | 0.2.0   | Add sections 2.5 (ghost events), 2.6 (off-path inference), 2.7 (purge metadata reliability). |
 | 2026-05-28 | 0.1.0   | Initial draft. Addresses F1-F5 from `tasks/rework-plan.md`. |

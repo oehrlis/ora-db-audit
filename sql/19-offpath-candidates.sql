@@ -33,7 +33,7 @@
 --             AUDIT_ADMIN).
 -- -----------------------------------------------------------------------------
 
-DEFINE APP_PATTERN   = '^auditlab-app-|^wls-'
+DEFINE APP_PATTERN   = '^auditlab-app-|^app-|^wls-'
 DEFINE INFRA_PATTERN = '^auditlab-db|^oem-'
 DEFINE DBA_PATTERN   = '^laptop-|^jumphost-'
 

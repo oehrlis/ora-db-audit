@@ -352,6 +352,7 @@ AI_USER_PROMPT_TEMPLATE = AI_USER_PROMPT_TEMPLATES["de"]
 DEFAULT_PATTERNS = {
     "app_host_patterns": [
         r"^auditlab-app-",
+        r"^app-",
         r"^wls-",
     ],
     "infra_host_patterns": [
