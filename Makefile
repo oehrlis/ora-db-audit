@@ -48,6 +48,7 @@ SHELLCHECK   := $(shell PATH="$(PATH)" command -v shellcheck 2>/dev/null)
 MARKDOWNLINT := $(shell PATH="$(PATH)" command -v markdownlint 2>/dev/null || \
                          PATH="$(PATH)" command -v markdownlint-cli 2>/dev/null)
 YAMLLINT     := $(shell PATH="$(PATH)" command -v yamllint 2>/dev/null)
+PANDOC       := $(shell PATH="$(PATH)" command -v pandoc 2>/dev/null)
 BATS         := $(shell PATH="$(PATH)" command -v bats 2>/dev/null)
 PYTHON       := $(shell PATH="$(PATH)" command -v python3 2>/dev/null || \
                          PATH="$(PATH)" command -v python 2>/dev/null)
@@ -55,6 +56,10 @@ PYTEST       := $(shell PATH="$(PATH)" command -v pytest 2>/dev/null || \
                     { test -n "$(PYTHON)" && $(PYTHON) -m pytest --version >/dev/null 2>&1 && \
                       echo "$(PYTHON) -m pytest"; })
 GIT          := $(shell PATH="$(PATH)" command -v git 2>/dev/null)
+
+# -- Report conversion ---------------------------------------------------------
+BUNDLE ?=
+MD     ?=
 
 # -- Scripts -------------------------------------------------------------------
 BUMP_SCRIPT := $(SCRIPTS_DIR)/bump_version.sh
@@ -80,6 +85,10 @@ help: ## Show this help message
 	@echo ""
 	@echo -e "$(COLOR_BOLD)Test:$(COLOR_RESET)"
 	@grep -E '^test[a-zA-Z_-]*:.*?## ' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(COLOR_GREEN)%-24s$(COLOR_RESET) %s\n", $$1, $$2}'
+	@echo ""
+	@echo -e "$(COLOR_BOLD)Report:$(COLOR_RESET)"
+	@grep -E '^to-[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(COLOR_GREEN)%-24s$(COLOR_RESET) %s\n", $$1, $$2}'
 	@echo ""
 	@echo -e "$(COLOR_BOLD)Build and Distribution:$(COLOR_RESET)"
@@ -334,6 +343,50 @@ status: ## Show git status and current version
 	@if [[ -n "$(GIT)" ]]; then \
 		echo ""; \
 		$(GIT) status -sb; \
+	fi
+
+# ==============================================================================
+# Report
+# ==============================================================================
+
+.PHONY: to-html
+to-html: ## Convert audit_report.md to HTML  (BUNDLE=<dir>  or  MD=<file.md>)
+	@if [[ -n "$(BUNDLE)" ]]; then \
+		mdfile="$(BUNDLE)/audit_report.md"; \
+	elif [[ -n "$(MD)" ]]; then \
+		mdfile="$(MD)"; \
+	else \
+		echo -e "$(COLOR_RED)Error:$(COLOR_RESET) specify BUNDLE=<bundle-dir> or MD=<path/to/report.md>"; \
+		exit 1; \
+	fi; \
+	if [[ ! -f "$$mdfile" ]]; then \
+		echo -e "$(COLOR_RED)Error:$(COLOR_RESET) not found: $$mdfile"; \
+		exit 1; \
+	fi; \
+	outfile="$${mdfile%.md}.html"; \
+	title="$$(grep -m1 '^# ' "$$mdfile" | sed 's/^# //')"; \
+	title="$${title:-Oracle Audit Report}"; \
+	if [[ -n "$(PANDOC)" ]]; then \
+		"$(PANDOC)" "$$mdfile" \
+			--standalone \
+			--metadata title="$$title" \
+			--toc --toc-depth=2 \
+			-o "$$outfile"; \
+		echo -e "$(COLOR_GREEN)HTML report written$(COLOR_RESET) -> $$outfile  (pandoc)"; \
+	else \
+		echo -e "$(COLOR_YELLOW)Warning:$(COLOR_RESET) pandoc not found" \
+		        "(install: brew install pandoc) - falling back to Python markdown"; \
+		if [[ -z "$(PYTHON)" ]]; then \
+			echo -e "$(COLOR_RED)Error:$(COLOR_RESET) python3 not found"; \
+			exit 1; \
+		fi; \
+		if ! "$(PYTHON)" -c "import markdown" 2>/dev/null; then \
+			echo -e "$(COLOR_RED)Error:$(COLOR_RESET) Python 'markdown' package missing" \
+			        "(pip install markdown)"; \
+			exit 1; \
+		fi; \
+		"$(PYTHON)" "$(TOOLS_DIR)/md_to_html.py" "$$mdfile" "$$outfile" "$$title"; \
+		echo -e "$(COLOR_GREEN)HTML report written$(COLOR_RESET) -> $$outfile  (Python markdown fallback)"; \
 	fi
 
 # EOF --------------------------------------------------------------------------
