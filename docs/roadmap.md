@@ -1,6 +1,6 @@
 # Roadmap
 
-Current release: **v1.3.5** - Updated: 2026-05-28
+Current release: **v1.3.6** - Updated: 2026-05-28
 
 ---
 
@@ -26,6 +26,7 @@ Current release: **v1.3.5** - Updated: 2026-05-28
 | 1.3.3   | released | 2026-05-28 | make to-html target: pandoc with Python fallback, no re-render required |
 | 1.3.4   | released | 2026-05-28 | --to-html flag in ora-db-audit.sh; docs/*.css included in dist tarball |
 | 1.3.5   | released | 2026-05-28 | Fix misleading "Full list in Appendix" hint in Section 3 (no appendix rendered without --include-appendix) |
+| 1.3.6   | released | 2026-05-28 | Fix --include-appendix missing from ora-db-audit.sh (flag existed only in audit_report.py) |
 <!-- markdownlint-enable MD013 MD060 -->
 
 ---
