@@ -4,10 +4,10 @@
 # pdb: AUDITPDB1
 # generated: 2026-05-12T10:00:00+02:00
 # cis_controls: 5.1,5.2,5.3,5.4,5.5
-# schema: policy_name=KEEP|cis_control=KEEP|cis_title=KEEP|policy_exists=KEEP|policy_enabled=KEEP|success_enabled=KEEP|failure_enabled=KEEP|except_user_count=COUNT|verdict=KEEP
-policy_name|cis_control|cis_title|policy_exists|policy_enabled|success_enabled|failure_enabled|except_user_count|verdict
-CIS_CDB_DDL_ACTIONS|5.1|DDL Actions|NO|NO|N/A|N/A|0|FAIL
-CIS_CDB_LOGON_LOGOFF|5.2|Logon and Logoff|NO|NO|N/A|N/A|0|FAIL
-CIS_CDB_CRITICAL_PACKAGES|5.3|Critical Packages|NO|NO|N/A|N/A|0|FAIL
-CIS_CDB_EXPORT|5.4|Export Activities|NO|NO|N/A|N/A|0|FAIL
-CIS_CDB_ALL_ACTIONS_BY_PRIVILEGED_USERS|5.5|SYS Privileged Users|NO|NO|N/A|N/A|0|FAIL
+# schema: cis_control=KEEP|cis_title=KEEP|verdict=KEEP|custom_policies=KEEP|oracle_policies=KEEP
+cis_control|cis_title|verdict|custom_policies|oracle_policies
+5.1|DDL Actions|FAIL|(none)|(none)
+5.2|Logon and Logoff|FAIL|(none)|(none)
+5.3|Critical Packages|FAIL|(none)|(none)
+5.4|Export Activities|FAIL|(none)|(none)
+5.5|SYS Privileged Users|FAIL|(none)|(none)

@@ -122,6 +122,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "metric.pol_events": "Events (Policy-getrieben, Summe Top-N)",
         "metric.user_events": "Events (User-Summe Top-N)",
         "metric.failed_logins": "Failed Logins (Summe Top-N)",
+        "metric.mandatory_events": "Events (ORA$MANDATORY)",
         "metric.active_policies": "Aktive Audit-Policies (Inventar)",
         "metric.storage_partitions": "Storage-Partitionen",
 
@@ -131,6 +132,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "label.cis_exists": "Exists",
         "label.cis_enabled": "Enabled",
         "label.cis_verdict": "Verdict",
+        "label.cis_custom": "Abgedeckt durch (Custom)",
+        "label.cis_oracle": "Oracle-Policies",
         "label.role_target": "Ziel-Rolle",
         "label.role_grantee": "Grantee",
         "label.role_type": "Typ",
@@ -253,14 +256,24 @@ MESSAGES: dict[str, dict[str, str]] = {
 
         # --- Section 9 - CIS coverage ---
         "cis.fail_count": (
-            "> **{n} von {total} CIS-Pflicht-Policies fehlen** "
-            "(FAIL). Betroffene Policies sind nicht deployt."
+            "> **{n} von {total} CIS-Anforderungen nicht abgedeckt** "
+            "(FAIL). Keine aktive Custom-Policy deckt diese Anforderungen ab."
+        ),
+        "cis.partial_count": (
+            "> **{n} CIS-Anforderung(en) nur teilweise abgedeckt** "
+            "(PARTIAL). Abdeckung besteht, aber mit WHEN-Bedingung oder "
+            "eingeschraenktem User-Scope."
         ),
         "cis.warn_count": (
             "> **{n} CIS-Policy/ies vorhanden aber deaktiviert** "
             "(WARN). Policies existieren, sind aber nicht aktiv."
         ),
-        "cis.all_pass": "> Alle CIS 5.1-5.5 Pflicht-Policies sind aktiv (PASS).",
+        "cis.all_pass": "> Alle CIS 5.1-5.5 Anforderungen vollstaendig abgedeckt (PASS).",
+        "cis.coverage_note": (
+            "_Abdeckung wird durch Aktions-Vergleich ermittelt (nicht durch Policy-Namen). "
+            "PARTIAL = Policy mit WHEN-Bedingung oder eingeschraenktem User-Scope. "
+            "Oracle-supplied Policies werden informativ gezeigt, beeinflussen das Verdict nicht._"
+        ),
         "cis.source": "Quelle: `17_cis_coverage.csv`",
 
         # --- Section 10 - audit roles ---
@@ -427,6 +440,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "metric.pol_events": "Events (policy-driven, Top-N sum)",
         "metric.user_events": "Events (user Top-N sum)",
         "metric.failed_logins": "Failed logins (Top-N sum)",
+        "metric.mandatory_events": "Events (ORA$MANDATORY)",
         "metric.active_policies": "Active audit policies (inventory)",
         "metric.storage_partitions": "Storage partitions",
 
@@ -436,6 +450,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "label.cis_exists": "Exists",
         "label.cis_enabled": "Enabled",
         "label.cis_verdict": "Verdict",
+        "label.cis_custom": "Covered by (Custom)",
+        "label.cis_oracle": "Oracle Policies",
         "label.role_target": "Target Role",
         "label.role_grantee": "Grantee",
         "label.role_type": "Type",
@@ -558,14 +574,24 @@ MESSAGES: dict[str, dict[str, str]] = {
 
         # --- Section 9 - CIS coverage ---
         "cis.fail_count": (
-            "> **{n} of {total} mandatory CIS policies missing** "
-            "(FAIL). Affected policies are not deployed."
+            "> **{n} of {total} CIS requirements not covered** "
+            "(FAIL). No active custom policy covers these requirements."
+        ),
+        "cis.partial_count": (
+            "> **{n} CIS requirement(s) only partially covered** "
+            "(PARTIAL). Coverage exists but with WHEN condition or "
+            "restricted user scope."
         ),
         "cis.warn_count": (
             "> **{n} CIS policy/ies present but disabled** "
             "(WARN). Policies exist but are not active."
         ),
-        "cis.all_pass": "> All CIS 5.1-5.5 mandatory policies are active (PASS).",
+        "cis.all_pass": "> All CIS 5.1-5.5 requirements fully covered (PASS).",
+        "cis.coverage_note": (
+            "_Coverage determined by action comparison (not policy names). "
+            "PARTIAL = policy has WHEN condition or restricted user scope. "
+            "Oracle-supplied policies shown for information, do not affect verdict._"
+        ),
         "cis.source": "Source: `17_cis_coverage.csv`",
 
         # --- Section 10 - audit roles ---

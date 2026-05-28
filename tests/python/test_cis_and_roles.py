@@ -95,8 +95,8 @@ def test_cis_coverage_fixture_reflects_missing_policies():
 
 def test_cis_coverage_required_columns():
     _, fieldnames, _ = _parse_csv(CIS_CSV)
-    required = {"policy_name", "cis_control", "cis_title",
-                "policy_exists", "policy_enabled", "verdict"}
+    # v1.3+ format: action-based coverage columns
+    required = {"cis_control", "cis_title", "verdict", "custom_policies"}
     missing = required - set(fieldnames or [])
     assert not missing, f"Missing columns: {missing}"
 

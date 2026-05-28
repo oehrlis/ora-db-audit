@@ -126,8 +126,9 @@ SELECT
     parameter_value                                 AS "value",
     audit_trail                                     AS "trail",
     CASE UPPER(audit_trail)
-        WHEN 'UNIFIED AUDIT TRAIL' THEN 0
-        WHEN 'ALL AUDIT TRAILS'    THEN 0
+        WHEN 'UNIFIED AUDIT TRAIL'       THEN 0
+        WHEN 'UNIFIED AUDIT TRAIL FILES' THEN 0
+        WHEN 'ALL AUDIT TRAILS'          THEN 0
         ELSE 1
     END                                             AS "legacy_param"
 FROM dba_audit_mgmt_config_params

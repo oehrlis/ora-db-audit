@@ -70,8 +70,8 @@ from audit_report_messages import (  # noqa: E402
 )
 
 
-TOOL_VERSION = "1.2.0"
-DEFAULT_TOP_N = 20
+TOOL_VERSION = "1.3.0"
+DEFAULT_TOP_N = None  # None = use bundle manifest top_n; 0 = unlimited
 DEFAULT_CUSTOMER_PREFIX = ""
 DEFAULT_AI_MODEL = "claude-sonnet-4-6"
 DEFAULT_AI_OP_PATH = ""
@@ -747,18 +747,33 @@ def render_executive_summary(bundle, classifier, top_n):
     user_events = _sum_column(files.get("08"), "events")
     failed_total = _sum_column(files.get("13"), "failed_attempts")
 
+    # ORA$MANDATORY event count from policy_volume (query 04).
+    mandatory_events = 0
+    fd04 = files.get("04")
+    if fd04:
+        idx_pname = _col_index(fd04, "policy_name")
+        idx_pevts = _col_index(fd04, "events")
+        for r in fd04.get("rows", []):
+            if _row_get(r, idx_pname).strip() == "ORA$MANDATORY":
+                try:
+                    mandatory_events = int(_row_get(r, idx_pevts).replace("'", ""))
+                except ValueError:
+                    pass
+
     out += section_header(3, t("section.metrics", lang=LANG))
+    metrics_rows = [
+        [t("metric.pol_events", lang=LANG), fmt_int(pol_events)],
+        [t("metric.user_events", lang=LANG), fmt_int(user_events)],
+        [t("metric.failed_logins", lang=LANG), fmt_int(failed_total)],
+        [t("metric.mandatory_events", lang=LANG), fmt_int(mandatory_events)],
+        [t("metric.active_policies", lang=LANG),
+         fmt_int(len(files.get("03", {}).get("rows", [])))],
+        [t("metric.storage_partitions", lang=LANG),
+         fmt_int(len(files.get("02", {}).get("rows", [])))],
+    ]
     out += render_table(
         [t("label.metric", lang=LANG), t("label.value", lang=LANG)],
-        [
-            [t("metric.pol_events", lang=LANG), fmt_int(pol_events)],
-            [t("metric.user_events", lang=LANG), fmt_int(user_events)],
-            [t("metric.failed_logins", lang=LANG), fmt_int(failed_total)],
-            [t("metric.active_policies", lang=LANG),
-             fmt_int(len(files.get("03", {}).get("rows", [])))],
-            [t("metric.storage_partitions", lang=LANG),
-             fmt_int(len(files.get("02", {}).get("rows", [])))],
-        ],
+        metrics_rows,
     )
 
     # Top 3 volume drivers from policy_volume (sorted desc already).
@@ -1238,10 +1253,13 @@ def render_appendix(bundle, top_n):
 def render_section_09_cis_coverage(file_data):
     """Section 9 - CIS Benchmark 5.1-5.5 coverage per-control PASS/WARN/FAIL table.
 
-    Reads 17_cis_coverage.csv. Each row represents one CIS control and
-    whether a matching Unified Audit Policy exists and is enabled.
-    Verdict values: PASS (exists + enabled), WARN (exists but disabled),
-    FAIL (policy absent).
+    Reads 17_cis_coverage.csv (v1.3+ format). Each row represents one CIS
+    control (5.1-5.5). Coverage is determined by comparing actual policy
+    actions against CIS requirements - NOT by checking for specific policy
+    names. Verdicts: PASS (custom policy with full unconditional coverage),
+    PARTIAL (custom policy exists but is conditional or user-scoped),
+    FAIL (no custom policy covers the control at all).
+    Oracle-supplied policies are shown separately for information.
     """
     out = section_header(2, t("section.09_cis_coverage", lang=LANG))
     if file_data is None:
@@ -1255,29 +1273,50 @@ def render_section_09_cis_coverage(file_data):
 
     idx_control = _col_index(file_data, "cis_control")
     idx_title = _col_index(file_data, "cis_title")
-    idx_policy = _col_index(file_data, "policy_name")
-    idx_exists = _col_index(file_data, "policy_exists")
-    idx_enabled = _col_index(file_data, "policy_enabled")
     idx_verdict = _col_index(file_data, "verdict")
+    idx_custom = _col_index(file_data, "custom_policies")
+    idx_oracle = _col_index(file_data, "oracle_policies")
 
-    fail_count = sum(
-        1 for r in rows
-        if _row_get(r, idx_verdict).upper() == "FAIL"
-    )
-    warn_count = sum(
-        1 for r in rows
-        if _row_get(r, idx_verdict).upper() == "WARN"
-    )
-    pass_count = sum(
-        1 for r in rows
-        if _row_get(r, idx_verdict).upper() == "PASS"
-    )
+    # Support both old format (policy_name column) and new format (custom_policies).
+    # Old format: idx_custom == -1; fall back to legacy rendering.
+    if idx_custom < 0:
+        # Legacy fallback: reuse old rendering path with available columns.
+        idx_policy = _col_index(file_data, "policy_name")
+        idx_exists = _col_index(file_data, "policy_exists")
+        idx_enabled = _col_index(file_data, "policy_enabled")
+        fail_count = sum(1 for r in rows if _row_get(r, idx_verdict).upper() == "FAIL")
+        if fail_count:
+            out += t("cis.fail_count", lang=LANG,
+                     n=fail_count, total=len(rows)) + "\n\n"
+        table_rows = []
+        for r in rows:
+            v = _row_get(r, idx_verdict).upper()
+            vm = {"PASS": "PASS", "WARN": "**WARN**", "FAIL": "**FAIL**"}.get(v, v)
+            table_rows.append([
+                _row_get(r, idx_control), _row_get(r, idx_title),
+                _row_get(r, idx_policy) if idx_policy >= 0 else "",
+                _row_get(r, idx_exists) if idx_exists >= 0 else "",
+                _row_get(r, idx_enabled) if idx_enabled >= 0 else "",
+                vm,
+            ])
+        out += render_table(
+            [t("label.cis_control", lang=LANG), t("label.cis_title", lang=LANG),
+             t("label.cis_policy", lang=LANG), t("label.cis_exists", lang=LANG),
+             t("label.cis_enabled", lang=LANG), t("label.cis_verdict", lang=LANG)],
+            table_rows,
+        )
+        out += "\n" + t("cis.source", lang=LANG) + "\n\n"
+        return out
+
+    fail_count = sum(1 for r in rows if _row_get(r, idx_verdict).upper() == "FAIL")
+    partial_count = sum(1 for r in rows if _row_get(r, idx_verdict).upper() == "PARTIAL")
+    pass_count = sum(1 for r in rows if _row_get(r, idx_verdict).upper() == "PASS")
 
     if fail_count:
         out += t("cis.fail_count", lang=LANG,
                  n=fail_count, total=len(rows)) + "\n\n"
-    if warn_count:
-        out += t("cis.warn_count", lang=LANG, n=warn_count) + "\n\n"
+    if partial_count:
+        out += t("cis.partial_count", lang=LANG, n=partial_count) + "\n\n"
     if pass_count == len(rows):
         out += t("cis.all_pass", lang=LANG) + "\n\n"
 
@@ -1285,26 +1324,26 @@ def render_section_09_cis_coverage(file_data):
     for r in rows:
         verdict = _row_get(r, idx_verdict).upper()
         verdict_marker = {
-            "PASS": "PASS",
-            "WARN": "**WARN**",
-            "FAIL": "**FAIL**",
+            "PASS":    "PASS",
+            "PARTIAL": "**PARTIAL**",
+            "FAIL":    "**FAIL**",
         }.get(verdict, verdict)
         table_rows.append([
             _row_get(r, idx_control),
             _row_get(r, idx_title),
-            _row_get(r, idx_policy),
-            _row_get(r, idx_exists),
-            _row_get(r, idx_enabled),
             verdict_marker,
+            _row_get(r, idx_custom),
+            _row_get(r, idx_oracle) if idx_oracle >= 0 else "",
         ])
 
     out += render_table(
         [t("label.cis_control", lang=LANG), t("label.cis_title", lang=LANG),
-         t("label.cis_policy", lang=LANG), t("label.cis_exists", lang=LANG),
-         t("label.cis_enabled", lang=LANG), t("label.cis_verdict", lang=LANG)],
+         t("label.cis_verdict", lang=LANG),
+         t("label.cis_custom", lang=LANG), t("label.cis_oracle", lang=LANG)],
         table_rows,
     )
-    out += "\n" + t("cis.source", lang=LANG) + "\n\n"
+    out += "\n" + t("cis.coverage_note", lang=LANG) + "\n"
+    out += t("cis.source", lang=LANG) + "\n\n"
     return out
 
 
@@ -1637,9 +1676,11 @@ def parse_args(argv):
     p.add_argument("--patterns", type=Path,
                    help="JSON file with host-pattern lists "
                         "(default: built-in community / customer-configurable set).")
-    p.add_argument("--top-n", type=int, default=DEFAULT_TOP_N,
-                   help=f"Top-N row cap per table "
-                        f"(default: {DEFAULT_TOP_N}).")
+    p.add_argument("--top-n", type=int, default=None,
+                   metavar="N",
+                   help="Row cap per table in the report. "
+                        "Default: reads top_n from bundle manifest. "
+                        "Use 0 for unlimited (show all rows).")
     p.add_argument("--customer-prefix", default=DEFAULT_CUSTOMER_PREFIX,
                    help=f"Customer prefix for narrative passages "
                         f"(default: {DEFAULT_CUSTOMER_PREFIX!r} - empty).")
@@ -1737,6 +1778,15 @@ def main(argv=None):
               file=sys.stderr)
         return 2
 
+    # Resolve top_n: explicit arg > manifest > fallback 20.
+    # 0 means unlimited (None in render_table).
+    if args.top_n is None:
+        top_n = int(bundle.get("_manifest", {}).get("top_n") or 20)
+    elif args.top_n == 0:
+        top_n = None  # unlimited
+    else:
+        top_n = args.top_n
+
     # Section 8.1 tuning suggestions need actual policy DDL from
     # DBMS_METADATA (sql/16-policy-ddl.csv). Empty if unavailable -
     # the renderer falls back to a "DDL unavailable" note instead of
@@ -1752,7 +1802,7 @@ def main(argv=None):
                   "(Section 8.1 will note 'DDL unavailable')")
 
     report_text = render_report(
-        bundle, classifier, args.top_n, args.include_appendix,
+        bundle, classifier, top_n, args.include_appendix,
         policy_ddl_map=policy_ddl_map,
     )
 

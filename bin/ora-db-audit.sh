@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 1.2.4
+# Version....: 1.3.0
 # Purpose....: Extract Oracle Unified Audit Trail data from a target database,
 #              produce a self-contained CSV bundle, optionally anonymise it,
 #              and render a Markdown analysis report. Designed to be executed
@@ -31,6 +31,9 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.28  oes  CIS action-based coverage; top-n from manifest;       1.3.0
+#                  ORA$MANDATORY metric; UNIFIED AUDIT TRAIL FILES non-
+#                  legacy; --export-prompt optional FILE + default name.
 # 2026.05.28  oes  Fix: auto-detect lang from manifest on --from-bundle. 1.2.4
 # 2026.05.28  oes  Fix: include PDB name in bundle dir/tarball name.     1.2.3
 # 2026.05.28  oes  Fix: wire --lang, --export-prompt, --customer-prefix  1.2.2
@@ -151,10 +154,12 @@ Options:
                        bundle and is safe to share externally.
   --lang de|en         Report language (default: de). Passed to
                        audit_report.py. Only used with --report.
-  --export-prompt FILE Write the full AI analysis prompt to FILE instead
+  --export-prompt [FILE] Write the full AI analysis prompt to FILE instead
                        of calling the Claude API. The file is a
                        self-contained prompt ready to paste into any LLM
                        chat UI (claude.ai, ChatGPT, etc.).
+                       FILE is optional: without it, defaults to
+                       <bundle_dir>/<bundle_name>_prompt.txt.
                        No API key required. Only used with --report.
   --patterns FILE      Host-pattern config (JSON) for the report. Keys:
                        app_host_patterns, infra_host_patterns,
@@ -226,7 +231,13 @@ parse_args() {
             --customer-prefix)  CUSTOMER_PREFIX="$2"; shift 2 ;;
             --report)           REPORT=1; shift ;;
             --lang)             LANG_REPORT="$2"; LANG_REPORT_EXPLICIT=1; shift 2 ;;
-            --export-prompt)    EXPORT_PROMPT="$2"; shift 2 ;;
+            --export-prompt)
+                if [[ ${2+x} ]] && [[ "${2:-}" != --* ]]; then
+                    EXPORT_PROMPT="$2"; shift 2
+                else
+                    EXPORT_PROMPT="auto"; shift
+                fi
+                ;;
             --patterns)         PATTERNS_FILE="$2"; shift 2 ;;
             --tools-dir)        TOOLS_DIR_OVERRIDE="$2"; shift 2 ;;
             --from-bundle)  FROM_BUNDLE="$2"; shift 2 ;;
@@ -306,7 +317,7 @@ write_manifest() {
     local bundle_dir="$1" dbsid="$2" ts="$3"
     cat > "${bundle_dir}/manifest.json" <<EOF
 {
-  "bundle_version": "1.2.4",
+  "bundle_version": "1.3.0",
   "generated_at":   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
   "dbsid":          "${dbsid}",
   "pdb":            "${PDB}",
@@ -319,7 +330,7 @@ write_manifest() {
 $(printf '    "%s",\n' "${QUERIES[@]:1}" | sed '$ s/,$//')
   ],
   "tool":           "ora-db-audit.sh",
-  "tool_version":   "1.2.4"
+  "tool_version":   "1.3.0"
 }
 EOF
 }
@@ -488,7 +499,13 @@ render_report() {
         report_args+=( --patterns "${PATTERNS_FILE}" )
     fi
     if [[ -n "${EXPORT_PROMPT}" ]]; then
-        report_args+=( --export-prompt "${EXPORT_PROMPT}" )
+        local prompt_file="${EXPORT_PROMPT}"
+        if [[ "${prompt_file}" == "auto" ]]; then
+            local bundle_name
+            bundle_name="$(basename "${bundle_dir}")"
+            prompt_file="${bundle_dir}/${bundle_name}_prompt.txt"
+        fi
+        report_args+=( --export-prompt "${prompt_file}" )
     fi
     if [[ ${AI} -eq 1 ]]; then
         report_args+=( --ai --ai-model "${AI_MODEL}" )
