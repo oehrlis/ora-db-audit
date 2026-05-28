@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.3] - 2026-05-28
+
+### Changed
+
+- **`docs/ai-analysis-rules.md` §2.6 rewritten** - replaces single vague
+  rule with two-scenario model: Scenario A (Application Context deployed,
+  recognisable by `SYS_CONTEXT(...)` condition in audit policy) and
+  Scenario B (pattern-based only, no context). Removes tool-specific names
+  (`ODB_AUDIT_CTX_PKG`, `ODB_LOC_APP_OFFPATH_V1`, `C_APP_HOST_PATTERN`)
+  since the context name is customer-specific. Version bumped 0.2.0 → 0.3.0.
+- **Default app-host pattern extended** - `^app-` added to `DEFAULT_PATTERNS`
+  in `tools/audit_report.py` and to `APP_PATTERN` DEFINE in
+  `sql/19-offpath-candidates.sql`. Hosts named `app-*` (e.g. `app-classic`,
+  `app-paas`) are now classified as APP instead of OFF-PATH by default.
+
 ## [1.4.2] - 2026-05-28
 
 ### Added
