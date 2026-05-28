@@ -44,6 +44,7 @@ TOP_N=100
 CONNECT="/ as sysdba"
 PDB=""
 OUTPUT_DIR="${PWD}/audit_bundle"
+OUTPUT_DIR_EXPLICIT=0
 DRY_RUN=0
 ASSUME_YES=0
 ANONYMIZE=0
@@ -184,7 +185,7 @@ parse_args() {
             --top-n)    TOP_N="$2"; shift 2 ;;
             --connect)  CONNECT="$2"; shift 2 ;;
             --pdb)      PDB="$2"; shift 2 ;;
-            --output)           OUTPUT_DIR="$2"; shift 2 ;;
+            --output)           OUTPUT_DIR="$2"; OUTPUT_DIR_EXPLICIT=1; shift 2 ;;
             --anonymize)        ANONYMIZE=1; shift ;;
             --deanonymize)      DEANONYMIZE=1; shift ;;
             --mapping)          MAPPING_FILE="$2"; shift 2 ;;
@@ -547,6 +548,14 @@ run() {
     # --ai implies --report
     if [[ ${AI} -eq 1 ]]; then
         REPORT=1
+    fi
+
+    # --from-bundle without explicit --output: default output to the
+    # directory that contains the bundle file (not ${PWD}/audit_bundle).
+    if [[ -n "${FROM_BUNDLE}" && ${OUTPUT_DIR_EXPLICIT} -eq 0 ]]; then
+        local bundle_abs
+        bundle_abs="$(cd "$(dirname "${FROM_BUNDLE}")" && pwd)"
+        OUTPUT_DIR="${bundle_abs}"
     fi
 
     # Offline mode: skip data collection entirely
