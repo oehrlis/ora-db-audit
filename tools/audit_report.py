@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 0.2.0
+# Version....: 0.3.0
 # Purpose....: Read a (raw or anonymised) ora-db-audit bundle and render a
 #              structured Markdown report for DBA, Security Engineer and
 #              Auditor audiences. Generates an executive summary plus
@@ -26,12 +26,16 @@
 #                              [--include-appendix]
 #                              [--top-n N]
 #                              [--customer-prefix PREFIX]
+#                              [--export-prompt FILE]
 #                              [--dry-run] [--yes] [--verbose]
 #
 # License....: Apache License Version 2.0, January 2004 as shown
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.28  oes  R1+R2: CIS coverage (Section 9) and Audit-Roles          0.3.0
+#                  (Section 10) report sections; R4: --export-prompt flag;
+#                  AI section renumbered to 11.
 # 2026.05.28  oes  Sanitised port from audit_pack-0.5.0 (renamed from      0.2.0
 #                  audit_pack_report.py). DEFAULT_CUSTOMER_PREFIX cleared,
 #                  ODB_AUDIT_CTX placeholder generalised.
@@ -64,7 +68,7 @@ from audit_report_messages import (  # noqa: E402
 )
 
 
-TOOL_VERSION = "0.2.0"
+TOOL_VERSION = "0.3.0"
 DEFAULT_TOP_N = 20
 DEFAULT_CUSTOMER_PREFIX = ""
 DEFAULT_AI_MODEL = "claude-sonnet-4-6"
@@ -1293,6 +1297,144 @@ def render_appendix(bundle, top_n):
 # Top-level renderer
 # ---------------------------------------------------------------------------
 
+def render_section_09_cis_coverage(file_data):
+    """Section 9 - CIS Benchmark 5.1-5.5 coverage per-control PASS/WARN/FAIL table.
+
+    Reads 17_cis_coverage.csv. Each row represents one CIS control and
+    whether a matching Unified Audit Policy exists and is enabled.
+    Verdict values: PASS (exists + enabled), WARN (exists but disabled),
+    FAIL (policy absent).
+    """
+    out = section_header(2, "CIS Benchmark 5.1-5.5 - Policy-Abdeckung")
+    if file_data is None:
+        out += "> _(17_cis_coverage.csv fehlt im Bundle - "
+        out += "SQL/17-cis-coverage.sql wurde nicht ausgefuehrt oder ist "
+        out += "nicht in diesem Bundle enthalten.)_\n\n"
+        return out
+
+    rows = file_data.get("rows", [])
+    if not rows:
+        out += "> _(Keine CIS-Coverage-Daten vorhanden.)_\n\n"
+        return out
+
+    idx_control = _col_index(file_data, "cis_control")
+    idx_title = _col_index(file_data, "cis_title")
+    idx_policy = _col_index(file_data, "policy_name")
+    idx_exists = _col_index(file_data, "policy_exists")
+    idx_enabled = _col_index(file_data, "policy_enabled")
+    idx_verdict = _col_index(file_data, "verdict")
+
+    fail_count = sum(
+        1 for r in rows
+        if _row_get(r, idx_verdict).upper() == "FAIL"
+    )
+    warn_count = sum(
+        1 for r in rows
+        if _row_get(r, idx_verdict).upper() == "WARN"
+    )
+    pass_count = sum(
+        1 for r in rows
+        if _row_get(r, idx_verdict).upper() == "PASS"
+    )
+
+    if fail_count:
+        out += (
+            f"> **{fail_count} von {len(rows)} CIS-Pflicht-Policies fehlen** "
+            f"(FAIL). Betroffene Policies sind nicht deployt.\n\n"
+        )
+    if warn_count:
+        out += (
+            f"> **{warn_count} CIS-Policy/ies vorhanden aber deaktiviert** "
+            f"(WARN). Policies existieren, sind aber nicht aktiv.\n\n"
+        )
+    if pass_count == len(rows):
+        out += "> Alle CIS 5.1-5.5 Pflicht-Policies sind aktiv (PASS).\n\n"
+
+    table_rows = []
+    for r in rows:
+        verdict = _row_get(r, idx_verdict).upper()
+        verdict_marker = {
+            "PASS": "PASS",
+            "WARN": "**WARN**",
+            "FAIL": "**FAIL**",
+        }.get(verdict, verdict)
+        table_rows.append([
+            _row_get(r, idx_control),
+            _row_get(r, idx_title),
+            _row_get(r, idx_policy),
+            _row_get(r, idx_exists),
+            _row_get(r, idx_enabled),
+            verdict_marker,
+        ])
+
+    out += render_table(
+        ["CIS Control", "Titel", "Policy", "Exists", "Enabled", "Verdict"],
+        table_rows,
+    )
+    out += "\nQuelle: `17_cis_coverage.csv`\n\n"
+    return out
+
+
+def render_section_10_audit_roles(file_data):
+    """Section 10 - AUDIT_ADMIN / AUDIT_VIEWER membership and risk flags.
+
+    Reads 18_audit_roles.csv. Highlights WARN and REVIEW grantees prominently.
+    SYS and STANDARD entries are listed without special emphasis.
+    """
+    out = section_header(2, "Audit-Rollen - Mitglieder und Risiko-Flags")
+    if file_data is None:
+        out += "> _(18_audit_roles.csv fehlt im Bundle - "
+        out += "SQL/18-audit-roles.sql wurde nicht ausgefuehrt oder ist "
+        out += "nicht in diesem Bundle enthalten.)_\n\n"
+        return out
+
+    rows = file_data.get("rows", [])
+    if not rows:
+        out += "> _(Keine Audit-Rollen-Daten vorhanden.)_\n\n"
+        return out
+
+    idx_role = _col_index(file_data, "target_role")
+    idx_grantee = _col_index(file_data, "grantee")
+    idx_gtype = _col_index(file_data, "grantee_type")
+    idx_path = _col_index(file_data, "grant_path")
+    idx_admin = _col_index(file_data, "admin_option")
+    idx_flag = _col_index(file_data, "risk_flag")
+
+    review_rows = [
+        r for r in rows
+        if _row_get(r, idx_flag).upper() in {"WARN", "REVIEW"}
+    ]
+    if review_rows:
+        out += (
+            f"> **{len(review_rows)} Eintrag/Eintraege mit erhoehtem Risiko** "
+            f"(WARN/REVIEW) - manuelle Pruefung der Grantees empfohlen.\n\n"
+        )
+
+    table_rows = []
+    for r in rows:
+        flag = _row_get(r, idx_flag).upper()
+        flag_marker = {
+            "WARN": "**WARN**",
+            "REVIEW": "**REVIEW**",
+        }.get(flag, flag)
+        table_rows.append([
+            _row_get(r, idx_role),
+            _row_get(r, idx_grantee),
+            _row_get(r, idx_gtype),
+            _row_get(r, idx_path),
+            _row_get(r, idx_admin),
+            flag_marker,
+        ])
+
+    out += render_table(
+        ["Ziel-Rolle", "Grantee", "Typ", "Grant-Pfad", "Admin-Option",
+         "Risk-Flag"],
+        table_rows,
+    )
+    out += "\nQuelle: `18_audit_roles.csv`\n\n"
+    return out
+
+
 def render_report(bundle, classifier, top_n, include_appendix,
                   policy_ddl_map=None):
     files = bundle["_files"]
@@ -1310,6 +1452,8 @@ def render_report(bundle, classifier, top_n, include_appendix,
     out += render_section_06_privileged(files.get("14"), top_n)
     out += render_section_07_security_signals(files, classifier, top_n)
     out += render_section_08_tuning(files.get("15"), top_n, policy_ddl_map)
+    out += render_section_09_cis_coverage(files.get("17"))
+    out += render_section_10_audit_roles(files.get("18"))
     if include_appendix:
         out += render_appendix(bundle, top_n)
     out += "---\n\n"
@@ -1465,7 +1609,7 @@ def _run_ai_analysis(
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     ai_section = (
-        "\n## 9. AI-Findings (Claude)\n\n"
+        "\n## 11. AI-Findings (Claude)\n\n"
         f"> Generiert: `{ts}` | Modell: `{args.ai_model}`  \n"
         "> Automatisch generierte Analyse - Findings sind zu verifizieren.\n\n"
         + ai_text + "\n"
@@ -1491,6 +1635,50 @@ def _run_ai_analysis(
     standalone_path.write_text(standalone, encoding="utf-8")
     print(f"Wrote standalone findings -> {standalone_path}")
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Export-prompt helper (R4)
+# ---------------------------------------------------------------------------
+
+_EXPORT_PROMPT_HEADER = """\
+# ora-db-audit - AI Analysis Prompt Export
+# ==========================================
+# Paste the content below this header into any LLM chat interface to get
+# an AI-powered audit analysis. Provider-specific instructions:
+#
+#   claude.ai  : paste as-is into the chat input
+#   ChatGPT    : paste as-is (GPT-4/o1 supports long inputs)
+#   Gemini     : paste as-is into Gemini Advanced
+#   API callers: use AI_SYSTEM_PROMPT as the system prompt and the rest as
+#                the user message (see audit_report.py AI_SYSTEM_PROMPT)
+#
+# Note: no API key or Claude Code CLI is required to use this file.
+# ==========================================
+
+"""
+
+
+def _write_export_prompt(report_text: str, customer_prefix: str, dest: Path) -> None:
+    """Build the full AI user prompt and write it to dest.
+
+    The exported file is self-contained: it includes both the system-level
+    context (inlined as a plain-text block) and the user prompt with the
+    full report embedded. This makes it paste-ready for any LLM chat UI.
+    """
+    user_prompt = AI_USER_PROMPT_TEMPLATE.format(
+        customer_prefix=customer_prefix,
+        report_text=report_text,
+    )
+    content = (
+        _EXPORT_PROMPT_HEADER
+        + "## Kontext / System-Prompt\n\n"
+        + AI_SYSTEM_PROMPT
+        + "\n\n---\n\n"
+        + "## Analyse-Auftrag (User-Prompt)\n\n"
+        + user_prompt
+    )
+    dest.write_text(content, encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -1541,6 +1729,13 @@ def parse_args(argv):
                    help="Overwrite existing output without prompting.")
     p.add_argument("--verbose", "-v", action="store_true",
                    help="Print which CSV files were used / skipped.")
+    p.add_argument("--export-prompt", type=Path, dest="export_prompt",
+                   metavar="FILE",
+                   help="Write the full AI analysis prompt (with report data "
+                        "embedded) to FILE instead of sending it to an API. "
+                        "The output is paste-ready for claude.ai, ChatGPT, "
+                        "Gemini, or any LLM chat UI. "
+                        "Does not require an API key or Claude CLI.")
     ai_grp = p.add_argument_group("AI analysis (requires 'anthropic' package)")
     ai_grp.add_argument("--ai", action="store_true",
                         help="Generate AI findings via Claude API. Appends "
@@ -1631,6 +1826,12 @@ def main(argv=None):
         bundle, classifier, args.top_n, args.include_appendix,
         policy_ddl_map=policy_ddl_map,
     )
+
+    if args.export_prompt:
+        _write_export_prompt(report_text, args.customer_prefix,
+                             args.export_prompt)
+        print(f"Wrote AI prompt export  -> {args.export_prompt}")
+        return 0
 
     output = args.output or (bundle_dir / "audit_report.md")
     if args.dry_run:
