@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-05-28
+
+### Added
+
+- `Makefile` dist target now includes `docs/` and `docs/use-cases/` in the
+  release tarball so the documentation is available to users who deploy from
+  a tarball without a git clone. Also includes `CHANGELOG.md` in the dist.
+- `DOCS_DIR := docs` variable added to Makefile for consistency.
+- `dist-verify` now checks `tools/export_siem.py`, `README.md`, and
+  `CHANGELOG.md` as required tarball entries.
+
+### Changed
+
+- README.md: comprehensive documentation covering usage, purpose, all flags,
+  multitenant CDB/PDB handling, user privilege requirements for non-SYSDBA
+  login, six use cases (local collect, anonymise+share, full on-host, remote
+  report, large trails with --sample-rows, SIEM export), patterns file,
+  report sections, SIEM export section, updated SQL query table.
+
 ## [1.2.0] - 2026-05-28
 
 ### Added
