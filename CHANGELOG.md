@@ -11,16 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `ora-db-audit.sh` root wrapper in the dist tarball - thin delegating
-  script (`exec .../bin/ora-db-audit.sh "$@"`) so both
-  `./ora-db-audit.sh` and `./bin/ora-db-audit.sh` work after extracting
-  the tarball.
+- `ora-db-audit` root wrapper (no `.sh` extension) in the dist tarball -
+  thin delegating script (`exec .../bin/ora-db-audit.sh "$@"`) so both
+  `./ora-db-audit` and `./bin/ora-db-audit.sh` work after extracting the
+  tarball. No extension distinguishes the user-facing command from the
+  implementation script in `bin/`.
 
 ### Changed
 
-- `Makefile` dist layout: `bin/ora-db-audit.sh` is now placed inside a
-  `bin/` subdirectory (matching the repo-clone layout) instead of the
-  tarball root. `dist_manifest.json` entrypoint field updated accordingly.
+- `Makefile` dist layout: `bin/ora-db-audit.sh` placed in a `bin/`
+  subdirectory (matching the repo-clone layout) instead of the tarball
+  root. Root convenience wrapper renamed `ora-db-audit` (no extension)
+  to distinguish user-facing command from implementation script.
+  `dist_manifest.json` entrypoint updated to `bin/ora-db-audit.sh`.
 - `README.md` Quick Start: documents Option A (clone) and Option B (tarball)
   install paths; clarifies `./bin/ora-db-audit.sh` as the canonical entry
   point in both environments with the root wrapper as a convenience alias.

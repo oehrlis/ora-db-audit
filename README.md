@@ -46,8 +46,8 @@ cd ora-db-audit-1.0.1
 ```
 
 In both cases the canonical entry point is `./bin/ora-db-audit.sh`.
-The dist tarball also includes a convenience wrapper `./ora-db-audit.sh`
-at the root that delegates to `bin/`.
+The dist tarball also includes a convenience wrapper `./ora-db-audit`
+(no `.sh` extension) at the root that delegates to `bin/`.
 
 ```bash
 # Run data collection against the local DB (as SYSDBA)
