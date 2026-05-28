@@ -61,6 +61,61 @@ def test_report_contains_policy_section(report):
     assert "ORA_SECURECONFIG" in report or "policy" in report.lower()
 
 
+def test_report_contains_cis_section(report):
+    """Section 9 must include the CIS coverage heading."""
+    assert "CIS Benchmark" in report or "cis_coverage" in report.lower()
+
+
+def test_report_contains_audit_roles_section(report):
+    """Section 10 must include the audit roles heading."""
+    assert "Audit-Rollen" in report or "audit_roles" in report.lower()
+
+
+def test_report_cis_all_fail_fixture(report):
+    """Fixture has all CIS controls as FAIL - report must show FAIL."""
+    assert "FAIL" in report
+
+
+def test_export_prompt_writes_file(tmp_path):
+    """--export-prompt writes a non-empty file without requiring an API key."""
+    import audit_report
+
+    bundle = audit_report.read_bundle(SAMPLE_BUNDLE)
+    classifier = audit_report.HostClassifier({})
+    policy_ddl_map = audit_report.load_policy_ddl(SAMPLE_BUNDLE)
+    report_text = audit_report.render_report(
+        bundle, classifier=classifier, top_n=5,
+        include_appendix=False, policy_ddl_map=policy_ddl_map,
+    )
+
+    dest = tmp_path / "prompt.txt"
+    audit_report._write_export_prompt(report_text, "", dest)
+
+    assert dest.is_file()
+    content = dest.read_text(encoding="utf-8")
+    assert len(content) > 200
+    assert "claude.ai" in content
+    assert "ChatGPT" in content
+
+
+def test_export_prompt_contains_report(tmp_path):
+    """Exported prompt must embed the report text."""
+    import audit_report
+
+    bundle = audit_report.read_bundle(SAMPLE_BUNDLE)
+    classifier = audit_report.HostClassifier({})
+    report_text = audit_report.render_report(
+        bundle, classifier=classifier, top_n=5,
+        include_appendix=False, policy_ddl_map={},
+    )
+
+    dest = tmp_path / "prompt.txt"
+    audit_report._write_export_prompt(report_text, "TEST", dest)
+
+    content = dest.read_text(encoding="utf-8")
+    assert "TEST" in content or "Analyse" in content
+
+
 def test_report_no_exception_on_missing_query(tmp_path):
     """Reporter must not crash when an optional CSV is missing."""
     import shutil

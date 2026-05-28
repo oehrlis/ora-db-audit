@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-05-28
+
+### Added
+
+- **R1** - `render_section_09_cis_coverage()` in `tools/audit_report.py`: new
+  Section 9 emits a per-control PASS/**WARN**/**FAIL** table for CIS Benchmark
+  controls 5.1-5.5. Reads `17_cis_coverage.csv` from the bundle; falls back
+  gracefully when the file is absent (older bundles).
+- **R2** - `render_section_10_audit_roles()` in `tools/audit_report.py`: new
+  Section 10 lists `AUDIT_ADMIN` / `AUDIT_VIEWER` grantees with their
+  risk flags (**WARN** / **REVIEW** rows highlighted). Reads
+  `18_audit_roles.csv`; falls back gracefully when absent.
+- **R4** - `--export-prompt FILE` flag in `tools/audit_report.py`: writes the
+  full AI analysis prompt (report data embedded) to FILE instead of sending it
+  to the Claude API. Output includes a provider-agnostic header with paste
+  instructions for claude.ai, ChatGPT, Gemini, and API callers. Works without
+  an API key or Claude CLI installed.
+- 5 new pytest tests covering Section 9, Section 10, and `--export-prompt`
+  (36 total, all passing).
+
+### Changed
+
+- AI-Findings section renumbered from `## 9.` to `## 11.` to make room for
+  the new CIS and Audit-Roles sections (9 and 10).
+- `TOOL_VERSION` bumped to `0.3.0`.
+
 ## [1.0.2] - 2026-05-28
 
 ### Fixed
