@@ -58,8 +58,8 @@ active_policies AS (
         p.policy_name,
         p.audit_option_type,
         p.audit_option,
-        p.entity_name,
-        p.entity_type,
+        e.entity_name,
+        e.entity_type,
         p.oracle_supplied,
         p.audit_condition
     FROM audit_unified_policies p

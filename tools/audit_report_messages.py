@@ -230,9 +230,27 @@ MESSAGES: dict[str, dict[str, str]] = {
 
         # --- Section 3 - policy inventory ---
         "policy.count": "Policies erfasst: **{n}**.",
+        "policy.unique_count": (
+            "**{n}** eindeutige Policies ({n_custom} Custom, "
+            "{n_oracle} Oracle-supplied)."
+        ),
         "policy.ora_count": "- Oracle-supplied (`ORA_*`): {n}",
         "policy.cust_count": "- Kunden-/Custom-Policies: {n}",
         "policy.see_appendix": "_Vollstaendige Liste siehe Appendix (alle Policies)._",
+        "section.03_detail": "3.1 Policy-Inventar - Vollstaendige Aktionsliste",
+        "section.09_detail": "9.1 Abdeckende Policies - Detail",
+        "label.ora": "ORA",
+        "label.policy_option": "Option",
+        "label.entity": "Entity",
+        "label.entity_type": "Typ",
+        "label.success_short": "S",
+        "label.failure_short": "F",
+        "label.condition": "Bedingung",
+        "label.cis_controls": "CIS",
+        "cis.detail_intro": (
+            "Policies die mindestens eine CIS-Anforderung abdecken "
+            "(gefiltert aus Policy-Inventar, ohne Duplikate pro Entity):"
+        ),
 
         # --- Section 6 - privileged activity ---
         "section.06_intro": (
@@ -548,9 +566,27 @@ MESSAGES: dict[str, dict[str, str]] = {
 
         # --- Section 3 - policy inventory ---
         "policy.count": "Policies found: **{n}**.",
+        "policy.unique_count": (
+            "**{n}** unique policies ({n_custom} custom, "
+            "{n_oracle} Oracle-supplied)."
+        ),
         "policy.ora_count": "- Oracle-supplied (`ORA_*`): {n}",
         "policy.cust_count": "- Custom policies: {n}",
         "policy.see_appendix": "_Full list in Appendix (all policies)._",
+        "section.03_detail": "3.1 Policy Inventory - Full Action List",
+        "section.09_detail": "9.1 Covering Policies - Detail",
+        "label.ora": "ORA",
+        "label.policy_option": "Option",
+        "label.entity": "Entity",
+        "label.entity_type": "Type",
+        "label.success_short": "S",
+        "label.failure_short": "F",
+        "label.condition": "Condition",
+        "label.cis_controls": "CIS",
+        "cis.detail_intro": (
+            "Policies covering at least one CIS requirement "
+            "(filtered from policy inventory, deduplicated per entity):"
+        ),
 
         # --- Section 6 - privileged activity ---
         "section.06_intro": (
