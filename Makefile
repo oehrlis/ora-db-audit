@@ -58,8 +58,9 @@ PYTEST       := $(shell PATH="$(PATH)" command -v pytest 2>/dev/null || \
 GIT          := $(shell PATH="$(PATH)" command -v git 2>/dev/null)
 
 # -- Report conversion ---------------------------------------------------------
-BUNDLE ?=
-MD     ?=
+BUNDLE   ?=
+MD       ?=
+CSS_FILE ?= $(DOCS_DIR)/report.css
 
 # -- Scripts -------------------------------------------------------------------
 BUMP_SCRIPT := $(SCRIPTS_DIR)/bump_version.sh
@@ -356,7 +357,16 @@ to-html: ## Convert audit_report.md to HTML  (BUNDLE=<dir>  or  MD=<file.md>)
 	elif [[ -n "$(MD)" ]]; then \
 		mdfile="$(MD)"; \
 	else \
-		echo -e "$(COLOR_RED)Error:$(COLOR_RESET) specify BUNDLE=<bundle-dir> or MD=<path/to/report.md>"; \
+		echo -e "$(COLOR_BOLD)Usage:$(COLOR_RESET)"; \
+		echo "  make to-html BUNDLE=<bundle-dir>"; \
+		echo "  make to-html MD=<path/to/report.md>"; \
+		echo ""; \
+		echo "Examples:"; \
+		echo "  make to-html BUNDLE=workspace/ora-db-audit_mydb_20260528_120000"; \
+		echo "  make to-html MD=workspace/ora-db-audit_mydb_20260528_120000/audit_report.md"; \
+		echo ""; \
+		echo "Output: <report>.html written next to the source .md file."; \
+		echo "Requires pandoc (brew install pandoc) or pip install markdown as fallback."; \
 		exit 1; \
 	fi; \
 	if [[ ! -f "$$mdfile" ]]; then \
@@ -367,8 +377,11 @@ to-html: ## Convert audit_report.md to HTML  (BUNDLE=<dir>  or  MD=<file.md>)
 	title="$$(grep -m1 '^# ' "$$mdfile" | sed 's/^# //')"; \
 	title="$${title:-Oracle Audit Report}"; \
 	if [[ -n "$(PANDOC)" ]]; then \
+		css_arg=""; \
+		[[ -f "$(CSS_FILE)" ]] && css_arg="--css $(CSS_FILE)"; \
 		"$(PANDOC)" "$$mdfile" \
-			--standalone \
+			--standalone --embed-resources \
+			$$css_arg \
 			--metadata title="$$title" \
 			--toc --toc-depth=2 \
 			-o "$$outfile"; \
@@ -385,7 +398,7 @@ to-html: ## Convert audit_report.md to HTML  (BUNDLE=<dir>  or  MD=<file.md>)
 			        "(pip install markdown)"; \
 			exit 1; \
 		fi; \
-		"$(PYTHON)" "$(TOOLS_DIR)/md_to_html.py" "$$mdfile" "$$outfile" "$$title"; \
+		"$(PYTHON)" "$(TOOLS_DIR)/md_to_html.py" "$$mdfile" "$$outfile" "$$title" "$(CSS_FILE)"; \
 		echo -e "$(COLOR_GREEN)HTML report written$(COLOR_RESET) -> $$outfile  (Python markdown fallback)"; \
 	fi
 
