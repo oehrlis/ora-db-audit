@@ -41,6 +41,12 @@ workspace/*
 # Claude Code agent worktrees - transient sub-agent state
 .claude/worktrees/
 
+# Compliance source documents - kept locally for development reference
+# (CIS Benchmarks, DISA STIG, Oracle Best Practice whitepaper). These are
+# copyrighted upstream documents; download separately rather than mirror
+# them in the OSS repo. See docs/compliance-mapping.md for source URLs.
+references/
+
 # AI toolkit symlinks - managed by init-repo.sh, not committed
 .claude/commands/idea-capture.md
 .claude/commands/idea-sparring.md
