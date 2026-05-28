@@ -10,10 +10,10 @@
 | --- | --- |
 | Use Case ID | UC-19 |
 | SQL | `sql/19-offpath-candidates.sql` |
-| Report-Section | 7.2 Off-Path Candidates (automatisch) |
+| Report-Sections | 7.2.1 Application Context (Szenario A), 7.2.2 Pattern-basiert (Szenario B) |
 | Phase | Analyse (Host-Klassifizierung) |
 | Zielgruppe | Security Engineer, DBA |
-| Voraussetzung | `AUDIT_VIEWER` oder `AUDIT_ADMIN`; kein `ODB_AUDIT_CTX` erforderlich |
+| Voraussetzung | `AUDIT_VIEWER` oder `AUDIT_ADMIN` |
 
 <!-- markdownlint-enable MD013 MD060 -->
 
@@ -26,11 +26,11 @@ den Hostnamen oder die IP-Adresse des Clients, der die Verbindung aufgebaut hat.
 In einer ordentlich strukturierten Umgebung kommen Datenbankverbindungen
 ausschliesslich von bekannten Tier-Hosts:
 
-- **APP-Tier**: Applikationsserver, Web-Tier, Middleware (z.B. `wls-prod-01`)
-- **INFRA**: Datenbankserver selbst, OEM-Agent, Backup-Client (z.B. `db-prod-01`)
-- **DBA**: Jump-Hosts, DBA-Laptops (z.B. `jumphost-01`, `laptop-stefan`)
+- **APP-Tier**: Applikationsserver, Web-Tier, Middleware, PaaS/K8s-Pods
+- **INFRA**: Datenbankserver selbst, OEM-Agent, Backup-Client
+- **DBA**: Jump-Hosts, DBA-Laptops
 
-Verbindungen von **unbekannten Hosts** - solchen, die keinem dieser Pattern
+Verbindungen von **unbekannten Hosts** - solchen, die keinem dieser Kategorien
 entsprechen - sind ein starkes Indikator-Signal fuer:
 
 - Direktzugriffe auf die Datenbank ohne Applikations-Layer (Bypassing)
@@ -42,86 +42,167 @@ Diese Hosts werden als **OFF-PATH** klassifiziert.
 
 ---
 
-## Ansatz ohne Application-Kontext
+## Zwei Erkennungs-Szenarien
 
-Die bevorzugte Variante fuer Off-Path-Detection ist der Oracle Application
-Context `ODB_AUDIT_CTX` (oder Kunden-Aequivalent), der pro Session ein
-strukturiertes Feld `APP_MODULE` setzt und so die Herkunft der Verbindung
-eindeutig identifiziert. Diese Variante erfordert jedoch, dass das Context-
-Paket auf der Zieldatenbank deployt ist.
+Das Tool unterstuetzt zwei Szenarien - in der Praxis kommen beide gleichzeitig vor.
 
-`sql/19-offpath-candidates.sql` implementiert die **Pattern-basierte Variante**
-ohne Application-Context-Abhaengigkeit. Sie funktioniert auf jeder Datenbank
-mit Unified Auditing und LOGON-Events - auch ohne Code-Deployment.
+### Wie man das aktive Szenario erkennt
 
-**Mechanismus:**
+Im Report Section 3 (Policy Inventory) oder direkt in `03_policy_inventory.csv`:
+Wenn eine Audit-Policy in der Spalte `audit_condition` einen `SYS_CONTEXT(...)`-Ausdruck
+enthaelt (der nicht auf den Oracle-eigenen `USERENV`-Context verweist), ist
+Szenario A aktiv.
 
 ```sql
+-- Beispiel-Bedingung in einer Off-Path-Policy (jeder Context-Name moeglich):
+SYS_CONTEXT('ISC_AUDIT_CTX','IS_APP_ACCESS') != 'TRUE'
+OR SYS_CONTEXT('ISC_AUDIT_CTX','IS_APP_ACCESS') IS NULL
+```
+
+---
+
+### Szenario A - Application Context deployed
+
+Ein Oracle Application Context (kundenspezifischer Name) ist auf der Zieldatenbank
+deployed. Ein LOGON-Trigger setzt pro Session boolean Attribute:
+
+| Attribut | TRUE = ... | Verwendung |
+| --- | --- | --- |
+| `IS_APP_ACCESS` | Host matcht App-Server-Pattern im Package | Off-Path-Policy |
+| `IS_OEM_ACCESS` | OEM-Monitoring-Verbindung (Host oder User) | INFRA-Exclusion |
+| `IS_KNOWN_CLIENT` | Explizit registrierter Client-Host oder IP | DBA-Exclusion |
+| `IS_DEV_TOOL` | SQL Developer, Toad oder aequivalentes Tool | Dev-Exclusion |
+
+Die Audit-Policies feuern **nur wenn das Flag FALSE oder NULL ist** - d.h. alle
+Records aus einer Context-bedingten Policy sind per Definition Off-Path-Zugriffe.
+
+**Audit-Policy WHEN-Klausel - NULL-Fallback-Muster:**
+
+```sql
+-- Korrekt: NULL wird wie FALSE behandelt (konservative Fallback-Auditierung)
+CONDITION: SYS_CONTEXT('ISC_AUDIT_CTX','IS_APP_ACCESS') != 'TRUE'
+           OR SYS_CONTEXT('ISC_AUDIT_CTX','IS_APP_ACCESS') IS NULL
+
+-- Falsch: NULL-Sessions (Trigger-Fehler) werden nicht auditiert
+CONDITION: SYS_CONTEXT('ISC_AUDIT_CTX','IS_APP_ACCESS') = 'FALSE'
+```
+
+**Context-Package Konfiguration (kundenspezifisch anpassen):**
+
+```sql
+-- App-Server Host-Pattern (WLS Classic + generische K8s-Patterns)
+C_APP_HOST_PATTERN CONSTANT VARCHAR2(400) :=
+    '^customer-app-|^wls-|-[a-z0-9]{10}-[a-z0-9]{5}$|-[0-9]{10}-';
+-- K8s ReplicaSet-Pod: -<10hex>-<5hex> am Hostnamen-Ende
+-- K8s CronJob-Pod:    -<10digits>- im Hostnamen (Unix-Timestamp)
+
+-- OEM-Server und Standard-Agent-User
+C_OEM_HOST_PATTERN CONSTANT VARCHAR2(400) := '^oem-mgmt-';
+C_OEM_USERS        CONSTANT VARCHAR2(200) := 'DBSNMP|SYSMAN';
+
+-- Explizit registrierte DBA-Workstations (NULL = deaktiviert)
+C_KNOWN_HOST_PATTERN CONSTANT VARCHAR2(400) := '^jumphost-|^dba-ws-';
+
+-- Developer-Tool Pattern (SQL Developer, Toad)
+C_DEV_TOOL_PATTERN CONSTANT VARCHAR2(200) := 'sql[[:space:]_.-]*developer|toad(\.exe)?';
+```
+
+**Finding-Severity (Szenario A):**
+
+| Zustand | Severity |
+| --- | --- |
+| Context in `dba_context`, Trigger ENABLED, nur historische Events | INFO / LOW |
+| Context in `dba_context`, Trigger ENABLED, laufende Events | MEDIUM (Host nicht registriert) |
+| Context registriert, Trigger DISABLED | HIGH (Infra unvollstaendig) |
+| Context nicht in `dba_context` | HIGH (nicht deployed) |
+
+---
+
+### Szenario B - Pattern-basiert (kein Application Context)
+
+Kein Application Context auf der Datenbank deployed oder unbekannt.
+Das Tool klassifiziert Hosts aus `UNIFIED_AUDIT_TRAIL.userhost` anhand
+von Pattern-Listen ohne Datenbank-seitiges Deployment:
+
+```sql
+-- 19-offpath-candidates.sql: negative Pattern-Filter
 NOT REGEXP_LIKE(userhost, '&APP_PATTERN',   'i')
 AND NOT REGEXP_LIKE(userhost, '&INFRA_PATTERN', 'i')
 AND NOT REGEXP_LIKE(userhost, '&DBA_PATTERN',   'i')
 ```
 
-Jeder Host, der keinem der drei Muster entspricht, landet im Result-Set.
+**Default-Pattern-Konfiguration** (`DEFAULT_PATTERNS` in `audit_report.py`):
 
-**Einschraenkung:** USERHOST ist ein Client-supplied Wert. Er kann gefaelscht
-werden (hoher Aufwand) und ist bei einigen JDBC-Treibern ohne explizite
-Konfiguration leer oder ein generischer Wert (`localhost`). Leere USERHOST-
-Werte werden in diesem Query gefiltert (`userhost IS NOT NULL`).
-
----
-
-## Pattern-Konfiguration
-
-Die drei Pattern-Variablen folgen denselben Namenskonventionen wie
-`audit_report.py` (`DEFAULT_PATTERNS`) und koennen auf drei Wegen gesetzt werden:
-
-### Option A: DEFINE im SQL vor dem Run
-
-```sql
-DEFINE APP_PATTERN   = '^wls-|^app-prod-|^tomcat-'
-DEFINE INFRA_PATTERN = '^db-prod-|^oem-|^rman-'
-DEFINE DBA_PATTERN   = '^jumphost-|^laptop-'
+```json
+{
+  "app_host_patterns": [
+    "^auditlab-app-",
+    "^app-",
+    "^wls-",
+    "-[a-z0-9]{10}-[a-z0-9]{5}$",
+    "-[0-9]{10}-"
+  ],
+  "infra_host_patterns": ["^auditlab-db", "^oem-"],
+  "dba_host_patterns":   ["^laptop-", "^jumphost-"]
+}
 ```
 
-### Option B: Per `--patterns config.json` in audit_report.py
+Die K8s-Patterns (`-[a-z0-9]{10}-[a-z0-9]{5}$` und `-[0-9]{10}-`) sind
+generisch und greifen fuer Standard-Kubernetes-Pod-Namen ohne
+kundenspezifische Prefix-Konfiguration:
 
-Die JSON-Datei mit `app_host_patterns`, `infra_host_patterns`,
-`dba_host_patterns` wird auch fuer die automatische Report-Klassifizierung
-(Section 5.2, 7.2) verwendet. Muster hier synchron halten.
+- **ReplicaSet-Pod**: `my-service-6c4d8bbdfd-jdbsd` (10-char + 5-char Hash)
+- **CronJob-Pod**: `healthcheck-batch-scheduled-1774600200-main-xyz` (10-digit Unix-Timestamp)
 
-### Option C: Einfache Einzel-Pattern-Anpassung im Bundle-Script
+**Kunden-spezifische Pattern** (via `--patterns config.json`):
 
-In `bin/ora-db-audit.sh` koennen die DEFINE-Defaults fuer alle Queries
-ueberschrieben werden (geplant fuer v1.2, R3-Scope).
+```json
+{
+  "app_host_patterns": [
+    "^prod-app-",
+    "^wls-prod-",
+    "-[a-z0-9]{10}-[a-z0-9]{5}$",
+    "-[0-9]{10}-"
+  ],
+  "infra_host_patterns": ["^db-prod-", "^oem-", "^rman-"],
+  "dba_host_patterns":   ["^jumphost-", "^laptop-stefan"]
+}
+```
+
+**Finding-Severity (Szenario B):**
+
+| Heuristik | Severity |
+| --- | --- |
+| `action_count >= 1000` UND `distinct_actions >= 5` | HIGH |
+| JDBC-Client auf unbekanntem Host | MEDIUM (moeglicherweise neuer App-Server) |
+| Einzelner Login, alter Timestamp | LOW |
+| `os_username = dbusername` | INFO (wahrscheinlich Entwickler) |
+
+**Wichtig vor dem Raising:** Ein Host in Section 7.2.2 kann ein legitimer Server sein,
+der noch nicht in der Pattern-Konfiguration registriert ist. Login-Volumen, Distinct
+Users und Client-Programm pruefen. Falls bekannt: zur `--patterns`-Datei hinzufuegen.
 
 ---
 
 ## Ablauf
 
 ```text
-1. bin/ora-db-audit.sh ausfuehren (schliesst 12-distinct-hosts und
-   19-offpath-candidates ein)
+1. bin/ora-db-audit.sh ausfuehren (12-distinct-hosts + 19-offpath-candidates)
         |
-2. tools/anonymize_bundle.py ausfuehren
+2. tools/anonymize_bundle.py (optional)
    -> PSEUDO:HOST und PSEUDO:DBUSER ersetzen USERHOST und DBUSERNAME
-   -> classification-Spalte (Wert 'OFF-PATH') bleibt KEEP
         |
 3. tools/audit_report.py ausfuehren
-   -> Section 7.2 listet OFF-PATH-Hosts aus 12-distinct-hosts (automatisch)
-   -> 19-offpath-candidates.csv ist ergaenzende Detailtabelle (Appendix)
+   -> Section 7.2.1: Context-Variablen aus Policy-Conditions (Szenario A)
+   -> Section 7.2.2: Pattern-basierte OFF-PATH-Host-Liste (Szenario B)
+   -> 19-offpath-candidates.csv: ergaenzende Detailtabelle (Appendix)
         |
-4. Triage anhand action_count und distinct_actions:
-   - Hohe action_count + unbekannter Host -> Prioritaet 1 (Incident-Check)
-   - Niedrige action_count, bekanntes Programm -> moeglicherweise
-     fehlkonfigurierter Monitoring-Job (P2)
-   - Einzelner Connect, alter Timestamp -> historische Verbindung / nicht
-     mehr aktiv (P3)
+4. Triage anhand action_count und distinct_actions (Heuristik oben)
 ```
 
 ---
 
-## Output-Schema
+## Output-Schema (19-offpath-candidates.csv)
 
 <!-- markdownlint-disable MD013 -->
 | Spalte | Anonymisierung | Bedeutung |
@@ -139,39 +220,15 @@ ueberschrieben werden (geplant fuer v1.2, R3-Scope).
 
 ---
 
-## Triage-Heuristik
+## Einschraenkungen
 
-```text
-action_count >= 1000 AND distinct_actions >= 5
-    -> HIGH: regelmassige Verbindung mit breitem Action-Profil
-       Sofortiger Incident-Check empfohlen
-
-action_count >= 100 AND client_program_name LIKE '%jdbc%'
-    -> MEDIUM: Applikation direkt via JDBC ohne App-Tier-Host
-       Pattern pruefen: moeglicherweise neuer App-Server
-
-action_count < 10 AND first_seen = last_seen
-    -> LOW: Einzelner Connect, kein Follow-up
-       Oft DBA-Test oder fehlgeschlagener Deploy-Check
-
-action_count < 10 AND os_username = dbusername
-    -> INFO: Wahrscheinlich Entwickler mit lokalem SQL-Client
-       Policy-Diskussion: soll Entwicklerzugriff auf Produktion erlaubt sein?
-```
-
----
-
-## Abgrenzung zu Application-Context-basierter Detection
-
-<!-- markdownlint-disable MD013 -->
-| Kriterium | Pattern-basiert (UC-19) | Application-Context (`ODB_AUDIT_CTX`) |
-| --- | --- | --- |
-| Deployment-Aufwand | Keiner - laeuft out-of-the-box | Context-Package deployen + App-Integration |
-| Genauigkeit | Mittel - USERHOST ist client-supplied | Hoch - App setzt Kontext serverseitig |
-| Faelschbarkeit | Ja (Client-Kontrolle ueber USERHOST) | Nein (DB-serverseitig gesetzt) |
-| Off-Path-Granularitaet | Host-Level | Session-Level (App-Modul, Transaktion) |
-| Empfehlung | Einstiegspunkt / keine Context-Infra | Produktiv-Umgebungen mit hoher Anforderung |
-<!-- markdownlint-enable MD013 -->
+- **USERHOST ist client-supplied** und kann theoretisch gefaelscht werden.
+  JDBC-Treiber ohne explizite Konfiguration liefern manchmal `localhost` oder
+  eine leere Zeichenkette (wird im Query gefiltert).
+- **Szenario B erkennt keine Schema-Zugriffs-Kontext**: ob ein App-Server
+  auf das "falsche" Schema zugreift, ist ohne Application Context nicht
+  erkennbar. Szenario A (Context mit IS_APP_ACCESS) loest dies durch
+  schema-spezifische Policy-Conditions.
 
 ---
 
@@ -180,8 +237,8 @@ action_count < 10 AND os_username = dbusername
 - `docs/use-cases/audit-analysis.md` - Standard-Bundle-Pipeline
 - `sql/12-distinct-hosts.sql` - Alle Hosts mit Volumen (Klassifizierungs-Basis)
 - `sql/11-host-user-program.sql` - Connect-Matrix Host x User x Programm
-- `docs/ai-analysis-rules.md` - Off-Path-Findings in AI-Analyse (Section 3)
-- `docs/compliance-mapping.md` - CIS-Kontrollen mit Off-Path-Relevanz
+- `docs/ai-analysis-rules.md` - Off-Path-Findings Szenario A/B (Section 2.6)
+- `docs/configuration.md` - Pattern-Konfiguration (`--patterns`)
 
 ---
 

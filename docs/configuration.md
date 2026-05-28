@@ -89,15 +89,55 @@ Priority order (highest to lowest): INFRA > APP > DBA > OFF-PATH
 
 ```json
 {
-  "app_host_patterns":   ["^webserver-", "^app-"],
+  "app_host_patterns":   ["^webserver-", "^app-", "-[a-z0-9]{10}-[a-z0-9]{5}$", "-[0-9]{10}-"],
   "infra_host_patterns": ["^db-", "^oem-", "^backup-"],
   "dba_host_patterns":   ["^laptop-", "^jumphost-", "^mgmt-"]
 }
 ```
 
-Hosts that do not match any pattern are classified as OFF-PATH and surfaced in query 19
-(`19_offpath_candidates.csv`). Without a patterns file, built-in defaults are used - these
-are tuned for the `auditlab` test environment and are not suitable for production classification.
+Hosts that do not match any pattern are classified as OFF-PATH and surfaced in Section 7.2.2
+and in `19_offpath_candidates.csv`.
+
+### Built-in Default Patterns
+
+When no `--patterns` file is provided the following defaults apply. They cover common naming
+conventions including generic Kubernetes pod patterns and are suitable as a starting point.
+Customer-specific prefixes must be added via `--patterns`.
+
+```json
+{
+  "app_host_patterns": [
+    "^auditlab-app-",
+    "^app-",
+    "^wls-",
+    "-[a-z0-9]{10}-[a-z0-9]{5}$",
+    "-[0-9]{10}-"
+  ],
+  "infra_host_patterns": ["^auditlab-db", "^oem-"],
+  "dba_host_patterns":   ["^laptop-", "^jumphost-"]
+}
+```
+
+The two generic Kubernetes patterns require no customer-specific configuration:
+
+| Pattern | Matches | Example |
+| --- | --- | --- |
+| `-[a-z0-9]{10}-[a-z0-9]{5}$` | K8s ReplicaSet/Deployment pod | `my-svc-6c4d8bbdfd-jdbsd` |
+| `-[0-9]{10}-` | K8s CronJob pod (Unix timestamp embedded) | `batch-1774600200-main-xyz` |
+
+Customer-specific host prefixes (e.g. `^ejpdxa`, `^eap`, `^wls-prod-`) must be added to a
+customer `--patterns` file. Running `sql/19-offpath-candidates.sql` standalone requires
+overriding the `APP_PATTERN` DEFINE variable accordingly.
+
+### Application Context (Scenario A)
+
+If the target database has an Oracle Application Context deployed (recognisable by
+`SYS_CONTEXT(...)` conditions in Section 3 of the report), the tool automatically detects
+it and shows the context variables in Section 7.2.1. In this scenario the audit trail already
+contains only off-path records for context-conditioned policies - pattern classification in
+Section 7.2.2 provides additional coverage for policies without conditions.
+
+See `docs/use-cases/off-path-detection.md` for the full two-scenario model.
 
 ---
 

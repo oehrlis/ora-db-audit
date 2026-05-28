@@ -350,10 +350,16 @@ AI_USER_PROMPT_TEMPLATE = AI_USER_PROMPT_TEMPLATES["de"]
 # Built-in pattern set. Community / customer-configurable default;
 # override with --patterns config.json for deployment-specific patterns.
 DEFAULT_PATTERNS = {
+    # app_host_patterns: application servers, middleware, PaaS / K8s workloads.
+    # Customer-specific prefixes (^ejpdxa, ^eap, etc.) belong in --patterns JSON.
+    # Generic K8s pod patterns cover both Deployment pods (ReplicaSet hash suffix)
+    # and CronJob pods (Unix timestamp suffix) without false-matching DBA hosts.
     "app_host_patterns": [
-        r"^auditlab-app-",
-        r"^app-",
-        r"^wls-",
+        r"^auditlab-app-",              # lab/test Docker containers
+        r"^app-",                       # generic app-server prefix
+        r"^wls-",                       # WebLogic Server classic naming
+        r"-[a-z0-9]{10}-[a-z0-9]{5}$", # K8s ReplicaSet pod (hash10-hash5)
+        r"-[0-9]{10}-",                 # K8s CronJob pod (Unix timestamp)
     ],
     "infra_host_patterns": [
         r"^auditlab-db",
@@ -737,6 +743,43 @@ class HostClassifier:
             if pat.search(host):
                 return "DBA"
         return "OFF-PATH"
+
+
+def _detect_audit_context(policy_fd):
+    """Scan audit_condition column for customer SYS_CONTEXT references.
+
+    Returns a list of dicts sorted by (context_name, attribute):
+      [{"ctx": str, "attr": str, "policies": [str, ...]}, ...]
+
+    Empty list means no customer Application Context found (Scenario B only).
+    Oracle's built-in USERENV context is excluded - it is not a customer
+    off-path context.
+    """
+    if policy_fd is None:
+        return []
+    idx_cond = _col_index(policy_fd, "audit_condition")
+    idx_pol = _col_index(policy_fd, "policy_name")
+    ctx_re = re.compile(
+        r"SYS_CONTEXT\s*\(\s*'([^']+)'\s*,\s*'([^']+)'\s*\)", re.IGNORECASE
+    )
+    found: dict = {}
+    for row in policy_fd.get("rows", []):
+        cond = _row_get(row, idx_cond)
+        pol = _row_get(row, idx_pol)
+        if not cond:
+            continue
+        for m in ctx_re.finditer(cond):
+            ctx_name, attr = m.group(1), m.group(2)
+            if ctx_name.upper() == "USERENV":
+                continue  # Oracle built-in, not a customer off-path context
+            key = (ctx_name, attr)
+            if key not in found:
+                found[key] = set()
+            found[key].add(pol)
+    return [
+        {"ctx": ctx, "attr": attr, "policies": sorted(pols)}
+        for (ctx, attr), pols in sorted(found.items())
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1454,6 +1497,8 @@ def render_section_06_privileged(file_data, top_n):
 
 def render_section_07_security_signals(files, classifier, top_n):
     out = section_header(2, t("section.07_security_signals", lang=LANG))
+
+    # --- 7.1 Failed Logins ---
     out += section_header(3, t("section.07_1_failed", lang=LANG))
     fd13 = files.get("13")
     if fd13 is None:
@@ -1463,11 +1508,37 @@ def render_section_07_security_signals(files, classifier, top_n):
         out += render_table(fd13["headers"], fd13["rows"], max_rows=top_n)
         out += "\n"
 
+    # --- 7.2 Off-Path Candidates ---
     out += section_header(3, t("section.07_2_offpath", lang=LANG))
     fd12 = files.get("12")
     if fd12 is None:
         out += t("note.offpath_skipped", lang=LANG) + "\n\n"
         return out
+
+    # --- 7.2.1 Scenario A: Application Context ---
+    out += section_header(4, t("section.07_2a_ctx", lang=LANG))
+    ctx_entries = _detect_audit_context(files.get("03"))
+    if ctx_entries:
+        out += t("offpath.ctx_intro", lang=LANG) + "\n\n"
+        out += t("offpath.ctx_found", lang=LANG, n=len(ctx_entries)) + "\n\n"
+        ctx_rows = [
+            [e["ctx"], e["attr"], ", ".join(e["policies"])]
+            for e in ctx_entries
+        ]
+        out += render_table(
+            [t("offpath.ctx_label_ctx", lang=LANG),
+             t("offpath.ctx_label_attr", lang=LANG),
+             t("offpath.ctx_label_policies", lang=LANG)],
+            ctx_rows,
+        )
+        out += "\n"
+        out += t("offpath.ctx_hint_null", lang=LANG) + "\n\n"
+    else:
+        out += t("offpath.ctx_none", lang=LANG) + "\n\n"
+
+    # --- 7.2.2 Scenario B: Pattern-based ---
+    out += section_header(4, t("section.07_2b_pattern", lang=LANG))
+    out += t("offpath.pattern_intro", lang=LANG) + "\n\n"
 
     idx_host = _col_index(fd12, "userhost")
     idx_logins = _col_index(fd12, "logins")

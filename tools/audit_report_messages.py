@@ -98,6 +98,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "section.07_security_signals": "7. Security Signals",
         "section.07_1_failed": "7.1 Failed Logins",
         "section.07_2_offpath": "7.2 Off-Path Candidates",
+        "section.07_2a_ctx": "7.2.1 Application Context (Szenario A)",
+        "section.07_2b_pattern": "7.2.2 Pattern-basierte Klassifizierung (Szenario B)",
         "section.08_tuning": "8. Tuning-Empfehlungen",
         "section.08_1_when_clauses": "8.1 WHEN-Klausel-Vorschlaege",
         "section.09_cis_coverage": "9. CIS Benchmark 5.1-5.5 - Policy-Abdeckung",
@@ -276,7 +278,35 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Customer-DBA-Accounts)."
         ),
 
-        # --- Section 7 - security signals ---
+        # --- Section 7 - security signals / off-path ---
+        "offpath.ctx_intro": (
+            "Audit-Policies mit `SYS_CONTEXT`-Bedingung erkannt (Szenario A). "
+            "Alle Records dieser Policies sind per Definition Off-Path-Zugriffe "
+            "(die Policy feuert nur, wenn das Context-Flag FALSE oder NULL ist). "
+            "Sicherheitsbewertung nach `docs/ai-analysis-rules.md` Abschnitt 2.6."
+        ),
+        "offpath.ctx_found": (
+            "**{n} Context-Attribut(e)** in Policy-Bedingungen erkannt:"
+        ),
+        "offpath.ctx_none": (
+            "_Kein Application Context (SYS_CONTEXT) in Audit-Policy-Bedingungen "
+            "gefunden. Off-Path-Detection basiert ausschliesslich auf "
+            "Pattern-Matching (Szenario B, Abschnitt 7.2.2)._"
+        ),
+        "offpath.ctx_hint_null": (
+            "> **Hinweis NULL-Fallback:** Policy-Bedingungen sollten "
+            "`!= 'TRUE' OR IS NULL` verwenden (nicht `= 'FALSE'`), damit "
+            "Sessions ohne gesetzten Context (Trigger-Fehler) konservativ "
+            "auditiert werden."
+        ),
+        "offpath.ctx_label_ctx": "Context",
+        "offpath.ctx_label_attr": "Attribut",
+        "offpath.ctx_label_policies": "Policies",
+        "offpath.pattern_intro": (
+            "Host-Klassifizierung aus `12_distinct_hosts.csv` anhand der "
+            "konfigurierten Pattern-Listen (app / infra / dba). "
+            "Hosts ohne Treffer = **OFF-PATH**."
+        ),
         "offpath.none": (
             "_Keine OFF-PATH-Hosts identifiziert - alle Quell-Hosts "
             "matchen App/Infra/DBA-Pattern._"
@@ -452,6 +482,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "section.07_security_signals": "7. Security Signals",
         "section.07_1_failed": "7.1 Failed Logins",
         "section.07_2_offpath": "7.2 Off-Path Candidates",
+        "section.07_2a_ctx": "7.2.1 Application Context (Scenario A)",
+        "section.07_2b_pattern": "7.2.2 Pattern-based Classification (Scenario B)",
         "section.08_tuning": "8. Tuning Recommendations",
         "section.08_1_when_clauses": "8.1 WHEN Clause Suggestions",
         "section.09_cis_coverage": "9. CIS Benchmark 5.1-5.5 - Policy Coverage",
@@ -630,7 +662,35 @@ MESSAGES: dict[str, dict[str, str]] = {
             "customer DBA accounts)."
         ),
 
-        # --- Section 7 - security signals ---
+        # --- Section 7 - security signals / off-path ---
+        "offpath.ctx_intro": (
+            "Audit policies with `SYS_CONTEXT` conditions detected (Scenario A). "
+            "All records from these policies are off-path accesses by definition "
+            "(the policy fires only when the context flag is FALSE or NULL). "
+            "Severity assessment per `docs/ai-analysis-rules.md` Section 2.6."
+        ),
+        "offpath.ctx_found": (
+            "**{n} context attribute(s)** detected in policy conditions:"
+        ),
+        "offpath.ctx_none": (
+            "_No Application Context (SYS_CONTEXT) found in audit policy conditions. "
+            "Off-path detection relies exclusively on pattern matching "
+            "(Scenario B, Section 7.2.2)._"
+        ),
+        "offpath.ctx_hint_null": (
+            "> **NULL fallback note:** Policy conditions should use "
+            "`!= 'TRUE' OR IS NULL` (not `= 'FALSE'`) so that sessions "
+            "where the context was not set (trigger failure) are audited "
+            "conservatively."
+        ),
+        "offpath.ctx_label_ctx": "Context",
+        "offpath.ctx_label_attr": "Attribute",
+        "offpath.ctx_label_policies": "Policies",
+        "offpath.pattern_intro": (
+            "Host classification from `12_distinct_hosts.csv` using the "
+            "configured pattern lists (app / infra / dba). "
+            "Hosts with no match = **OFF-PATH**."
+        ),
         "offpath.none": (
             "_No OFF-PATH hosts identified - all source hosts "
             "match App/Infra/DBA patterns._"
