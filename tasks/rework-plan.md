@@ -36,6 +36,7 @@ issues fall into three buckets:
 | R4 | Group C+F (Python + Tests) | **Defer** until rework Phase B + D complete |
 | R5 | Group D + E (bash + templates + use-case docs) | **Proceed in parallel** to rework |
 | R6 | New skill for AI report rules? | **No** - codify as `docs/ai-analysis-rules.md` reference doc, embed into audit_report.py prompt. Existing `/oracle-audit` skill stays canonical for Pure-Mode policy design. |
+| R7 | Report language (v1.0) | **German-only**; Phase D rewrite designs for future EN via centralised message dict; multilanguage shipping in v1.1+. |
 
 ## 3. Findings catalog
 
@@ -221,11 +222,36 @@ in Phase D to consume these without producing the F4/F5 false alarms.
 - Reformat Section B "Konfigurationsluecken" to reference only the
   Pure-Mode-valid checks from the rules doc.
 
+**Future-readiness: i18n architecture constraint (Stefan-amendment 2026-05-28)**:
+
+- v1.0.0 ships **German-only** output (Markdown report sections, finding
+  labels, AI prompt language). No translation work in v1.0.
+- v1.1+ target: dual-language output (DE + EN), selectable via a CLI
+  flag (`--lang en|de`, default `de`).
+- **Phase D rewrite MUST design for this** so v1.1 is an additive
+  change, not a second rewrite:
+  - Route every user-facing string through a single Python dict / module
+    (e.g. `tools/audit_report_messages.py` containing `MESSAGES["de"]
+    = {...}`). German is the initial population; the structure already
+    supports `MESSAGES["en"] = {...}`.
+  - Do **not** scatter `f"Abschnitt X - ..."` literals across the
+    reporter code. Every literal lives in the messages dict, accessed
+    via a `t(key)` helper.
+  - The AI prompt itself is multi-paragraph - same rule applies. Either
+    a single message-dict entry per prompt-section or a separate
+    `prompts/audit_findings.de.md` file loaded at runtime.
+  - The `docs/ai-analysis-rules.md` reference doc stays English (it is
+    technical reference material, not user-facing report content).
+- Reject: gettext / .po file infrastructure (overkill for ~50-100
+  strings, adds dependency).
+
 **Acceptance**: against a known-broken policy + sample bundle, the
 generated `ALTER AUDIT POLICY ...` statement is parseable by `sqlplus`
 and references only the singular policy being tuned. AI findings
 contain zero references to `audit_trail`, `audit_sys_operations`,
-`audit_syslog_level`.
+`audit_syslog_level`. **Additionally**: `grep -nE '"[A-Z][a-z].*[a-z][.!?]"' tools/audit_report.py`
+returns minimal hits - confirming user-facing strings are not scattered
+as literals throughout the code but routed through the messages dict.
 
 **Commits**:
 
@@ -331,6 +357,7 @@ ai-toolkit/claude/skills/ tree, add frontmatter, symlink into
 | CIS 21c benchmark may not yet exist as Pure-Mode-aware doc | Phase E acceptance allows the doc to record that as an explicit gap. |
 | Phase B SQL changes break the existing anonymizer's `# schema:` parser | The `# schema:` line per SQL stays unchanged - we only change the SELECT semantics. Anonymizer reads column names from schema-hint, not column values, so per-policy split is invisible to it. Verify in Group C migration. |
 | Sample bundle in eng/tools/tests is pre-rework - tests may fail until regenerated | Phase B + C output is regression-tested against a freshly captured bundle. May need a Group F task: regenerate `tests/fixtures/sample_bundle.*` after rework. |
+| Phase D ships German-only output but i18n-ready architecture is non-trivial - risk of underestimating effort | Acceptance criterion in Phase D requires grep verification that user-facing strings are centralised. If the rewrite touches >50 string sites, factor in +1h for centralisation. Tracked separately in v1.1 milestone (not v1.0 scope). |
 
 ## 8. What needs Stefan's input next
 

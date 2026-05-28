@@ -104,6 +104,10 @@ The list below is intentionally not prioritised. It is the staging area
 for ideas surfaced during the audit_pack engagement work or community
 feedback after release.
 
+- **v1.1 - Dual-language output (DE + EN)**: v1.0 ships German-only.
+  v1.1 adds English translations via `--lang en|de` flag. Phase D
+  rewrite in v1.0 already designs for this (centralised message dict),
+  so v1.1 is an additive change.
 - **v1.1 - Off-Path-Detection use case**: import
   `uc_offpath_detection.md` from eng repo; sanitised + new SQL queries
   detecting unexpected host/user combinations beyond the existing
