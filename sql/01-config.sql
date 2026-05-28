@@ -110,6 +110,7 @@ PROMPT # query_id: 01
 PROMPT # dbsid: &DBSID
 PROMPT # pdb: &PDB_NAME
 PROMPT # generated: &GENERATED_ISO
+PROMPT # cis_controls: -
 PROMPT # audit_mode: &AUDIT_MODE
 PROMPT # recent_aud_legacy_rows: &AUD_LEGACY_ROWS
 PROMPT # schema: source=KEEP|name=KEEP|value=KEEP|trail=KEEP|legacy_param=COUNT

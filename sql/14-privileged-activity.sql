@@ -16,6 +16,7 @@ PROMPT # query_id: 14
 PROMPT # dbsid: &DBSID
 PROMPT # pdb: &PDB_NAME
 PROMPT # generated: &GENERATED_ISO
+PROMPT # cis_controls: 5.5
 PROMPT # date_range_days: &days
 PROMPT # top_n: &top_n
 PROMPT # schema: dbusername=KEEP|action_name=KEEP|object_schema=PSEUDO:SCHEMA|object_name=PSEUDO:OBJECT|return_code=KEEP|events=COUNT|distinct_hosts=COUNT|first_seen=TIMESTAMP|last_seen=TIMESTAMP
