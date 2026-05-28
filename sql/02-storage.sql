@@ -5,18 +5,26 @@
 -- Name......: 02-storage.sql
 -- Author....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 -- Date......: 2026.05.12
--- Revision..: 0.2.0
+-- Revision..: 0.3.0
 -- Purpose...: Audit-trail storage analysis with partition tablespace
---             disambiguation. Captures per-partition details for
---             AUDSYS.AUD$UNIFIED and emits three distinct metadata values:
---             D = DEF_TABLESPACE_NAME (target for new partitions),
---             C = tablespace of the most recent (current write) partition,
---             O = comma-joined unique tablespaces of older retained partitions.
+--             disambiguation plus trail-management health metadata.
+--             Captures per-partition details for AUDSYS.AUD$UNIFIED and emits
+--             three distinct tablespace metadata values:
+--               D = DEF_TABLESPACE_NAME (target for new partitions),
+--               C = tablespace of the most recent (current write) partition,
+--               O = comma-joined unique tablespaces of older retained partitions.
+--             Additionally emits purge-job and archive-timestamp metadata:
+--               purge_job_count      - number of cleanup jobs configured
+--               purge_job_status     - ENABLED/DISABLED/NONE
+--               last_archive_timestamp - last timestamp used to bound purge
+--               partition_interval   - AUD$UNIFIED interval expression
 --             Enables the reporter to apply the D/C/O decision matrix from
 --             docs/ai-analysis-rules.md Section 5.2 and distinguish
 --             MISCONFIGURATION from TRANSIENT state after ALTER TABLE
 --             MODIFY DEFAULT ATTRIBUTES TABLESPACE.
--- Pattern...: Metadata preamble via PL/SQL + per-partition detail rows.
+-- Pattern...: Three-phase: Phase 1 derives D/C/O, Phase 3 derives purge and
+--             interval metadata, Phase 2 spools CSV with all metadata lines
+--             followed by per-partition detail rows.
 -- Notes.....: Interpretation contract: docs/ai-analysis-rules.md Sections 5+6.
 --             Schema-hint tag TABLESPACE_STATE marks the per-partition
 --             tablespace_name column so the reporter compares it against D
@@ -24,6 +32,11 @@
 --             Column creation_time reflects DBA_OBJECTS.CREATED for the
 --             partition object; may be NULL if statistics are stale or the
 --             object is not yet analysed.
+--             Oracle BP v2.0 trail-management recommendations:
+--               purge_job_count = 0  => no automated purge configured (GAP-03)
+--               last_archive_timestamp = (not set) => purge will not delete rows
+--               partition_interval: default 1 month (19c); Oracle BP recommends
+--               1 week or 1 day for high-volume environments.
 -- License...: Apache License Version 2.0
 -- -----------------------------------------------------------------------------
 
@@ -75,6 +88,38 @@ FROM
 SET SERVEROUTPUT OFF
 
 -- ---------------------------------------------------------------------------
+-- Phase 3: Capture purge-job, archive-timestamp, and partition-interval
+--           metadata into SQL*Plus DEFINEs for emission in the preamble.
+--           Uses scalar subqueries joined to DUAL to guarantee one row even
+--           when no cleanup jobs or archive timestamps are configured yet.
+-- ---------------------------------------------------------------------------
+COLUMN x_purge_job_count  NEW_VALUE PURGE_JOB_COUNT  NOPRINT
+COLUMN x_purge_job_status NEW_VALUE PURGE_JOB_STATUS NOPRINT
+COLUMN x_last_arch_ts     NEW_VALUE LAST_ARCH_TS      NOPRINT
+COLUMN x_part_interval    NEW_VALUE PART_INTERVAL     NOPRINT
+
+SELECT
+    NVL(TO_CHAR(j.job_count), '0')                                       AS x_purge_job_count,
+    NVL(j.job_status, 'NONE')                                            AS x_purge_job_status,
+    NVL(TO_CHAR(a.last_ts, 'YYYY-MM-DD HH24:MI:SS'), '(not set)')        AS x_last_arch_ts,
+    NVL(t.part_interval, '(unknown)')                                    AS x_part_interval
+FROM
+    -- Purge job count and status for Unified Audit Trail
+    (SELECT COUNT(*)        AS job_count,
+            MAX(job_status) AS job_status
+     FROM   dba_audit_mgmt_cleanup_jobs
+     WHERE  audit_trail_type = 'UNIFIED AUDIT TRAIL') j,
+    -- Last archive timestamp used by the purge job to bound deletions
+    (SELECT MAX(last_archive_ts) AS last_ts
+     FROM   dba_audit_mgmt_last_arch_ts
+     WHERE  audit_trail_type = 'UNIFIED AUDIT TRAIL') a,
+    -- Partition interval for AUD$UNIFIED (default 1 month in 19c, 1 day in 23ai+)
+    (SELECT NVL(interval, '(none)') AS part_interval
+     FROM   dba_part_tables
+     WHERE  owner      = 'AUDSYS'
+       AND  table_name = 'AUD$UNIFIED') t;
+
+-- ---------------------------------------------------------------------------
 -- Phase 2: Spool the storage CSV with full metadata preamble.
 -- ---------------------------------------------------------------------------
 SPOOL &LOGDIR./02_storage.csv
@@ -88,6 +133,10 @@ PROMPT # cis_controls: -
 PROMPT # audit_data_tablespace_default: &TBS_DEFAULT
 PROMPT # audit_data_tablespace_current: &TBS_CURRENT
 PROMPT # audit_data_tablespace_older_partitions: &TBS_OLDER
+PROMPT # purge_job_count: &PURGE_JOB_COUNT
+PROMPT # purge_job_status: &PURGE_JOB_STATUS
+PROMPT # last_archive_timestamp: &LAST_ARCH_TS
+PROMPT # partition_interval: &PART_INTERVAL
 PROMPT # schema: partition_name=KEEP|num_rows=COUNT|size_mb=COUNT|last_analyzed=TIMESTAMP|tablespace_name=TABLESPACE_STATE|partition_position=KEEP|creation_time=TIMESTAMP
 
 SET MARKUP CSV ON DELIMITER '|' QUOTE OFF
