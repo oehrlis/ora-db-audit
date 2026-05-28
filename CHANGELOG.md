@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-05-28
+
+### Fixed
+
+- **B8** - `bin/ora-db-audit.sh`: `--lang`, `--export-prompt`, and
+  `--customer-prefix` were not forwarded to `tools/audit_report.py` when
+  `--report` was used. `--lang en` caused `ERROR: unknown option: --lang`
+  because the flag was consumed by the shell script's `parse_args()` and then
+  silently dropped. Fixed by passing all three to `render_report()` via
+  `report_args`. `--customer-prefix` was already wired to `anonymize_bundle.py`
+  but not to `audit_report.py` (where it controls the AI prompt context).
+
+### Changed
+
+- `bin/ora-db-audit.sh` version `1.2.0` -> `1.2.2`.
+- README: document `--lang` and `--export-prompt` in the command reference.
+
 ## [1.2.1] - 2026-05-28
 
 ### Added

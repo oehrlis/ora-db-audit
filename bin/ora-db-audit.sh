@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 1.2.0
+# Version....: 1.2.2
 # Purpose....: Extract Oracle Unified Audit Trail data from a target database,
 #              produce a self-contained CSV bundle, optionally anonymise it,
 #              and render a Markdown analysis report. Designed to be executed
@@ -31,6 +31,8 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.28  oes  Fix: wire --lang, --export-prompt, --customer-prefix  1.2.2
+#                  through to audit_report.py (render_report).
 # 2026.05.28  oes  R3: --sample-rows flag; fix CSV sanity-check name;    1.2.0
 #                  no-arg -> --help; export ORADBA_SAMPLE_ROWS; align
 #                  version to repo SemVer.
@@ -56,6 +58,8 @@ DEANONYMIZE=0
 MAPPING_FILE=""
 CUSTOMER_PREFIX=""
 REPORT=0
+LANG_REPORT="de"
+EXPORT_PROMPT=""
 PATTERNS_FILE=""
 TOOLS_DIR_OVERRIDE=""
 FROM_BUNDLE=""
@@ -142,6 +146,13 @@ Options:
                        tools/audit_report.py). When combined with
                        --anonymize the report runs on the anonymised
                        bundle and is safe to share externally.
+  --lang de|en         Report language (default: de). Passed to
+                       audit_report.py. Only used with --report.
+  --export-prompt FILE Write the full AI analysis prompt to FILE instead
+                       of calling the Claude API. The file is a
+                       self-contained prompt ready to paste into any LLM
+                       chat UI (claude.ai, ChatGPT, etc.).
+                       No API key required. Only used with --report.
   --patterns FILE      Host-pattern config (JSON) for the report. Keys:
                        app_host_patterns, infra_host_patterns,
                        dba_host_patterns. Only used with --report.
@@ -211,6 +222,8 @@ parse_args() {
             --mapping)          MAPPING_FILE="$2"; shift 2 ;;
             --customer-prefix)  CUSTOMER_PREFIX="$2"; shift 2 ;;
             --report)           REPORT=1; shift ;;
+            --lang)             LANG_REPORT="$2"; shift 2 ;;
+            --export-prompt)    EXPORT_PROMPT="$2"; shift 2 ;;
             --patterns)         PATTERNS_FILE="$2"; shift 2 ;;
             --tools-dir)        TOOLS_DIR_OVERRIDE="$2"; shift 2 ;;
             --from-bundle)  FROM_BUNDLE="$2"; shift 2 ;;
@@ -237,6 +250,10 @@ parse_args() {
         err "--sample-rows must be a non-negative integer (got: ${SAMPLE_ROWS})"
         exit 2
     fi
+    case "${LANG_REPORT}" in
+        de|en) ;;
+        *) err "--lang must be 'de' or 'en' (got: ${LANG_REPORT})"; exit 2 ;;
+    esac
     if [[ -n "${EXPORT_SIEM_FORMAT}" ]]; then
         case "${EXPORT_SIEM_FORMAT}" in
             ocsf|sentinel) ;;
@@ -297,7 +314,7 @@ write_manifest() {
 $(printf '    "%s",\n' "${QUERIES[@]:1}" | sed '$ s/,$//')
   ],
   "tool":           "ora-db-audit.sh",
-  "tool_version":   "1.2.0"
+  "tool_version":   "1.2.2"
 }
 EOF
 }
@@ -453,12 +470,19 @@ render_report() {
     fi
 
     local -a report_args=( "${bundle_dir}" --yes )
+    report_args+=( --lang "${LANG_REPORT}" )
+    if [[ -n "${CUSTOMER_PREFIX}" ]]; then
+        report_args+=( --customer-prefix "${CUSTOMER_PREFIX}" )
+    fi
     if [[ -n "${PATTERNS_FILE}" ]]; then
         if [[ ! -f "${PATTERNS_FILE}" ]]; then
             err "--patterns file not found: ${PATTERNS_FILE}"
             return 1
         fi
         report_args+=( --patterns "${PATTERNS_FILE}" )
+    fi
+    if [[ -n "${EXPORT_PROMPT}" ]]; then
+        report_args+=( --export-prompt "${EXPORT_PROMPT}" )
     fi
     if [[ ${AI} -eq 1 ]]; then
         report_args+=( --ai --ai-model "${AI_MODEL}" )
