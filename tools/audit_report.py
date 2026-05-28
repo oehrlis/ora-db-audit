@@ -1,0 +1,1202 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# ------------------------------------------------------------------------------
+# OraDBA - Oracle Database Infrastructure and Security, 5630 Muri, Switzerland
+# ------------------------------------------------------------------------------
+# Name.......: audit_report.py
+# Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
+# Editor.....: Stefan Oehrli
+# Date.......: 2026.05.28
+# Version....: 0.2.0
+# Purpose....: Read a (raw or anonymised) ora-db-audit bundle and render a
+#              structured Markdown report for DBA, Security Engineer and
+#              Auditor audiences. Generates an executive summary plus
+#              per-query detail sections, host-pattern classification
+#              (App / Infra / Off-Path) and tuning recommendations with
+#              WHEN-clause templates for the noisiest policy-user-action
+#              combinations.
+# Notes......: Works on either the raw bundle (real customer values) or
+#              the anonymised sibling bundle - the report does not change
+#              its structure based on which one is fed in. Pattern config
+#              defaults to a small built-in set; pass --patterns FILE.json
+#              for customer-specific host classification patterns.
+#
+# Usage......: audit_report.py BUNDLE_DIR [--output FILE]
+#                              [--patterns FILE.json]
+#                              [--include-appendix]
+#                              [--top-n N]
+#                              [--customer-prefix PREFIX]
+#                              [--dry-run] [--yes] [--verbose]
+#
+# License....: Apache License Version 2.0, January 2004 as shown
+#              at http://www.apache.org/licenses/
+# ------------------------------------------------------------------------------
+# CHANGE LOG:
+# 2026.05.28  oes  Sanitised port from audit_pack-0.5.0 (renamed from      0.2.0
+#                  audit_pack_report.py). DEFAULT_CUSTOMER_PREFIX cleared,
+#                  ODB_AUDIT_CTX placeholder generalised.
+# ------------------------------------------------------------------------------
+
+import argparse
+import csv
+import io
+import json
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+# Re-use the bundle parser from the anonymiser - same '# schema:' format,
+# identical preamble / CSV handling. Keeping both tools in sync avoids
+# drift in how queries are interpreted.
+_HERE = Path(__file__).resolve().parent
+if str(_HERE) not in sys.path:
+    sys.path.insert(0, str(_HERE))
+from anonymize_bundle import (  # noqa: E402
+    find_schema_line,
+    parse_schema_line,
+    split_preamble,
+)
+
+
+TOOL_VERSION = "0.2.0"
+DEFAULT_TOP_N = 20
+DEFAULT_CUSTOMER_PREFIX = ""
+DEFAULT_AI_MODEL = "claude-sonnet-4-6"
+DEFAULT_AI_OP_PATH = ""
+
+AI_SYSTEM_PROMPT = (
+    "Du bist ein Oracle Security Architect mit Expertise in Oracle Unified "
+    "Auditing (Pure Mode). Analysiere Oracle Audit-Reports und identifiziere "
+    "Security-Risiken, Konfigurationslücken sowie Compliance-Abweichungen. "
+    "Bewerte automatisch generierte Tuning-Empfehlungen auf Korrektheit und "
+    "Compliance-Verträglichkeit. "
+    "Antworte auf Deutsch. Oracle-Objekt-Namen, SQL und Code-Blöcke bleiben Englisch."
+)
+
+AI_USER_PROMPT_TEMPLATE = """\
+Analysiere den folgenden Oracle Unified Audit-Report.
+
+## Kontext
+
+- Audit-Modus: Pure Unified Auditing (kein Mixed Mode)
+- Policy-Namensraum: {customer_prefix}_* (Custom), ORA_* nur als Referenz (nicht aktivieren)
+- Phase A aktiv: Login-Events, DDL, DataPump, Anti-Tampering
+- Hostnamen und Benutzernamen können anonymisiert sein (HOST_NNN, DBUSER_NNN)
+
+## Audit-Report
+
+{report_text}
+
+## Aufgabe
+
+Erstelle ein strukturiertes Findings-Dokument mit drei Abschnitten:
+
+### A - Security Signals
+
+Risikobewertung HIGH / MEDIUM / LOW / INFO:
+- Unterscheide echte Security-Events von erwartetem Betriebsverhalten
+- Failed Logins (ORA-01017): Brute-Force-Verdacht oder Konfigurationsfehler?
+- Off-Path-Hosts: echte Bedrohung oder fehlendes Applikationskontext-Setup (<CUSTOMER>_AUDIT_CTX)?
+- Ungewöhnliche Kombinationen User + Host + Programm
+
+### B - Konfigurationslücken (CIS Oracle Benchmark)
+
+- DBMS_AUDIT_MGMT-Konfiguration: fehlende oder falsche Parameter
+- audit_sys_operations und audit_trail Status
+- Oracle-supplied Policies (ORA_*): in Pure Mode deaktivieren
+- Trail-Storage: AUDIT_DATA Tablespace korrekt zugewiesen (nicht SYSAUX)?
+- Retention: Cleanup-Job konfiguriert und LAST_ARCHIVE_TIME gesetzt?
+
+### C - Tuning-Empfehlungen qualifizieren
+
+Für jeden WHEN-Klausel-Vorschlag aus Abschnitt 8:
+- Compliance-Risiko: Darf dieses Event supprimiert werden?
+- Varianten-Bewertung: Welche Variante (User / Programm / Kombination) ist korrekt?
+- Alternativer Ansatz wenn kein Vorschlag sicher anwendbar ist
+
+## Ausgabeformat
+
+Findings-Tabelle (Übersicht):
+
+| # | Finding | Abschnitt | Risiko | Massnahme |
+|---|---------|-----------|--------|-----------|
+
+Dann pro Finding (Nummer aus Tabelle) ein Absatz mit Begründung und ggf. konkretem SQL \
+oder Konfigurationsschritt.
+"""
+
+# Built-in pattern set. Community / customer-configurable default;
+# override with --patterns config.json for deployment-specific patterns.
+DEFAULT_PATTERNS = {
+    "app_host_patterns": [
+        r"^auditlab-app-",
+        r"^wls-",
+    ],
+    "infra_host_patterns": [
+        r"^auditlab-db",
+        r"^oem-",
+    ],
+    "dba_host_patterns": [
+        r"^laptop-",
+        r"^jumphost-",
+    ],
+}
+
+# Section / query map - id -> filename stem produced by the SQL scripts.
+QUERY_FILES = {
+    "01": "01_config",
+    "02": "02_storage",
+    "03": "03_policy_inventory",
+    "04": "04_policy_volume",
+    "05": "05_policy_user_action",
+    "06": "06_policy_client_program",
+    "07": "07_policy_host",
+    "08": "08_top_users",
+    "09": "09_top_actions",
+    "10": "10_top_objects",
+    "11": "11_host_user_program",
+    "12": "12_distinct_hosts",
+    "13": "13_failed_logins",
+    "14": "14_privileged_activity",
+    "15": "15_noise_candidates",
+}
+
+
+# ---------------------------------------------------------------------------
+# Bundle reader
+# ---------------------------------------------------------------------------
+
+def _csv_rows(data_lines):
+    reader = csv.reader(io.StringIO("".join(data_lines)), delimiter="|")
+    rows = list(reader)
+    if not rows:
+        return None, []
+    return rows[0], rows[1:]
+
+
+def _strip_quotes(value):
+    """csv.reader keeps surrounding quotes when QUOTE_ALL emits them
+    inside cell values (SQL*Plus 'QUOTE ON' mode produces "X"-style
+    fields that csv handles natively - but header cells emitted by the
+    same mode look the same and survive parsing). Belt-and-braces."""
+    v = value.strip()
+    if len(v) >= 2 and v[0] == '"' and v[-1] == '"':
+        return v[1:-1]
+    return v
+
+
+def _read_csv_file(path):
+    """Return a dict {meta, schema_cols, headers, rows} or None if the
+    file has no schema preamble (we cannot reason about it)."""
+    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    lines = text.splitlines(keepends=True)
+    preamble, data_lines = split_preamble(lines)
+
+    meta = {}
+    for line in preamble:
+        s = line.strip()
+        if not s.startswith("#"):
+            continue
+        body = s[1:].strip()
+        if ":" not in body:
+            continue
+        key, _, value = body.partition(":")
+        meta[key.strip()] = value.strip()
+
+    schema_line = find_schema_line(preamble)
+    if not schema_line:
+        return None
+    try:
+        schema_cols = parse_schema_line(schema_line)
+    except ValueError as exc:
+        print(f"WARN: {path.name} schema parse failed: {exc}",
+              file=sys.stderr)
+        return None
+
+    header_row, data_rows = _csv_rows(data_lines)
+    if header_row is None:
+        return {
+            "meta": meta,
+            "schema_cols": schema_cols,
+            "headers": [c for c, _ in schema_cols],
+            "rows": [],
+        }
+    headers = [_strip_quotes(h) for h in header_row]
+    cleaned_rows = []
+    for row in data_rows:
+        cleaned_rows.append([_strip_quotes(c) for c in row])
+    return {
+        "meta": meta,
+        "schema_cols": schema_cols,
+        "headers": headers,
+        "rows": cleaned_rows,
+    }
+
+
+def read_bundle(bundle_dir):
+    """Load manifest.json + every known query CSV into a dict keyed by
+    query id ('01' .. '15'). Missing files are silently skipped (older
+    bundle versions or partial runs)."""
+    bundle = {"_path": bundle_dir, "_manifest": {}, "_files": {}}
+    manifest = bundle_dir / "manifest.json"
+    if manifest.is_file():
+        try:
+            bundle["_manifest"] = json.loads(
+                manifest.read_text(encoding="utf-8")
+            )
+        except json.JSONDecodeError as exc:
+            print(f"WARN: manifest.json unreadable: {exc}", file=sys.stderr)
+
+    for qid, stem in QUERY_FILES.items():
+        path = bundle_dir / f"{stem}.csv"
+        if not path.is_file():
+            continue
+        parsed = _read_csv_file(path)
+        if parsed is None:
+            continue
+        bundle["_files"][qid] = parsed
+    return bundle
+
+
+# ---------------------------------------------------------------------------
+# Markdown helpers
+# ---------------------------------------------------------------------------
+
+def _md_escape(value):
+    """Escape Markdown table-cell metacharacters that would break the
+    pipe-delimited layout. We keep this minimal: pipe and newline."""
+    s = str(value) if value is not None else ""
+    return s.replace("|", r"\|").replace("\n", " ").replace("\r", " ")
+
+
+def render_table(headers, rows, max_rows=None):
+    """Emit a GitHub-flavoured Markdown table. None / empty list returns
+    a placeholder so the section still renders cleanly."""
+    if not headers:
+        return "_(keine Spalten)_\n"
+    body_rows = list(rows or [])
+    truncated = False
+    if max_rows is not None and len(body_rows) > max_rows:
+        body_rows = body_rows[:max_rows]
+        truncated = True
+
+    lines = []
+    lines.append("| " + " | ".join(_md_escape(h) for h in headers) + " |")
+    lines.append("|" + "|".join(["---"] * len(headers)) + "|")
+    if not body_rows:
+        empty = "| " + " | ".join(["_(keine Daten)_"] * len(headers)) + " |"
+        lines.append(empty)
+    else:
+        for row in body_rows:
+            cells = list(row) + [""] * (len(headers) - len(row))
+            lines.append("| " + " | ".join(
+                _md_escape(c) for c in cells[:len(headers)]
+            ) + " |")
+    text = "\n".join(lines) + "\n"
+    if truncated:
+        text += (
+            f"\n_Tabelle nach {max_rows} Zeilen abgeschnitten - "
+            f"vollständige Daten siehe Appendix oder Roh-CSV._\n"
+        )
+    return text
+
+
+def section_header(level, title, anchor=None):
+    """Return a Markdown header line with optional comment-anchor for
+    pandoc cross-references."""
+    prefix = "#" * level
+    if anchor:
+        return f"{prefix} {title} <!-- {anchor} -->\n\n"
+    return f"{prefix} {title}\n\n"
+
+
+def fmt_int(value):
+    """Format possibly-empty numeric strings with thousands separator.
+    Non-numeric values pass through unchanged."""
+    if value is None or value == "":
+        return ""
+    s = str(value).strip()
+    try:
+        return f"{int(s):,}".replace(",", "'")
+    except (TypeError, ValueError):
+        try:
+            return f"{float(s):,.2f}".replace(",", "'")
+        except (TypeError, ValueError):
+            return s
+
+
+# ---------------------------------------------------------------------------
+# Aggregation helpers
+# ---------------------------------------------------------------------------
+
+def _col_index(file_data, name):
+    """Return the column index by header name (case-insensitive). -1 if
+    not present."""
+    if file_data is None:
+        return -1
+    needle = name.lower()
+    for i, header in enumerate(file_data.get("headers", [])):
+        if header.lower() == needle:
+            return i
+    return -1
+
+
+def _row_get(row, idx):
+    if idx < 0 or idx >= len(row):
+        return ""
+    return row[idx]
+
+
+def _to_int(value, default=0):
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+
+
+def _sum_column(file_data, col_name):
+    idx = _col_index(file_data, col_name)
+    if idx < 0:
+        return 0
+    return sum(_to_int(_row_get(r, idx)) for r in file_data.get("rows", []))
+
+
+# ---------------------------------------------------------------------------
+# Host-pattern classification
+# ---------------------------------------------------------------------------
+
+class HostClassifier:
+    """Compile pattern lists once, then bucket each host name into
+    'APP', 'INFRA', 'DBA' or 'OFF-PATH'. Pattern priority is fixed:
+    INFRA > APP > DBA > OFF-PATH (an OEM/DB host that also matches a
+    weaker pattern stays INFRA)."""
+
+    def __init__(self, patterns):
+        def compile_list(key):
+            return [re.compile(p, re.IGNORECASE)
+                    for p in patterns.get(key, [])]
+        self.infra = compile_list("infra_host_patterns")
+        self.app = compile_list("app_host_patterns")
+        self.dba = compile_list("dba_host_patterns")
+
+    def classify(self, host):
+        if not host:
+            return "OFF-PATH"
+        for pat in self.infra:
+            if pat.search(host):
+                return "INFRA"
+        for pat in self.app:
+            if pat.search(host):
+                return "APP"
+        for pat in self.dba:
+            if pat.search(host):
+                return "DBA"
+        return "OFF-PATH"
+
+
+# ---------------------------------------------------------------------------
+# WHEN-clause templates
+# ---------------------------------------------------------------------------
+
+def when_clause_for(noise_row, headers):
+    """Build a WHEN-clause suggestion from a 15_noise_candidates row.
+
+    Strategy:
+      - If dbusername is a single privileged service account, exclude it
+      - If client_program_name is highly specific, exclude it
+      - Otherwise combine both into an AND-suppression
+
+    Returns a list of suggestion dicts {label, sql} - the renderer turns
+    them into a code block.
+    """
+    def get(name):
+        idx = -1
+        needle = name.lower()
+        for i, h in enumerate(headers):
+            if h.lower() == needle:
+                idx = i
+                break
+        if idx < 0 or idx >= len(noise_row):
+            return ""
+        return noise_row[idx].strip()
+
+    policy = get("policy_name") or "<POLICY>"
+    user = get("dbusername")
+    program = get("client_program_name")
+    action = get("action_name")
+
+    suggestions = []
+
+    if user and user.upper() not in {"(NULL)", ""}:
+        suggestions.append({
+            "label": f"Suppress {user!r} on {policy}",
+            "sql": (
+                f"-- Vorschlag: {user} unterdrücken in {policy}\n"
+                f"ALTER AUDIT POLICY {policy} CONDITION DROP;\n"
+                f"ALTER AUDIT POLICY {policy}\n"
+                f"  CONDITION '\n"
+                f"    SYS_CONTEXT(''USERENV'',''CURRENT_USER'') "
+                f"!= ''{user}''\n"
+                f"  '\n"
+                f"  EVALUATE PER SESSION;\n"
+            ),
+        })
+
+    if program:
+        suggestions.append({
+            "label": f"Suppress program {program!r}",
+            "sql": (
+                f"-- Vorschlag: Programm {program!r} unterdrücken\n"
+                f"ALTER AUDIT POLICY {policy} CONDITION DROP;\n"
+                f"ALTER AUDIT POLICY {policy}\n"
+                f"  CONDITION '\n"
+                f"    SYS_CONTEXT(''USERENV'',''CLIENT_PROGRAM_NAME'') "
+                f"!= ''{program}''\n"
+                f"  '\n"
+                f"  EVALUATE PER SESSION;\n"
+            ),
+        })
+
+    if user and program:
+        suggestions.append({
+            "label": (
+                f"Suppress {user!r}+{program!r} combination"
+            ),
+            "sql": (
+                f"-- Vorschlag: Kombination {user}/{program!r} "
+                f"unterdrücken\n"
+                f"ALTER AUDIT POLICY {policy} CONDITION DROP;\n"
+                f"ALTER AUDIT POLICY {policy}\n"
+                f"  CONDITION '\n"
+                f"    NOT (SYS_CONTEXT(''USERENV'',''CURRENT_USER'') "
+                f"= ''{user}''\n"
+                f"     AND SYS_CONTEXT(''USERENV'',"
+                f"''CLIENT_PROGRAM_NAME'') = ''{program}'')\n"
+                f"  '\n"
+                f"  EVALUATE PER SESSION;\n"
+            ),
+        })
+
+    if not suggestions:
+        suggestions.append({
+            "label": f"No automatic template for {policy}",
+            "sql": (
+                f"-- Kein automatisches Template ableitbar.\n"
+                f"-- Manuelle Prüfung notwendig fuer Policy "
+                f"{policy}, Action {action!r}.\n"
+            ),
+        })
+    return suggestions
+
+
+# ---------------------------------------------------------------------------
+# Section renderers
+# ---------------------------------------------------------------------------
+
+def render_executive_summary(bundle, classifier, top_n):
+    """Top-of-report summary - DBSID, time window, key totals and the
+    three loudest volume drivers. Designed to fit on half a page."""
+    manifest = bundle.get("_manifest", {})
+    files = bundle["_files"]
+
+    dbsid = manifest.get("dbsid", "?")
+    pdb = ""
+    if "01" in files and files["01"]["rows"]:
+        pdb = files["01"]["meta"].get("pdb", "")
+    elif "04" in files:
+        pdb = files["04"]["meta"].get("pdb", "")
+    days = manifest.get("time_window_days", "?")
+    top_n_pack = manifest.get("top_n", "?")
+
+    out = section_header(1, f"Audit-Trail Analyse - {dbsid} / {pdb or '?'}")
+
+    out += section_header(2, "Executive Summary")
+    out += (
+        f"- **DBSID:** `{dbsid}`\n"
+        f"- **PDB:** `{pdb or '?'}`\n"
+        f"- **Zeitfenster:** letzte {days} Tage\n"
+        f"- **Bundle Top-N:** {top_n_pack}\n"
+        f"- **Bundle erzeugt:** "
+        f"{manifest.get('generated_at', '?')}\n"
+        f"- **Bundle-Version:** "
+        f"{manifest.get('bundle_version', '?')}\n\n"
+    )
+
+    pol_events = _sum_column(files.get("04"), "events")
+    user_events = _sum_column(files.get("08"), "events")
+    failed_total = _sum_column(files.get("13"), "failed_attempts")
+
+    out += section_header(3, "Kennzahlen")
+    out += render_table(
+        ["Metrik", "Wert"],
+        [
+            ["Events (Policy-getrieben, Summe Top-N)", fmt_int(pol_events)],
+            ["Events (User-Summe Top-N)", fmt_int(user_events)],
+            ["Failed Logins (Summe Top-N)", fmt_int(failed_total)],
+            ["Aktive Audit-Policies (Inventar)",
+             fmt_int(len(files.get("03", {}).get("rows", [])))],
+            ["Storage-Partitionen",
+             fmt_int(len(files.get("02", {}).get("rows", [])))],
+        ],
+    )
+
+    # Top 3 volume drivers from policy_volume (sorted desc already).
+    if "04" in files:
+        pol = files["04"]
+        idx_policy = _col_index(pol, "policy_name")
+        idx_events = _col_index(pol, "events")
+        rows = pol.get("rows", [])[:3]
+        if rows:
+            out += "\n" + section_header(3, "Top 3 Volume-Treiber (Policy)")
+            top_rows = []
+            for r in rows:
+                top_rows.append([
+                    _row_get(r, idx_policy),
+                    fmt_int(_row_get(r, idx_events)),
+                ])
+            out += render_table(["Policy", "Events"], top_rows)
+
+    # Off-path indicator via host pattern check on 12_distinct_hosts.
+    if "12" in files:
+        offpath = _classify_hosts_in(files["12"], "userhost", classifier)
+        counts = defaultdict(int)
+        for cls in offpath.values():
+            counts[cls] += 1
+        if counts:
+            out += "\n" + section_header(3, "Host-Klassifizierung (Zusammenfassung)")
+            out += render_table(
+                ["Klasse", "Anzahl Hosts"],
+                [
+                    ["APP", fmt_int(counts.get("APP", 0))],
+                    ["INFRA", fmt_int(counts.get("INFRA", 0))],
+                    ["DBA", fmt_int(counts.get("DBA", 0))],
+                    ["OFF-PATH", fmt_int(counts.get("OFF-PATH", 0))],
+                ],
+            )
+            if counts.get("OFF-PATH", 0):
+                out += (
+                    "\n> **Hinweis:** OFF-PATH-Hosts identifiziert. "
+                    "Detail in Kapitel 7 (Security Signals).\n\n"
+                )
+    return out
+
+
+def _classify_hosts_in(file_data, col_name, classifier):
+    """Return dict host -> class for hosts that appear in column."""
+    idx = _col_index(file_data, col_name)
+    if idx < 0:
+        return {}
+    out = {}
+    for row in file_data.get("rows", []):
+        host = _row_get(row, idx).strip()
+        if not host:
+            continue
+        out[host] = classifier.classify(host)
+    return out
+
+
+def render_section_01_config(file_data):
+    out = section_header(2, "1. Audit-Konfiguration")
+    if file_data is None:
+        out += "_(01_config.csv nicht im Bundle)_\n\n"
+        return out
+    out += "Quelle: `01_config.csv` (DBMS_AUDIT_MGMT, init-Parameter, Instanz)\n\n"
+    out += render_table(file_data["headers"], file_data["rows"])
+    out += "\n"
+    return out
+
+
+def render_section_02_storage(file_data):
+    out = section_header(2, "2. Trail-Storage")
+    if file_data is None:
+        out += "_(02_storage.csv nicht im Bundle)_\n\n"
+        return out
+    rows = file_data.get("rows", [])
+    total_rows = sum(_to_int(_row_get(r, _col_index(file_data, "num_rows")))
+                     for r in rows)
+    total_mb = 0.0
+    idx_mb = _col_index(file_data, "size_mb")
+    if idx_mb >= 0:
+        for r in rows:
+            try:
+                total_mb += float(_row_get(r, idx_mb) or 0)
+            except (TypeError, ValueError):
+                pass
+    out += (
+        f"Partitionen: {len(rows)} - Gesamt {fmt_int(total_rows)} Zeilen / "
+        f"{fmt_int(round(total_mb, 2))} MB.\n\n"
+    )
+    out += render_table(file_data["headers"], rows)
+    out += "\n"
+    return out
+
+
+def render_section_03_policy_inventory(file_data, top_n, include_appendix):
+    out = section_header(2, "3. Policy-Inventar")
+    if file_data is None:
+        out += "_(03_policy_inventory.csv nicht im Bundle)_\n\n"
+        return out
+    rows = file_data.get("rows", [])
+    out += f"Policies erfasst: **{len(rows)}**.\n\n"
+
+    idx_supplied = _col_index(file_data, "oracle_supplied")
+    ora_count = 0
+    cust_count = 0
+    for r in rows:
+        flag = _row_get(r, idx_supplied).upper()
+        if flag.startswith("Y"):
+            ora_count += 1
+        else:
+            cust_count += 1
+    if idx_supplied >= 0:
+        out += (
+            f"- Oracle-supplied (`ORA_*`): {ora_count}\n"
+            f"- Kunden-/Custom-Policies: {cust_count}\n\n"
+        )
+
+    out += render_table(file_data["headers"], rows, max_rows=top_n)
+    out += "\n"
+    if include_appendix and len(rows) > top_n:
+        out += (
+            "_Vollständige Liste siehe Appendix (alle Policies)._\n\n"
+        )
+    return out
+
+
+def render_section_04_07_volumes(files, top_n):
+    out = section_header(2, "4. Volumen-Verteilung")
+    sub_specs = [
+        ("04", "4.1 Policies", "04_policy_volume.csv"),
+        ("08", "4.2 User", "08_top_users.csv"),
+        ("09", "4.3 Actions", "09_top_actions.csv"),
+        ("10", "4.4 Objekte", "10_top_objects.csv"),
+        ("06", "4.5 Client-Programme", "06_policy_client_program.csv"),
+        ("07", "4.6 Policies x Hosts", "07_policy_host.csv"),
+        ("05", "4.7 Policies x User x Action", "05_policy_user_action.csv"),
+    ]
+    for qid, title, fname in sub_specs:
+        out += section_header(3, title)
+        fd = files.get(qid)
+        if fd is None:
+            out += f"_({fname} nicht im Bundle)_\n\n"
+            continue
+        out += render_table(fd["headers"], fd["rows"], max_rows=top_n)
+        out += "\n"
+    return out
+
+
+def render_section_05_connect_profile(files, classifier, top_n):
+    out = section_header(2, "5. Connect-Profil")
+    out += section_header(3, "5.1 Hosts")
+    fd12 = files.get("12")
+    if fd12 is None:
+        out += "_(12_distinct_hosts.csv nicht im Bundle)_\n\n"
+    else:
+        out += render_table(fd12["headers"], fd12["rows"], max_rows=top_n)
+        out += "\n"
+
+    out += section_header(3, "5.2 Host-Pattern-Analyse")
+    if fd12 is not None:
+        idx_host = _col_index(fd12, "userhost")
+        idx_logins = _col_index(fd12, "logins")
+        rows = []
+        for row in fd12.get("rows", []):
+            host = _row_get(row, idx_host).strip()
+            if not host:
+                continue
+            cls = classifier.classify(host)
+            rows.append([host, cls, fmt_int(_row_get(row, idx_logins))])
+        out += render_table(
+            ["Host", "Klasse", "Logins"], rows, max_rows=top_n
+        )
+        out += "\n"
+    else:
+        out += "_(Hosts nicht klassifizierbar - 12_distinct_hosts fehlt)_\n\n"
+
+    out += section_header(3, "5.3 Connect-Matrix (Host x User x Programm)")
+    fd11 = files.get("11")
+    if fd11 is None:
+        out += "_(11_host_user_program.csv nicht im Bundle)_\n\n"
+    else:
+        out += render_table(fd11["headers"], fd11["rows"], max_rows=top_n)
+        out += "\n"
+    return out
+
+
+def render_section_06_privileged(file_data, top_n):
+    out = section_header(2, "6. Privileged Activity")
+    if file_data is None:
+        out += "_(14_privileged_activity.csv nicht im Bundle)_\n\n"
+        return out
+    out += (
+        "Aktivität privilegierter User (SYS, SYSTEM, "
+        "Customer-DBA-Accounts).\n\n"
+    )
+    out += render_table(file_data["headers"], file_data["rows"],
+                        max_rows=top_n)
+    out += "\n"
+    return out
+
+
+def render_section_07_security_signals(files, classifier, top_n):
+    out = section_header(2, "7. Security Signals")
+    out += section_header(3, "7.1 Failed Logins")
+    fd13 = files.get("13")
+    if fd13 is None:
+        out += "_(13_failed_logins.csv nicht im Bundle)_\n\n"
+    else:
+        out += render_table(fd13["headers"], fd13["rows"], max_rows=top_n)
+        out += "\n"
+
+    out += section_header(3, "7.2 Off-Path Candidates")
+    fd12 = files.get("12")
+    if fd12 is None:
+        out += (
+            "_(Off-Path-Analyse übersprungen - 12_distinct_hosts "
+            "fehlt)_\n\n"
+        )
+        return out
+
+    idx_host = _col_index(fd12, "userhost")
+    idx_logins = _col_index(fd12, "logins")
+    idx_users = _col_index(fd12, "distinct_users")
+    offpath_rows = []
+    for row in fd12.get("rows", []):
+        host = _row_get(row, idx_host).strip()
+        if not host:
+            continue
+        if classifier.classify(host) != "OFF-PATH":
+            continue
+        offpath_rows.append([
+            host,
+            fmt_int(_row_get(row, idx_logins)),
+            fmt_int(_row_get(row, idx_users)),
+        ])
+    if not offpath_rows:
+        out += (
+            "_Keine OFF-PATH-Hosts identifiziert - alle Quell-Hosts "
+            "matchen App/Infra/DBA-Pattern._\n\n"
+        )
+    else:
+        out += (
+            f"**{len(offpath_rows)} Off-Path-Host(s)** - Hosts die "
+            "weder dem App-, Infra- noch DBA-Pattern entsprechen:\n\n"
+        )
+        out += render_table(
+            ["Host", "Logins", "Distinct Users"],
+            offpath_rows, max_rows=top_n,
+        )
+        out += "\n"
+    return out
+
+
+def render_section_08_tuning(file_data, top_n):
+    out = section_header(2, "8. Tuning-Empfehlungen")
+    if file_data is None:
+        out += "_(15_noise_candidates.csv nicht im Bundle)_\n\n"
+        return out
+    rows = file_data.get("rows", [])
+    if not rows:
+        out += "_Keine Noise-Kandidaten - keine Tuning-Empfehlung._\n\n"
+        return out
+    out += (
+        "Top Noise-Kandidaten (High-Volume Kombinationen aus Policy / "
+        "User / Action / Programm). Pro Kandidat folgt ein WHEN-Klausel-"
+        "Vorschlag.\n\n"
+    )
+    out += render_table(file_data["headers"], rows, max_rows=top_n)
+    out += "\n"
+
+    out += section_header(3, "8.1 WHEN-Klausel-Vorschläge")
+    headers = file_data["headers"]
+    candidate_count = min(len(rows), 5)
+    for i, row in enumerate(rows[:candidate_count], start=1):
+        out += f"#### Kandidat {i}\n\n"
+        recap = []
+        for col in ("policy_name", "dbusername", "action_name",
+                    "client_program_name", "events"):
+            idx = -1
+            for j, h in enumerate(headers):
+                if h.lower() == col:
+                    idx = j
+                    break
+            if idx >= 0 and idx < len(row):
+                recap.append(f"`{col}`={row[idx]!r}")
+        if recap:
+            out += "- " + "\n- ".join(recap) + "\n\n"
+        for n, suggestion in enumerate(when_clause_for(row, headers),
+                                       start=1):
+            out += (
+                f"##### Kandidat {i} - Variante {n}: "
+                f"{suggestion['label']}\n\n"
+            )
+            out += "```sql\n"
+            out += suggestion["sql"]
+            if not suggestion["sql"].endswith("\n"):
+                out += "\n"
+            out += "```\n\n"
+    out += (
+        "> **Hinweis:** Templates sind als Diskussionsgrundlage gedacht. "
+        "WHEN-Klauseln sind policy-spezifisch - vor dem Einsatz manuell "
+        "review-en und gegen Compliance-Anforderungen prüfen.\n\n"
+    )
+    return out
+
+
+def render_appendix(bundle, top_n):
+    out = section_header(2, "Appendix")
+    out += section_header(3, "Manifest")
+    manifest = bundle.get("_manifest", {})
+    out += "```json\n"
+    out += json.dumps(manifest, indent=2, ensure_ascii=False)
+    out += "\n```\n\n"
+    for qid in ("03", "04", "05"):
+        fd = bundle["_files"].get(qid)
+        if fd is None:
+            continue
+        out += section_header(3, f"Vollständige Daten - {QUERY_FILES[qid]}")
+        out += render_table(fd["headers"], fd["rows"])
+        out += "\n"
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Top-level renderer
+# ---------------------------------------------------------------------------
+
+def render_report(bundle, classifier, top_n, include_appendix):
+    files = bundle["_files"]
+    out = "<!-- markdownlint-disable MD013 MD033 MD060 -->\n"
+    out += render_executive_summary(bundle, classifier, top_n)
+    out += render_section_01_config(files.get("01"))
+    out += render_section_02_storage(files.get("02"))
+    out += render_section_03_policy_inventory(
+        files.get("03"), top_n, include_appendix,
+    )
+    out += render_section_04_07_volumes(files, top_n)
+    out += render_section_05_connect_profile(files, classifier, top_n)
+    out += render_section_06_privileged(files.get("14"), top_n)
+    out += render_section_07_security_signals(files, classifier, top_n)
+    out += render_section_08_tuning(files.get("15"), top_n)
+    if include_appendix:
+        out += render_appendix(bundle, top_n)
+    out += "---\n\n"
+    out += (
+        f"_Generiert von `audit_report.py` v{TOOL_VERSION} - "
+        f"Bundle: `{bundle['_path']}`_\n"
+    )
+    return out
+
+
+# ---------------------------------------------------------------------------
+# AI analysis
+# ---------------------------------------------------------------------------
+
+def _claude_cli_available() -> bool:
+    """Return True if the claude CLI (Claude Code) is installed and reachable."""
+    import subprocess
+    try:
+        subprocess.run(
+            ["claude", "--version"],
+            capture_output=True, check=True, timeout=10,
+        )
+        return True
+    except (FileNotFoundError, subprocess.CalledProcessError,
+            subprocess.TimeoutExpired):
+        return False
+
+
+def _get_api_key(op_path: str) -> str:
+    """Return Anthropic API key, or '' if none found (triggers CLI fallback).
+
+    Priority: ANTHROPIC_API_KEY env var > op read > '' (no key).
+    Raises RuntimeError only for hard failures (op CLI missing, op read error).
+    """
+    import os
+    import subprocess
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if key:
+        return key
+    if not op_path:
+        return ""
+    try:
+        result = subprocess.run(
+            ["op", "read", op_path],
+            capture_output=True, text=True, check=True,
+        )
+        return result.stdout.strip()
+    except FileNotFoundError:
+        raise RuntimeError(
+            "'op' CLI not found. Install 1Password CLI or set ANTHROPIC_API_KEY."
+        )
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"op read failed ({op_path}): {exc.stderr.strip()}"
+        )
+
+
+def _generate_via_sdk(
+    user_prompt: str,
+    model: str,
+    api_key: str,
+) -> str:
+    """Generate findings via the Anthropic Python SDK."""
+    try:
+        import anthropic
+    except ImportError:
+        raise RuntimeError(
+            "'anthropic' package not installed. Run: pip install anthropic"
+        )
+    client = anthropic.Anthropic(api_key=api_key)
+    message = client.messages.create(
+        model=model,
+        max_tokens=4096,
+        system=AI_SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+    return message.content[0].text
+
+
+def _generate_via_cli(user_prompt: str, model: str) -> str:
+    """Generate findings via the claude CLI (Claude Code, uses claude.ai auth).
+
+    Passes the prompt via stdin (input=) to avoid OS argument-length limits.
+    stderr is discarded to prevent the stdout/stderr communicate() deadlock
+    that occurs when capture_output=True and claude writes progress to stderr.
+    Timeout is 600 s to allow for slow API responses on large reports.
+    """
+    import subprocess
+    combined = f"{AI_SYSTEM_PROMPT}\n\n---\n\n{user_prompt}"
+    try:
+        result = subprocess.run(
+            ["claude", "--output-format", "text", "--model", model],
+            input=combined,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True, check=True, timeout=600,
+        )
+        return result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("claude CLI timed out after 600 s")
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"claude CLI failed (exit {exc.returncode})")
+
+
+def _generate_ai_findings(
+    report_text: str,
+    model: str,
+    api_key: str,
+    customer_prefix: str,
+) -> str:
+    """Call Claude and return findings text.
+
+    Backend selection:
+      api_key set  -> Anthropic Python SDK
+      api_key ''   -> claude CLI (Claude Code, claude.ai authentication)
+      neither      -> RuntimeError with setup instructions
+    """
+    user_prompt = AI_USER_PROMPT_TEMPLATE.format(
+        customer_prefix=customer_prefix,
+        report_text=report_text,
+    )
+    if api_key:
+        return _generate_via_sdk(user_prompt, model, api_key)
+    if _claude_cli_available():
+        print("[AI] No API key - using claude CLI (Claude Code)...", file=sys.stderr)
+        return _generate_via_cli(user_prompt, model)
+    raise RuntimeError(
+        "No AI backend available. One of:\n"
+        "  1. Set ANTHROPIC_API_KEY (console.anthropic.com)\n"
+        "  2. Pass --ai-op-path op://Vault/Item/field (1Password)\n"
+        "  3. Install Claude Code CLI (uses claude.ai subscription)"
+    )
+
+
+def _run_ai_analysis(
+    args,
+    bundle_dir: Path,
+    report_path: Path,
+    report_text: str,
+) -> int:
+    """Append AI Section 9 to the report and write standalone audit_ai_findings.md."""
+    from datetime import datetime, timezone
+    print(f"[AI] Generating findings (model: {args.ai_model})...", file=sys.stderr)
+    try:
+        api_key = _get_api_key(args.ai_op_path)
+        ai_text = _generate_ai_findings(
+            report_text, args.ai_model, api_key, args.customer_prefix,
+        )
+    except RuntimeError as exc:
+        print(f"ERROR (AI): {exc}", file=sys.stderr)
+        return 3
+
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    ai_section = (
+        "\n## 9. AI-Findings (Claude)\n\n"
+        f"> Generiert: `{ts}` | Modell: `{args.ai_model}`  \n"
+        "> Automatisch generierte Analyse - Findings sind zu verifizieren.\n\n"
+        + ai_text + "\n"
+    )
+    with report_path.open("a", encoding="utf-8") as fh:
+        fh.write(ai_section)
+    print(f"Appended AI findings    -> {report_path}")
+
+    standalone_path = bundle_dir / "audit_ai_findings.md"
+    standalone = (
+        "<!-- markdownlint-disable MD013 MD033 MD060 -->\n"
+        "# AI-Findings - Audit Trail Analyse\n\n"
+        f"| Feld | Wert |\n"
+        f"|------|------|\n"
+        f"| Generiert | `{ts}` |\n"
+        f"| Modell | `{args.ai_model}` |\n"
+        f"| Bundle | `{bundle_dir.name}` |\n\n"
+        "> **Automatisch generierte Analyse - Findings sind zu verifizieren.**\n\n"
+        + ai_text + "\n\n"
+        "---\n\n"
+        f"_Generiert von `audit_report.py` v{TOOL_VERSION} via Claude API_\n"
+    )
+    standalone_path.write_text(standalone, encoding="utf-8")
+    print(f"Wrote standalone findings -> {standalone_path}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def parse_args(argv):
+    p = argparse.ArgumentParser(
+        prog="audit_report.py",
+        description=(
+            "Render a Markdown audit-trail analysis report from a "
+            "(raw or anonymised) ora-db-audit bundle directory."
+        ),
+        epilog=(
+            "Use --patterns config.json with the keys "
+            "'app_host_patterns', 'infra_host_patterns', "
+            "'dba_host_patterns' for deployment-specific host "
+            "classification.\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("bundle", type=Path,
+                   help="Path to the ora-db-audit bundle directory.")
+    p.add_argument("--output", "-o", type=Path,
+                   help="Output Markdown file (default: "
+                        "<bundle>/audit_report.md).")
+    p.add_argument("--patterns", type=Path,
+                   help="JSON file with host-pattern lists "
+                        "(default: built-in community / customer-configurable set).")
+    p.add_argument("--top-n", type=int, default=DEFAULT_TOP_N,
+                   help=f"Top-N row cap per table "
+                        f"(default: {DEFAULT_TOP_N}).")
+    p.add_argument("--customer-prefix", default=DEFAULT_CUSTOMER_PREFIX,
+                   help=f"Customer prefix for narrative passages "
+                        f"(default: {DEFAULT_CUSTOMER_PREFIX!r} - empty).")
+    p.add_argument("--include-appendix", action="store_true",
+                   help="Append manifest + full tables for "
+                        "03/04/05 to the report.")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Render but do not write the output file.")
+    p.add_argument("--yes", "-y", action="store_true",
+                   help="Overwrite existing output without prompting.")
+    p.add_argument("--verbose", "-v", action="store_true",
+                   help="Print which CSV files were used / skipped.")
+    ai_grp = p.add_argument_group("AI analysis (requires 'anthropic' package)")
+    ai_grp.add_argument("--ai", action="store_true",
+                        help="Generate AI findings via Claude API. Appends "
+                             "Section 9 to audit_report.md and writes "
+                             "standalone audit_ai_findings.md.")
+    ai_grp.add_argument("--ai-model", default=DEFAULT_AI_MODEL, dest="ai_model",
+                        metavar="MODEL",
+                        help=f"Claude model to use (default: {DEFAULT_AI_MODEL}).")
+    ai_grp.add_argument("--ai-op-path", default=DEFAULT_AI_OP_PATH, dest="ai_op_path",
+                        metavar="OP_PATH",
+                        help="1Password op:// path for the Anthropic API key. "
+                             "Used when ANTHROPIC_API_KEY env var is not set "
+                             "(e.g. op://Private/Anthropic/credential).")
+    return p.parse_args(argv)
+
+
+def _load_patterns(path):
+    if path is None:
+        return dict(DEFAULT_PATTERNS)
+    if not path.is_file():
+        raise FileNotFoundError(f"patterns file not found: {path}")
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    merged = dict(DEFAULT_PATTERNS)
+    for key in ("app_host_patterns", "infra_host_patterns",
+                "dba_host_patterns"):
+        if key in raw:
+            merged[key] = list(raw[key])
+    return merged
+
+
+def _confirm_overwrite(path, assume_yes):
+    if not path.exists() or assume_yes:
+        return True
+    answer = input(f"Overwrite {path}? [y/N] ").strip().lower()
+    return answer == "y"
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    bundle_dir = args.bundle.resolve()
+    if not bundle_dir.is_dir():
+        print(f"ERROR: bundle directory not found: {bundle_dir}",
+              file=sys.stderr)
+        return 2
+
+    try:
+        patterns = _load_patterns(args.patterns)
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    classifier = HostClassifier(patterns)
+
+    bundle = read_bundle(bundle_dir)
+    files = bundle["_files"]
+    if args.verbose:
+        print(f"Bundle:     {bundle_dir}")
+        print(f"Manifest:   {'yes' if bundle['_manifest'] else 'no'}")
+        for qid in sorted(QUERY_FILES):
+            label = QUERY_FILES[qid]
+            status = "OK" if qid in files else "missing"
+            print(f"  [{qid}] {label:<32} {status}")
+
+    if not files:
+        print(f"ERROR: no parseable CSV files found in {bundle_dir}",
+              file=sys.stderr)
+        return 2
+
+    report_text = render_report(
+        bundle, classifier, args.top_n, args.include_appendix,
+    )
+
+    output = args.output or (bundle_dir / "audit_report.md")
+    if args.dry_run:
+        print(report_text)
+        print(f"\n(dry-run: would write {output})", file=sys.stderr)
+        if args.ai:
+            print(
+                f"(dry-run: would call Claude API model={args.ai_model})",
+                file=sys.stderr,
+            )
+        return 0
+
+    if not _confirm_overwrite(output, args.yes):
+        print("Aborted.", file=sys.stderr)
+        return 1
+
+    output.write_text(report_text, encoding="utf-8")
+    print(f"Wrote report            -> {output}")
+
+    if args.ai:
+        return _run_ai_analysis(args, bundle_dir, output, report_text)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
