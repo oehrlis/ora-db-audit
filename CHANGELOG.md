@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-05-28
+
+### Added
+
+- **Documentation overhaul** - new `docs/` structure with dedicated pages for
+  installation, configuration, usage, troubleshooting, and best practices.
+  Each source directory now has its own `README.md`.
+- **`requirements.txt`** - explicit Python package requirements.
+  `markdown>=3.0` required for `--to-html`; `anthropic` optional for `--ai`.
+- **`templates/collection-quickref.md`** - condensed, printable one-page guide
+  for customer DBAs: prerequisites, run command, and what to send.
+- **`docs/README.md`** - documentation index with quick-navigation links.
+
+### Fixed
+
+- **`--to-html` fails with `ModuleNotFoundError: No module named 'markdown'`**
+  (`bin/ora-db-audit.sh`) - added a pre-flight check in `to_html()`: if the
+  `markdown` Python package is not installed, the script now exits with a clear
+  error and install instructions instead of a raw Python traceback.
+
+### Changed
+
+- **`README.md`** - rewritten to be concise (~150 lines); detailed CLI
+  reference, use cases, and output structure moved to `docs/`.
+- **`docs/history/`** removed from repository (internal planning documents
+  not relevant to public release); path added to `.gitignore`.
+
 ## [1.3.6] - 2026-05-28
 
 ### Fixed

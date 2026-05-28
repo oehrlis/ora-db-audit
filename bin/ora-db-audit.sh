@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 1.3.6
+# Version....: 1.4.0
 # Purpose....: Extract Oracle Unified Audit Trail data from a target database,
 #              produce a self-contained CSV bundle, optionally anonymise it,
 #              and render a Markdown analysis report. Designed to be executed
@@ -31,6 +31,7 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.28  oes  Docs overhaul; requirements.txt; --to-html module check. 1.4.0
 # 2026.05.28  oes  Add --include-appendix flag; wire to audit_report.py. 1.3.6
 # 2026.05.28  oes  Add --to-html flag; include docs/ in dist tarball.    1.3.4
 # 2026.05.28  oes  CIS action-based coverage; top-n from manifest;       1.3.0
@@ -625,6 +626,12 @@ to_html() {
     local python_bin
     if ! python_bin="$(resolve_python)"; then
         err "no python3 interpreter found"
+        return 1
+    fi
+    if ! "${python_bin}" -c "import markdown" 2>/dev/null; then
+        err "--to-html requires the 'markdown' Python package"
+        err "Install it with: ${python_bin} -m pip install markdown"
+        err "Or: pip install -r requirements.txt  (repo root)"
         return 1
     fi
 
