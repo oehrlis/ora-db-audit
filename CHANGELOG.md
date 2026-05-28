@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-05-28
+
+### Added
+
+- **Section 7.2.1 Application Context (Scenario A)** - new subsection in
+  Security Signals automatically detects `SYS_CONTEXT(...)` conditions in audit
+  policies (query 03) and lists the context name, attribute, and policy set.
+  All records from context-conditioned policies are off-path by definition.
+  NULL-fallback hint rendered when context is detected.
+- **Section 7.2.2 Pattern-based Classification (Scenario B)** - existing
+  off-path host table moved into dedicated subsection; always rendered.
+- **Generic Kubernetes pod patterns** added to `DEFAULT_PATTERNS` and
+  `DEFINE APP_PATTERN` in `sql/19-offpath-candidates.sql`:
+  - `-[a-z0-9]{10}-[a-z0-9]{5}$` - K8s ReplicaSet/Deployment pod
+  - `-[0-9]{10}-` - K8s CronJob pod (Unix timestamp embedded in name)
+- **`_detect_audit_context(policy_fd)`** helper in `audit_report.py` scans
+  policy conditions for non-USERENV `SYS_CONTEXT` references; returns list of
+  `{ctx, attr, policies}` dicts.
+- **`docs/configuration.md`** - extended Patterns File section with built-in
+  defaults table, K8s pattern explanation, and Application Context integration note.
+
+### Changed
+
+- **`docs/use-cases/off-path-detection.md`** - full rewrite with two-scenario
+  model: Scenario A (Application Context, context package configuration,
+  NULL-fallback pattern, finding severity matrix) and Scenario B (pattern-based,
+  default patterns, K8s coverage, triage heuristics, customer patterns JSON).
+- **Section 7.2** heading retained as container; subsections 7.2.1 and 7.2.2
+  added (H4 level); existing off-path table unchanged in structure.
+
 ## [1.4.3] - 2026-05-28
 
 ### Changed
