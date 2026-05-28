@@ -823,22 +823,135 @@ def _classify_hosts_in(file_data, col_name, classifier):
     return out
 
 
+_AUDIT_MODE_LABELS = {
+    "pure":               "audit_mode.pure",
+    "pure-intent":        "audit_mode.pure_intent",
+    "pure-contaminated":  "audit_mode.pure_contaminated",
+    "mixed":              "audit_mode.mixed",
+    "unsupported":        "audit_mode.unsupported",
+}
+
+
 def render_section_01_config(file_data):
-    out = section_header(2, "1. Audit-Konfiguration")
+    """Section 1 - audit configuration + Pure-vs-Mixed mode interpretation.
+
+    Reads the `# audit_mode:` metadata produced by sql/01-config.sql
+    (Phase C revision) and the `legacy_param` schema-hint column to
+    suppress findings against legacy init parameters when the instance
+    is in Pure Mode. See docs/ai-analysis-rules.md Section 6 for the
+    decision matrix.
+    """
+    out = section_header(2, t("section.01_config", lang=LANG))
     if file_data is None:
-        out += "_(01_config.csv nicht im Bundle)_\n\n"
+        out += t("note.no_data", lang=LANG) + "\n\n"
         return out
-    out += "Quelle: `01_config.csv` (DBMS_AUDIT_MGMT, init-Parameter, Instanz)\n\n"
-    out += render_table(file_data["headers"], file_data["rows"])
-    out += "\n"
+
+    meta = file_data.get("meta", {})
+    audit_mode = (meta.get("audit_mode") or "").strip().lower() or "unknown"
+    recent_legacy = (meta.get("recent_aud_legacy_rows") or "").strip()
+
+    mode_key = _AUDIT_MODE_LABELS.get(audit_mode)
+    mode_label = t(mode_key, lang=LANG) if mode_key else audit_mode
+
+    out += f"**{t('report.audit_mode', lang=LANG, audit_mode=mode_label)}**\n\n"
+
+    if audit_mode == "mixed":
+        out += (
+            "> **Mixed Mode erkannt** - dieser Bericht-Scope ist Pure Mode. "
+            "Findings unterhalb sind unter dieser Annahme zu lesen; eine "
+            "vollstaendige Analyse erfordert vorher die Migration auf "
+            "Pure Mode (siehe /oracle-audit skill, Mixed-to-Pure).\n\n"
+        )
+    elif audit_mode == "pure-contaminated":
+        out += (
+            "> **Pure Mode mit Alt-Daten** - keine neuen Legacy-Schreibvorgaenge, "
+            "aber `SYS.AUD$` enthaelt noch alte Zeilen. Optional purgen mit "
+            "`DBMS_AUDIT_MGMT.CLEAN_AUDIT_TRAIL(AUDIT_TRAIL_AUD_STD,...)`.\n\n"
+        )
+    elif audit_mode == "pure-intent":
+        out += (
+            "> **Pure Mode, Legacy-Parameter gesetzt** - `audit_trail` Wert "
+            "ist nicht `NONE`, hat in Pure Mode aber keine Wirkung. "
+            "Empfehlung: beim naechsten Bounce `audit_trail = NONE` setzen.\n\n"
+        )
+    elif audit_mode == "unsupported":
+        out += (
+            "> **Unified Auditing nicht aktiv** - dieser Tool-Scope ist nicht "
+            "anwendbar. Vor weiterer Analyse Unified Auditing aktivieren.\n\n"
+        )
+    elif audit_mode == "pure":
+        # No warning needed - clean state.
+        pass
+    else:
+        out += (
+            "> _(audit_mode-Metadata fehlt - 01-config.sql wurde "
+            "moeglicherweise vor Phase C generiert. Pure-Mode-Annahmen "
+            "gelten implizit; legacy-Parameter-Findings bitte selbst pruefen.)_\n\n"
+        )
+
+    if recent_legacy and recent_legacy != "0" and recent_legacy.lower() != "null":
+        out += (
+            f"> **Hinweis:** `SYS.AUD$` enthaelt {recent_legacy} Zeilen aus "
+            f"den letzten 7 Tagen - aktive Mixed-Mode-Schreibvorgaenge? "
+            f"Quelle pruefen (Traditional-AUDIT-Statements aktiv?).\n\n"
+        )
+
+    out += "Quelle: `01-config.csv` (DBMS_AUDIT_MGMT, init-Parameter, Instanz)\n\n"
+
+    # Find the legacy_param column to mark legacy parameters in the table.
+    idx_legacy = _col_index(file_data, "legacy_param")
+    rows = file_data.get("rows", [])
+    if idx_legacy >= 0 and rows:
+        # Render an annotated table: append "(legacy - no effect in Pure Mode)"
+        # marker to rows where legacy_param == 1.
+        headers = list(file_data["headers"])
+        annotated_rows = []
+        for r in rows:
+            new_r = list(r)
+            flag = _row_get(r, idx_legacy).strip()
+            if flag == "1":
+                # Annotate the parameter_name column (column 0 by convention).
+                if new_r:
+                    new_r[0] = f"{new_r[0]} _(legacy)_"
+            annotated_rows.append(new_r)
+        out += render_table(headers, annotated_rows)
+        out += (
+            "\n_Parameter mit `_(legacy)_` Markierung sind Mixed-Mode-Artefakte. "
+            "Sie haben in Pure Mode keinen Effekt - Findings darauf sind "
+            "False-Positive (siehe `docs/ai-analysis-rules.md` Section 2)._\n\n"
+        )
+    else:
+        out += render_table(file_data["headers"], rows)
+        out += "\n"
     return out
 
 
 def render_section_02_storage(file_data):
-    out = section_header(2, "2. Trail-Storage")
+    """Section 2 - Trail Storage + D/C/O partition-tablespace decision matrix.
+
+    Reads the metadata emitted by sql/02-storage.sql (Phase C):
+      - audit_data_tablespace_default       (D)
+      - audit_data_tablespace_current       (C, most recent partition)
+      - audit_data_tablespace_older_partitions (O, comma-joined older set)
+
+    Classifies into MISCONFIGURATION / OK / TRANSIENT / EMPTY per
+    docs/ai-analysis-rules.md Section 5.2. The verdict appears before
+    the partition listing so the human reader sees it first.
+    """
+    out = section_header(2, t("section.02_storage", lang=LANG))
     if file_data is None:
-        out += "_(02_storage.csv nicht im Bundle)_\n\n"
+        out += t("note.no_data", lang=LANG) + "\n\n"
         return out
+
+    meta = file_data.get("meta", {})
+    tbs_default = (meta.get("audit_data_tablespace_default") or "").strip()
+    tbs_current = (meta.get("audit_data_tablespace_current") or "").strip()
+    tbs_older = (meta.get("audit_data_tablespace_older_partitions") or "").strip()
+
+    older_set = set()
+    if tbs_older:
+        older_set = {tbs.strip() for tbs in tbs_older.split(",") if tbs.strip()}
+
     rows = file_data.get("rows", [])
     total_rows = sum(_to_int(_row_get(r, _col_index(file_data, "num_rows")))
                      for r in rows)
@@ -850,6 +963,70 @@ def render_section_02_storage(file_data):
                 total_mb += float(_row_get(r, idx_mb) or 0)
             except (TypeError, ValueError):
                 pass
+
+    # Decision matrix per ai-analysis-rules.md Section 5.2.
+    verdict_label = None
+    verdict_note = None
+    if tbs_default:
+        if tbs_default.upper() == "SYSAUX":
+            verdict_label = "MISCONFIGURATION"
+            verdict_note = (
+                "AUD$UNIFIED Default-Tablespace ist `SYSAUX`. Audit-Daten "
+                "und Data-Dictionary teilen sich denselben Tablespace - "
+                "Empfehlung: `ALTER TABLE AUDSYS.AUD$UNIFIED MODIFY DEFAULT "
+                "ATTRIBUTES TABLESPACE AUDIT_DATA;` (Tablespace `AUDIT_DATA` "
+                "ggf. zuerst anlegen)."
+            )
+        elif tbs_default.upper() == tbs_current.upper() and not older_set - {tbs_default.upper()}:
+            verdict_label = "OK"
+            verdict_note = (
+                f"Default- und alle Partitions-Tablespaces stehen auf "
+                f"`{tbs_default}`. Keine Massnahme erforderlich."
+            )
+        elif tbs_default.upper() == tbs_current.upper():
+            verdict_label = "TRANSIENT"
+            verdict_note = (
+                f"Default-Tablespace ist `{tbs_default}` (korrekt), aber "
+                f"aeltere Partitionen liegen noch in: "
+                f"`{', '.join(sorted(older_set))}`. Optional: pro Partition "
+                f"`ALTER TABLE AUDSYS.AUD$UNIFIED MOVE PARTITION <name> "
+                f"TABLESPACE {tbs_default};` - keine Pflicht (kein Finding)."
+            )
+        elif tbs_current and tbs_default.upper() != tbs_current.upper():
+            verdict_label = "TRANSIENT"
+            verdict_note = (
+                f"Default-Tablespace wurde auf `{tbs_default}` umgestellt, "
+                f"aktuelle Partition liegt aber noch in `{tbs_current}`. "
+                f"Naechste Range-Partition wird in `{tbs_default}` angelegt "
+                f"(Auto-Partitionierung). Kein Finding."
+            )
+        elif not tbs_current:
+            verdict_label = "EMPTY"
+            verdict_note = (
+                f"AUD$UNIFIED hat noch keine Partition - das erste Event "
+                f"erzeugt eine Partition in `{tbs_default}`. Kein Finding."
+            )
+
+    if verdict_label:
+        out += f"**Verdict:** `{verdict_label}` - {verdict_note}\n\n"
+    else:
+        out += (
+            "> _(Tablespace-Metadata fehlt - 02-storage.sql wurde "
+            "moeglicherweise vor Phase C generiert. Manuelle Pruefung "
+            "der Tablespace-Zuordnung erforderlich.)_\n\n"
+        )
+
+    if tbs_default or tbs_current or tbs_older:
+        out += render_table(
+            ["Wert", "Tablespace"],
+            [
+                ["Default fuer neue Partitionen", tbs_default or "_(n/a)_"],
+                ["Aktuelle Partition", tbs_current or "_(n/a)_"],
+                ["Aeltere Partitionen", tbs_older or "_(keine)_"],
+            ],
+        )
+        out += "\n"
+
     out += (
         f"Partitionen: {len(rows)} - Gesamt {fmt_int(total_rows)} Zeilen / "
         f"{fmt_int(round(total_mb, 2))} MB.\n\n"
