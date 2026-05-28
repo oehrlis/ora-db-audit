@@ -29,12 +29,12 @@ Python is not required for data collection. It is needed only for post-processin
 
 **Package requirements by feature:**
 
-| Feature flag | Required packages |
-|---|---|
-| `--report` | stdlib only - no packages needed |
-| `--anonymize` | stdlib only - no packages needed |
-| `--export-siem` | stdlib only - no packages needed |
-| `--to-html` | `pip install markdown` |
+| Feature flag        | Required packages                                         |
+|---------------------|-----------------------------------------------------------|
+| `--report`          | stdlib only - no packages needed                          |
+| `--anonymize`       | stdlib only - no packages needed                          |
+| `--export-siem`     | stdlib only - no packages needed                          |
+| `--to-html`         | `pip install markdown`                                    |
 | `--ai` with API key | `pip install anthropic` (uncomment in `requirements.txt`) |
 
 ---
