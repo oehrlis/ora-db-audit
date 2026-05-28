@@ -28,26 +28,26 @@ issues fall into three buckets:
 
 ## 2. Strategic decisions (Stefan-confirmed 2026-05-28)
 
-| # | Decision | Value |
-|---|----------|-------|
-| R1 | v1.0 release | **Blocked until rework complete** |
-| R2 | UAP-split strategy | **SQL-side** via `REGEXP_SUBSTR(... , 1, level)` + `CONNECT BY LEVEL <= REGEXP_COUNT(...) + 1` |
-| R3 | Compliance sources (multi) | CIS Oracle 19c, CIS Oracle 21c (if available), DISA STIG Oracle 12c, Oracle Unified Audit Best Practice Guidelines |
-| R4 | Group C+F (Python + Tests) | **Defer** until rework Phase B + D complete |
-| R5 | Group D + E (bash + templates + use-case docs) | **Proceed in parallel** to rework |
-| R6 | New skill for AI report rules? | **No** - codify as `docs/ai-analysis-rules.md` reference doc, embed into audit_report.py prompt. Existing `/oracle-audit` skill stays canonical for Pure-Mode policy design. |
-| R7 | Report language (v1.0) | **German-only**; Phase D rewrite designs for future EN via centralised message dict; multilanguage shipping in v1.1+. |
+| #  | Decision                                       | Value                                                                                                                                                                        |
+|----|------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| R1 | v1.0 release                                   | **Blocked until rework complete**                                                                                                                                            |
+| R2 | UAP-split strategy                             | **SQL-side** via `REGEXP_SUBSTR(... , 1, level)` + `CONNECT BY LEVEL <= REGEXP_COUNT(...) + 1`                                                                               |
+| R3 | Compliance sources (multi)                     | CIS Oracle 19c, CIS Oracle 21c (if available), DISA STIG Oracle 12c, Oracle Unified Audit Best Practice Guidelines                                                           |
+| R4 | Group C+F (Python + Tests)                     | **Defer** until rework Phase B + D complete                                                                                                                                  |
+| R5 | Group D + E (bash + templates + use-case docs) | **Proceed in parallel** to rework                                                                                                                                            |
+| R6 | New skill for AI report rules?                 | **No** - codify as `docs/ai-analysis-rules.md` reference doc, embed into audit_report.py prompt. Existing `/oracle-audit` skill stays canonical for Pure-Mode policy design. |
+| R7 | Report language (v1.0)                         | **German-only**; Phase D rewrite designs for future EN via centralised message dict; multilanguage shipping in v1.1+.                                                        |
 
 ## 3. Findings catalog
 
-| ID | Issue | Severity | Affected files | Phase |
-|----|-------|----------|----------------|-------|
-| F1 | AI-prompt mentions `audit_sys_operations`, `audit_syslog_level`, `audit_trail` as Pure-Mode findings | HIGH | `audit_pack_report.py` prompt (~line 90-95 in source) | Phase A + D |
-| F2 | Section 8.1 generates `ALTER AUDIT POLICY` from concat UAP - **functionally wrong DDL** | CRITICAL | `audit_pack_report.py` Section 8.1 generator | Phase B + D |
-| F3 | SQLs aggregate on raw concat UAP string (per-policy semantics wrong) | HIGH | `sql/04-policy-volume.sql`, `sql/05-policy-user-action.sql`, `sql/06-policy-client-program.sql`, `sql/07-policy-host.sql`, `sql/15-noise-candidates.sql` (check 14 too) | Phase B |
-| F4 | Partition-tablespace finding too coarse (transient state after ALTER MOVE) | MEDIUM | `sql/02-storage.sql` + AI prompt | Phase C |
-| F5 | `audit_trail = DB` flagged in Pure Mode (Legacy parameter, no effect) | MEDIUM | `sql/01-config.sql` + AI prompt | Phase C + D |
-| F6 | CIS/STIG mapping must filter Pure-Mode-relevant controls only | HIGH | `docs/compliance-mapping.md` (new) | Phase E |
+| ID | Issue                                                                                                | Severity | Affected files                                                                                                                                                          | Phase       |
+|----|------------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
+| F1 | AI-prompt mentions `audit_sys_operations`, `audit_syslog_level`, `audit_trail` as Pure-Mode findings | HIGH     | `audit_pack_report.py` prompt (~line 90-95 in source)                                                                                                                   | Phase A + D |
+| F2 | Section 8.1 generates `ALTER AUDIT POLICY` from concat UAP - **functionally wrong DDL**              | CRITICAL | `audit_pack_report.py` Section 8.1 generator                                                                                                                            | Phase B + D |
+| F3 | SQLs aggregate on raw concat UAP string (per-policy semantics wrong)                                 | HIGH     | `sql/04-policy-volume.sql`, `sql/05-policy-user-action.sql`, `sql/06-policy-client-program.sql`, `sql/07-policy-host.sql`, `sql/15-noise-candidates.sql` (check 14 too) | Phase B     |
+| F4 | Partition-tablespace finding too coarse (transient state after ALTER MOVE)                           | MEDIUM   | `sql/02-storage.sql` + AI prompt                                                                                                                                        | Phase C     |
+| F5 | `audit_trail = DB` flagged in Pure Mode (Legacy parameter, no effect)                                | MEDIUM   | `sql/01-config.sql` + AI prompt                                                                                                                                         | Phase C + D |
+| F6 | CIS/STIG mapping must filter Pure-Mode-relevant controls only                                        | HIGH     | `docs/compliance-mapping.md` (new)                                                                                                                                      | Phase E     |
 
 ## 4. Phases
 
@@ -131,14 +131,14 @@ If max exceeds 15, bump the cap to 50.
 
 **Files to rewrite**:
 
-| File | Change |
-|------|--------|
-| `sql/04-policy-volume.sql` | Per-policy `events`/`distinct_users`/`distinct_hosts`/`first_seen`/`last_seen` via split CTE. Existing schema-hint line stays valid. |
-| `sql/05-policy-user-action.sql` | Per-policy x user x action grid; split CTE. |
-| `sql/06-policy-client-program.sql` | Per-policy x client_program; split CTE. |
-| `sql/07-policy-host.sql` | Per-policy x host; split CTE. |
-| `sql/15-noise-candidates.sql` | High-volume combos per-policy (not per-concat). Generates the input that Section 8.1 then turns into DDL-diffs. Critical correctness fix. |
-| `sql/14-privileged-activity.sql` | Audit logic; concat-string issue likely also present (review during rewrite). |
+| File                               | Change                                                                                                                                    |
+|------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `sql/04-policy-volume.sql`         | Per-policy `events`/`distinct_users`/`distinct_hosts`/`first_seen`/`last_seen` via split CTE. Existing schema-hint line stays valid.      |
+| `sql/05-policy-user-action.sql`    | Per-policy x user x action grid; split CTE.                                                                                               |
+| `sql/06-policy-client-program.sql` | Per-policy x client_program; split CTE.                                                                                                   |
+| `sql/07-policy-host.sql`           | Per-policy x host; split CTE.                                                                                                             |
+| `sql/15-noise-candidates.sql`      | High-volume combos per-policy (not per-concat). Generates the input that Section 8.1 then turns into DDL-diffs. Critical correctness fix. |
+| `sql/14-privileged-activity.sql`   | Audit logic; concat-string issue likely also present (review during rewrite).                                                             |
 
 **New file**: `sql/16-policy-ddl.sql` - one query that dumps
 `DBMS_METADATA.GET_DDL('AUDIT_POLICY', p.policy_name)` for every enabled
@@ -169,10 +169,10 @@ unfamiliar with this Oracle quirk.
 **`sql/01-config.sql`** rewrite:
 
 - Detect Mixed vs Pure Mode unambiguously - the canonical signal is
-  `DBA_AUDIT_MGMT_CONFIG_PARAMS` entries + `V$OPTION` 'Unified Auditing'
-  + 26ai-specific signals if applicable.
-- Emit `# audit_mode: pure|mixed|legacy` as a metadata line so reporter
-  + AI prompt can suppress Mixed-Mode-only checks when mode=pure.
+  `DBA_AUDIT_MGMT_CONFIG_PARAMS` entries + `V$OPTION` 'Unified Auditing' +
+  26ai-specific signals if applicable.
+- Emit `# audit_mode: pure|mixed|legacy` as a metadata line so reporter +
+- AI prompt can suppress Mixed-Mode-only checks when mode=pure.
 - Continue to capture `audit_trail` parameter value for completeness,
   but mark it `# legacy_param: true` in the schema-hint line so the
   reporter does not flag it.
@@ -277,11 +277,11 @@ multi-source confirmation.
 **Table schema**:
 
 ```text
-| Control ID | Source         | Description (short)         | Applicability | Coverage                                        | Gap / Notes |
-|------------|----------------|-----------------------------|---------------|-------------------------------------------------|-------------|
-| 4.1.1      | CIS 19c v1.2.0 | Ensure audit policies cover ...| Pure Mode  | sql/03-policy-inventory; sql/15-noise-candidates | -          |
-| V-219828   | STIG 12c       | Audit DDL ...               | Pure Mode     | sql/14-privileged-activity                      | -           |
-| 4.1.5      | CIS 19c v1.2.0 | Ensure 'audit_sys_operations' ...| Legacy   | -                                               | N-A in Pure Mode (suppress finding) |
+| Control ID | Source         | Description (short)               | Applicability | Coverage                                         | Gap / Notes                         |
+|------------|----------------|-----------------------------------|---------------|--------------------------------------------------|-------------------------------------|
+| 4.1.1      | CIS 19c v1.2.0 | Ensure audit policies cover ...   | Pure Mode     | sql/03-policy-inventory; sql/15-noise-candidates | -                                   |
+| V-219828   | STIG 12c       | Audit DDL ...                     | Pure Mode     | sql/14-privileged-activity                       | -                                   |
+| 4.1.5      | CIS 19c v1.2.0 | Ensure 'audit_sys_operations' ... | Legacy        | -                                                | N-A in Pure Mode (suppress finding) |
 ```
 
 **Per-SQL metadata**: add `# cis_controls:` line to each query's preamble
@@ -350,13 +350,13 @@ ai-toolkit/claude/skills/ tree, add frontmatter, symlink into
 
 ## 7. Risks + mitigations
 
-| Risk | Mitigation |
-|------|------------|
-| `CONNECT BY LEVEL <= 20` cap insufficient for some sites | Phase B includes the validation query; cap is configurable per environment in the SQL header. |
-| DBMS_METADATA.GET_DDL requires privileges not always available | Document required grants in `docs/use-cases/audit-analysis.md` (Group E). Fallback: emit a warning + skip Section 8.1 DDL-diff if DDL unavailable. |
-| CIS 21c benchmark may not yet exist as Pure-Mode-aware doc | Phase E acceptance allows the doc to record that as an explicit gap. |
-| Phase B SQL changes break the existing anonymizer's `# schema:` parser | The `# schema:` line per SQL stays unchanged - we only change the SELECT semantics. Anonymizer reads column names from schema-hint, not column values, so per-policy split is invisible to it. Verify in Group C migration. |
-| Sample bundle in eng/tools/tests is pre-rework - tests may fail until regenerated | Phase B + C output is regression-tested against a freshly captured bundle. May need a Group F task: regenerate `tests/fixtures/sample_bundle.*` after rework. |
+| Risk                                                                                                         | Mitigation                                                                                                                                                                                                                             |
+|--------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `CONNECT BY LEVEL <= 20` cap insufficient for some sites                                                     | Phase B includes the validation query; cap is configurable per environment in the SQL header.                                                                                                                                          |
+| DBMS_METADATA.GET_DDL requires privileges not always available                                               | Document required grants in `docs/use-cases/audit-analysis.md` (Group E). Fallback: emit a warning + skip Section 8.1 DDL-diff if DDL unavailable.                                                                                     |
+| CIS 21c benchmark may not yet exist as Pure-Mode-aware doc                                                   | Phase E acceptance allows the doc to record that as an explicit gap.                                                                                                                                                                   |
+| Phase B SQL changes break the existing anonymizer's `# schema:` parser                                       | The `# schema:` line per SQL stays unchanged - we only change the SELECT semantics. Anonymizer reads column names from schema-hint, not column values, so per-policy split is invisible to it. Verify in Group C migration.            |
+| Sample bundle in eng/tools/tests is pre-rework - tests may fail until regenerated                            | Phase B + C output is regression-tested against a freshly captured bundle. May need a Group F task: regenerate `tests/fixtures/sample_bundle.*` after rework.                                                                          |
 | Phase D ships German-only output but i18n-ready architecture is non-trivial - risk of underestimating effort | Acceptance criterion in Phase D requires grep verification that user-facing strings are centralised. If the rewrite touches >50 string sites, factor in +1h for centralisation. Tracked separately in v1.1 milestone (not v1.0 scope). |
 
 ## 8. What needs Stefan's input next
@@ -366,4 +366,3 @@ ai-toolkit/claude/skills/ tree, add frontmatter, symlink into
   templates+use-cases) directly. Phase A reference doc can begin
   immediately - I will use Opus for this since it's domain-heavy
   authoring, then dispatch Sonnet for Phase B SQL rewrites.
-
