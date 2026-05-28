@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-05-28
+
+### Fixed
+
+- **B9** - `bin/ora-db-audit.sh`: bundle directory and tarball name now
+  includes the PDB name when `--pdb` is set. Previously the name was
+  `ora-db-audit_<DBSID>_<TS>` regardless of PDB, making it impossible to
+  distinguish bundles from different PDBs in the same CDB collected on the
+  same host. New pattern: `ora-db-audit_<DBSID>[_<PDB>]_<TS>` (PDB
+  lowercased for consistency with DBSID). The `manifest.json` now includes a
+  `"pdb"` field, and the bundle `README.md` shows the PDB row.
+
 ## [1.2.2] - 2026-05-28
 
 ### Fixed

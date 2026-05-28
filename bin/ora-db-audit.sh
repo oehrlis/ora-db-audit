@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 1.2.2
+# Version....: 1.2.3
 # Purpose....: Extract Oracle Unified Audit Trail data from a target database,
 #              produce a self-contained CSV bundle, optionally anonymise it,
 #              and render a Markdown analysis report. Designed to be executed
@@ -31,6 +31,7 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.28  oes  Fix: include PDB name in bundle dir/tarball name.     1.2.3
 # 2026.05.28  oes  Fix: wire --lang, --export-prompt, --customer-prefix  1.2.2
 #                  through to audit_report.py (render_report).
 # 2026.05.28  oes  R3: --sample-rows flag; fix CSV sanity-check name;    1.2.0
@@ -126,7 +127,7 @@ Options:
                        ALTER SESSION SET CONTAINER. Required for
                        SYSDBA connects when querying a PDB.
   --output DIR         Output directory (default: ${OUTPUT_DIR})
-                       A subdir ora-db-audit_<DBSID>_<TS> is created.
+                       A subdir ora-db-audit_<DBSID>[_<PDB>]_<TS> is created.
   --anonymize          Run tools/anonymize_bundle.py against the bundle
                        after generation. Produces sibling .anon/ +
                        .mapping.json + .anon.tar.gz. Mapping file MUST
@@ -306,6 +307,7 @@ write_manifest() {
   "bundle_version": "1.2.0",
   "generated_at":   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
   "dbsid":          "${dbsid}",
+  "pdb":            "${PDB}",
   "timestamp_tag":  "${ts}",
   "time_window_days": ${DAYS},
   "top_n":          ${TOP_N},
@@ -314,7 +316,7 @@ write_manifest() {
 $(printf '    "%s",\n' "${QUERIES[@]:1}" | sed '$ s/,$//')
   ],
   "tool":           "ora-db-audit.sh",
-  "tool_version":   "1.2.2"
+  "tool_version":   "1.2.3"
 }
 EOF
 }
@@ -330,6 +332,7 @@ write_readme() {
 | Field      | Value |
 |------------|-------|
 | DBSID      | \`${dbsid}\` |
+| PDB        | \`${PDB:-(CDB\$ROOT)}\` |
 | Generated  | $(date '+%Y-%m-%d %H:%M:%S %Z') |
 | Time Window| last ${DAYS} days |
 | Top N      | ${TOP_N} rows per query |
@@ -689,9 +692,14 @@ run() {
     fi
     log "DBSID = ${dbsid}"
 
-    local ts bundle_dir
+    local ts bundle_dir pdb_tag pdb_lower
     ts="$(date '+%Y%m%d_%H%M%S')"
-    bundle_dir="${OUTPUT_DIR}/ora-db-audit_${dbsid}_${ts}"
+    pdb_tag=""
+    if [[ -n "${PDB}" ]]; then
+        pdb_lower="$(echo "${PDB}" | tr '[:upper:]' '[:lower:]')"
+        pdb_tag="_${pdb_lower}"
+    fi
+    bundle_dir="${OUTPUT_DIR}/ora-db-audit_${dbsid}${pdb_tag}_${ts}"
 
     if [[ -d "${bundle_dir}" ]]; then
         if [[ ${ASSUME_YES} -eq 0 ]]; then
@@ -742,12 +750,12 @@ run() {
     write_readme   "${bundle_dir}" "${dbsid}"
 
     log "creating tarball..."
-    (cd "${OUTPUT_DIR}" && tar czf "ora-db-audit_${dbsid}_${ts}.tar.gz" \
-        "ora-db-audit_${dbsid}_${ts}")
-    log "bundle tarball: ${OUTPUT_DIR}/ora-db-audit_${dbsid}_${ts}.tar.gz"
+    (cd "${OUTPUT_DIR}" && tar czf "ora-db-audit_${dbsid}${pdb_tag}_${ts}.tar.gz" \
+        "ora-db-audit_${dbsid}${pdb_tag}_${ts}")
+    log "bundle tarball: ${OUTPUT_DIR}/ora-db-audit_${dbsid}${pdb_tag}_${ts}.tar.gz"
 
     local sz
-    sz=$(du -h "${OUTPUT_DIR}/ora-db-audit_${dbsid}_${ts}.tar.gz" | cut -f1)
+    sz=$(du -h "${OUTPUT_DIR}/ora-db-audit_${dbsid}${pdb_tag}_${ts}.tar.gz" | cut -f1)
     log "bundle size: ${sz}"
 
     local report_target="${bundle_dir}"
