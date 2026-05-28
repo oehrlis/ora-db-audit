@@ -5,7 +5,7 @@
 -- Name......: 01-config.sql
 -- Author....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 -- Date......: 2026.05.12
--- Revision..: 0.2.0
+-- Revision..: 0.3.0
 -- Purpose...: Audit configuration snapshot with audit-mode classification.
 --             Captures DBMS_AUDIT_MGMT config params, audit-related init params,
 --             instance metadata, and unified_audit_* parameters. Classifies the
@@ -110,20 +110,26 @@ PROMPT # query_id: 01
 PROMPT # dbsid: &DBSID
 PROMPT # pdb: &PDB_NAME
 PROMPT # generated: &GENERATED_ISO
-PROMPT # cis_controls: -
+PROMPT # cis_controls:
 PROMPT # audit_mode: &AUDIT_MODE
 PROMPT # recent_aud_legacy_rows: &AUD_LEGACY_ROWS
 PROMPT # schema: source=KEEP|name=KEEP|value=KEEP|trail=KEEP|legacy_param=COUNT
 
 SET MARKUP CSV ON DELIMITER '|' QUOTE OFF
 
--- DBMS_AUDIT_MGMT configuration parameters
+-- DBMS_AUDIT_MGMT configuration parameters.
+-- Non-Unified trail rows are flagged legacy_param=1 so the reporter
+-- suppresses findings against them when audit_mode is pure-ish.
 SELECT
     'audit_mgmt'                                    AS "source",
     parameter_name                                  AS "name",
     parameter_value                                 AS "value",
     audit_trail                                     AS "trail",
-    0                                               AS "legacy_param"
+    CASE UPPER(audit_trail)
+        WHEN 'UNIFIED AUDIT TRAIL' THEN 0
+        WHEN 'ALL AUDIT TRAILS'    THEN 0
+        ELSE 1
+    END                                             AS "legacy_param"
 FROM dba_audit_mgmt_config_params
 UNION ALL
 -- Audit-related init parameters.
@@ -180,7 +186,7 @@ SELECT
     0                                               AS "legacy_param"
 FROM v$option
 WHERE parameter = 'Unified Auditing'
-ORDER BY 1, 2;
+ORDER BY 1, 4, 2;
 
 SET MARKUP CSV OFF
 SPOOL OFF

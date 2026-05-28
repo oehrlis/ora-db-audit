@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-05-28
+
+### Fixed
+
+- **B1** - `sql/01-config.sql`, `sql/02-storage.sql`, and ten further SQL
+  files had `PROMPT # cis_controls: -` where the trailing `-` is the
+  SQL\*Plus line-continuation character. The next PROMPT line was silently
+  merged into the same output line, causing `# audit_mode:` and other
+  metadata markers to vanish from the CSV preamble. Changed to
+  `PROMPT # cis_controls:` (no trailing dash) in all 12 affected files.
+- **B2** - `sql/02-storage.sql` Phase 3 SELECT consumed SQL files 03-06 as
+  variable values. Two root causes: (a) `INTERVAL` is an Oracle reserved
+  word and raised `ORA-00904` when used unquoted as a column name in
+  `dba_part_tables`; (b) no `DEFINE` defaults existed for
+  `PURGE_JOB_COUNT`, `PURGE_JOB_STATUS`, `LAST_ARCH_TS`, `PART_INTERVAL`,
+  so a failing SELECT left them undefined and SQL\*Plus prompted interactively,
+  reading the next `@.../03-*.sql` paths as values. Fixed by adding four
+  `DEFINE` defaults before the SELECT and quoting `"INTERVAL"`.
+- **B3** - `sql/16-policy-ddl.sql` raised `ORA-22848: cannot use DISTINCT
+  with LOB columns` because `SELECT DISTINCT` with a `DBMS_METADATA.GET_DDL`
+  CLOB column forces a CLOB-equality comparison. Fixed by deduplicating
+  `policy_name` in a subquery first and then calling `GET_DDL` once per
+  unique policy.
+- **B4** - `sql/01-config.sql` emitted `legacy_param=0` for
+  `dba_audit_mgmt_config_params` rows whose `audit_trail` is
+  `OS AUDIT TRAIL`, `XML AUDIT TRAIL`, `STANDARD AUDIT TRAIL`, or
+  `FGA AUDIT TRAIL`. Those rows belong to Traditional Auditing and must be
+  suppressed in Pure-Mode reports. Fixed with a `CASE UPPER(audit_trail)
+  WHEN 'UNIFIED AUDIT TRAIL' THEN 0 ... ELSE 1 END` expression. `ORDER BY`
+  changed from `1, 2` (source, name) to `1, 4, 2` (source, trail, name)
+  so Unified and non-Unified rows for the same parameter are grouped.
+- **B5** - `tools/anonymize_bundle.py` pseudonymised every value in
+  `PSEUDO:OBJECT` columns regardless of owner, turning Oracle-supplied
+  objects such as `SYS.DUAL`, `AUDSYS` packages, and dictionary views into
+  `OBJECT_NNN`. Added `ORACLE_SYSTEM_SCHEMAS` constant (union of
+  `ORACLE_USERS` plus additional Oracle-supplied schemas) and made
+  `anonymise_row` context-aware: when the companion `object_schema` / `owner`
+  column in the same row resolves to a system schema, the object name is
+  kept verbatim.
+
 ## [1.0.1] - 2026-05-28
 
 ### Added

@@ -34,7 +34,7 @@ PROMPT # query_id: 18
 PROMPT # dbsid: &DBSID
 PROMPT # pdb: &PDB_NAME
 PROMPT # generated: &GENERATED_ISO
-PROMPT # cis_controls: -
+PROMPT # cis_controls:
 PROMPT # schema: target_role=KEEP|grantee=PSEUDO:DBUSER|grantee_type=KEEP|grant_path=KEEP|admin_option=KEEP|default_role=KEEP|grant_depth=COUNT|risk_flag=KEEP
 
 SET MARKUP CSV ON DELIMITER '|' QUOTE OFF

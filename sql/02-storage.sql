@@ -5,7 +5,7 @@
 -- Name......: 02-storage.sql
 -- Author....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 -- Date......: 2026.05.12
--- Revision..: 0.3.0
+-- Revision..: 0.4.0
 -- Purpose...: Audit-trail storage analysis with partition tablespace
 --             disambiguation plus trail-management health metadata.
 --             Captures per-partition details for AUDSYS.AUD$UNIFIED and emits
@@ -93,6 +93,14 @@ SET SERVEROUTPUT OFF
 --           Uses scalar subqueries joined to DUAL to guarantee one row even
 --           when no cleanup jobs or archive timestamps are configured yet.
 -- ---------------------------------------------------------------------------
+-- Safe defaults: if the SELECT below fails (e.g. missing privilege) these
+-- values remain set so Phase 2 PROMPT lines emit readable placeholders
+-- instead of prompting the user for input or consuming the next SQL file.
+DEFINE PURGE_JOB_COUNT = 0
+DEFINE PURGE_JOB_STATUS = NONE
+DEFINE LAST_ARCH_TS = (not set)
+DEFINE PART_INTERVAL = (unknown)
+
 COLUMN x_purge_job_count  NEW_VALUE PURGE_JOB_COUNT  NOPRINT
 COLUMN x_purge_job_status NEW_VALUE PURGE_JOB_STATUS NOPRINT
 COLUMN x_last_arch_ts     NEW_VALUE LAST_ARCH_TS      NOPRINT
@@ -113,8 +121,8 @@ FROM
     (SELECT MAX(last_archive_ts) AS last_ts
      FROM   dba_audit_mgmt_last_arch_ts
      WHERE  audit_trail_type = 'UNIFIED AUDIT TRAIL') a,
-    -- Partition interval for AUD$UNIFIED (default 1 month in 19c, 1 day in 23ai+)
-    (SELECT NVL(interval, '(none)') AS part_interval
+    -- INTERVAL is a reserved word in Oracle SQL and must be quoted.
+    (SELECT NVL("INTERVAL", '(none)') AS part_interval
      FROM   dba_part_tables
      WHERE  owner      = 'AUDSYS'
        AND  table_name = 'AUD$UNIFIED') t;
@@ -129,7 +137,7 @@ PROMPT # query_id: 02
 PROMPT # dbsid: &DBSID
 PROMPT # pdb: &PDB_NAME
 PROMPT # generated: &GENERATED_ISO
-PROMPT # cis_controls: -
+PROMPT # cis_controls:
 PROMPT # audit_data_tablespace_default: &TBS_DEFAULT
 PROMPT # audit_data_tablespace_current: &TBS_CURRENT
 PROMPT # audit_data_tablespace_older_partitions: &TBS_OLDER
