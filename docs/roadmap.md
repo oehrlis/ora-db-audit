@@ -1,6 +1,6 @@
 # Roadmap
 
-Current release: **v1.3.4** - Updated: 2026-05-28
+Current release: **v1.3.5** - Updated: 2026-05-28
 
 ---
 
@@ -25,6 +25,7 @@ Current release: **v1.3.4** - Updated: 2026-05-28
 | 1.3.2   | released | 2026-05-28 | Fix ORA-00904 in CIS SQL; Section 3 overview+detail; Section 9 CIS detail |
 | 1.3.3   | released | 2026-05-28 | make to-html target: pandoc with Python fallback, no re-render required |
 | 1.3.4   | released | 2026-05-28 | --to-html flag in ora-db-audit.sh; docs/*.css included in dist tarball |
+| 1.3.5   | released | 2026-05-28 | Fix misleading "Full list in Appendix" hint in Section 3 (no appendix rendered without --include-appendix) |
 <!-- markdownlint-enable MD013 MD060 -->
 
 ---
