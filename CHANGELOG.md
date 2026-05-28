@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `.github/workflows/ci.yml` - `sudo npm install -g bats` fixes EACCES
+  permission error on Ubuntu runner (`/usr/local/share/man/man7`).
+- `Makefile` `test-pytest` - pytest availability now checked at recipe
+  execution time via `python -m pytest --version` instead of the
+  parse-time `PYTEST` variable, which silently evaluated to empty when
+  pytest is available as a module but not as a standalone binary in `PATH`.
+
 ## [1.0.0] - 2026-05-28
 
 ### Added
