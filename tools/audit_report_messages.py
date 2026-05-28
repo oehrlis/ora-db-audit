@@ -227,6 +227,24 @@ MESSAGES: dict[str, dict[str, str]] = {
             "moeglicherweise vor Phase C generiert. Manuelle Pruefung "
             "der Tablespace-Zuordnung erforderlich.)_"
         ),
+        "storage.trail_mgmt": "**Trail-Management (Purge)**",
+        "storage.purge_job_row": "Purge-Job (Unified Audit Trail)",
+        "storage.last_arch_row": "Letzter Archivierungs-Zeitstempel",
+        "storage.part_interval_row": "Partitions-Intervall",
+        "storage.purge_warn_no_job": (
+            "> ⚠️ **Kein Purge-Job konfiguriert** - "
+            "`AUD$UNIFIED` waechst unbegrenzt."
+        ),
+        "storage.purge_warn_no_ts": (
+            "> ⚠️ **Kein `LAST_ARCHIVE_TIMESTAMP` gesetzt** - "
+            "der Purge-Job loescht keine Zeilen."
+        ),
+        "vol.ghost_events_note": (
+            "> ℹ️ **Historische Events aus inaktiven Policies ({n}):** "
+            "{total} Events insgesamt. Diese Policies waren aktiv, als "
+            "die Events aufgezeichnet wurden, sind aber aktuell nicht "
+            "aktiviert. Kein Handlungsbedarf."
+        ),
 
         # --- Section 3 - policy inventory ---
         "policy.count": "Policies erfasst: **{n}**.",
@@ -562,6 +580,24 @@ MESSAGES: dict[str, dict[str, str]] = {
             "> _(Tablespace metadata missing - 02-storage.sql may have been "
             "generated before Phase C. Manual verification of tablespace "
             "assignments required.)_"
+        ),
+        "storage.trail_mgmt": "**Trail Management (Purge)**",
+        "storage.purge_job_row": "Purge job (Unified Audit Trail)",
+        "storage.last_arch_row": "Last archive timestamp",
+        "storage.part_interval_row": "Partition interval",
+        "storage.purge_warn_no_job": (
+            "> ⚠️ **No purge job configured** - "
+            "`AUD$UNIFIED` grows without bound."
+        ),
+        "storage.purge_warn_no_ts": (
+            "> ⚠️ **No `LAST_ARCHIVE_TIMESTAMP` set** - "
+            "the purge job will not delete any rows."
+        ),
+        "vol.ghost_events_note": (
+            "> ℹ️ **Historical events from inactive policies ({n}):** "
+            "{total} events total. These policies were active when the "
+            "events were recorded but are currently not enabled. "
+            "No action required."
         ),
 
         # --- Section 3 - policy inventory ---

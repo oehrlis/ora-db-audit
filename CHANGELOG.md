@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-05-28
+
+### Fixed
+
+- **`02-storage.sql` wrong column name `audit_trail_type`** - column in
+  `DBA_AUDIT_MGMT_CLEANUP_JOBS` and `DBA_AUDIT_MGMT_LAST_ARCH_TS` is `audit_trail`.
+  The wrong name caused ORA-904, SQL*Plus fell back to defaults (`purge_job_count=0`,
+  `last_archive_timestamp=(not set)`), triggering false F-01 HIGH findings.
+- **`bin/ora-db-audit.sh` `--to-html` prefers pandoc** - `to_html()` now tries
+  `pandoc` first (richer output, no Python dep); falls back to `md_to_html.py`
+  only when pandoc is absent. Error message updated to list both install options.
+
+### Added
+
+- **Section 2 trail management table** - `render_section_02_storage` now renders
+  purge job count, status, last archive timestamp, and partition interval from
+  `02_storage.csv` metadata. Warnings emitted when purge job is missing or
+  `LAST_ARCHIVE_TIMESTAMP` is unset.
+- **Ghost events INFO note in Section 4** - after the policy volume table, policies
+  with trail events but empty `enabled_option` (currently inactive) are listed with
+  a clear INFO note. Prevents false redundancy findings from historical events.
+- **`docs/ai-analysis-rules.md` sections 2.5-2.7** - rules for ghost events (2.5),
+  off-path inference (2.6), and purge metadata reliability (2.7).
+
 ## [1.4.0] - 2026-05-28
 
 ### Added

@@ -151,6 +151,85 @@ a finding.
 
 ---
 
+## 2.5 Ghost events - policies inactive but events present in trail
+
+A policy can appear in `04_policy_volume.csv` (events in the trail) while
+having an empty `enabled_option` in `03_policy_inventory.csv` (not currently
+enabled in `audit_unified_enabled_policies`). These are **historical events**
+from when the policy was active.
+
+**Rule:** Do NOT raise a redundancy or overlap finding for a policy that is
+currently not enabled. Emit at most an INFO note in the following form:
+
+> "Historical events in trail from currently inactive policy `<NAME>` (N events).
+> These were recorded while the policy was active and do not indicate a
+> current configuration issue."
+
+This situation commonly occurs with Oracle-supplied policies
+(`ORA_SECURECONFIG`, `ORA_LOGIN_LOGOUT`, etc.) that were active during
+initial database setup and subsequently disabled in favour of custom policies.
+
+**Do not do:**
+
+- Flag as "active alongside" a custom policy if `enabled_option` is empty.
+- Recommend disabling a policy that is already disabled.
+- Count events toward a "currently active policy" volume if `enabled_option`
+  is empty.
+
+**Source of truth:** `enabled_option` in `03_policy_inventory.csv`.
+Empty string = not enabled. Non-empty = currently enabled (the option type
+is the evidence, e.g. `BY USER`, `BY GRANTED ROLE`, `ALL USERS`).
+
+---
+
+## 2.6 Off-path events - distinguish "not configured" from "historical"
+
+Off-path events in the audit trail (events from `ODB_LOC_APP_OFFPATH_V1`
+or equivalent) do NOT by themselves prove that the context trigger is
+missing or misconfigured.
+
+**Rule:** When raising an off-path finding, check the context/trigger
+status metadata (if available in the report):
+
+- Context registered (`dba_context` entry with correct schema and package) +
+  trigger ENABLED → infrastructure is in place. Off-path events are either:
+  a. Historical (predating trigger deployment), or
+  b. Current (host not yet registered in the package whitelist).
+
+Finding text MUST distinguish these two cases:
+
+- Infrastructure in place + historical events only → INFO / LOW severity.
+- Infrastructure in place + ongoing events → MEDIUM (host not registered).
+- Infrastructure missing → HIGH (trigger or context not deployed).
+
+Never write "IS_APP_ACCESS not configured" when the context is registered
+and the trigger is enabled. The correct text is:
+"host `<NAME>` not matched by current app-server host pattern in
+`ODB_AUDIT_CTX_PKG`; verify and add to `C_APP_HOST_PATTERN` if correct."
+
+---
+
+## 2.7 Purge job metadata - use CSV values, not trail inference
+
+`02_storage.csv` metadata lines `purge_job_count`, `purge_job_status`,
+`last_archive_timestamp`, and `partition_interval` are the authoritative
+source for trail-management findings.
+
+**Rule:**
+
+- If `purge_job_count > 0` and `last_archive_timestamp != "(not set)"`:
+  trail management is configured. Do NOT raise a missing-purge-job finding.
+- If `purge_job_count = 0` or value = `"0"`: no purge job. Raise as HIGH.
+- If `last_archive_timestamp = "(not set)"`: purge job exists but will not
+  delete rows (no archive fence). Raise as HIGH.
+- If any metadata value is the literal `"(not set)"` or `"(unknown)"`:
+  the collection query failed (likely `ORA-904` on `audit_trail_type`
+  column - the correct column name is `audit_trail`). Do NOT infer a
+  missing purge job from absent metadata. Emit an INFO noting "purge job
+  metadata unavailable due to collection error."
+
+---
+
 ## 3. UNIFIED_AUDIT_POLICIES concatenation semantics
 
 `UNIFIED_AUDIT_TRAIL.UNIFIED_AUDIT_POLICIES` is a comma-separated
@@ -436,10 +515,11 @@ changes, future versions will too). Amendments to this document:
    an issue tagged `breaking-rule-change` so downstream consumers
    (audit_report.py, CI tests) update in sync.
 
-**Version**: 0.1.0 (initial draft, 2026-05-28)
+**Version**: 0.2.0 (2026-05-28)
 
 **Change log**:
 
-| Date       | Version | Change                                                  |
-|------------|---------|---------------------------------------------------------|
+| Date       | Version | Change                                                                        |
+|------------|---------|-------------------------------------------------------------------------------|
+| 2026-05-28 | 0.2.0   | Add sections 2.5 (ghost events), 2.6 (off-path inference), 2.7 (purge metadata reliability). |
 | 2026-05-28 | 0.1.0   | Initial draft. Addresses F1-F5 from `tasks/rework-plan.md`. |
