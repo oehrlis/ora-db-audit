@@ -44,11 +44,14 @@ BEGIN
 END;
 /
 
-SELECT DISTINCT
-    p.policy_name,
-    DBMS_METADATA.GET_DDL('AUDIT_POLICY', p.policy_name) AS policy_ddl
-FROM audit_unified_policies p
-ORDER BY p.policy_name;
+-- SELECT DISTINCT on a CLOB column raises ORA-22848. Dedup on policy_name
+-- first in a subquery, then call GET_DDL once per unique policy.
+SELECT
+    u.policy_name,
+    DBMS_METADATA.GET_DDL('AUDIT_POLICY', u.policy_name) AS policy_ddl
+FROM (SELECT DISTINCT policy_name
+      FROM   audit_unified_policies
+      ORDER BY policy_name) u;
 
 SET MARKUP CSV OFF
 SPOOL OFF

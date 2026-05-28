@@ -70,7 +70,17 @@ if str(_HERE) not in sys.path:
 from anonymize_audit_log import (  # noqa: E402
     is_ambiguous,
     is_whitelisted,
+    ORACLE_USERS as _ORACLE_USERS,
 )
+
+# Oracle-supplied schemas whose objects must not be pseudonymised.
+# When a row has a companion object_schema / owner column whose value
+# is in this set, PSEUDO:OBJECT columns are kept verbatim.
+ORACLE_SYSTEM_SCHEMAS = _ORACLE_USERS | {
+    "SYS", "AUDSYS", "SYSTEM", "DBSNMP", "XDB", "WMSYS", "CTXSYS",
+    "ORDSYS", "MDSYS", "LBACSYS", "DVSYS", "DVF", "OJVMSYS",
+    "SYS$UMF", "OUTLN",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -293,10 +303,29 @@ def build_mapping(collected, customer_prefix, extra_whitelist,
 # Apply pass
 # ---------------------------------------------------------------------------
 
+def _schema_for_object_col(i, schema_cols, row):
+    """Return the schema/owner value from the companion column for a
+    PSEUDO:OBJECT column at position i, or None if no companion exists.
+
+    Looks for a column named 'object_schema' or 'owner' in schema_cols.
+    """
+    for j, (col_name, _hint) in enumerate(schema_cols):
+        if col_name.lower() in ("object_schema", "owner"):
+            if j < len(row):
+                return row[j].strip().upper()
+    return None
+
+
 def anonymise_row(row, schema_cols, mapping):
     """Return a new row with PSEUDO columns substituted and REDACT
     columns masked. KEEP / COUNT / TIMESTAMP / BYTES columns pass through
-    unchanged."""
+    unchanged.
+
+    PSEUDO:OBJECT is context-aware: if the row's companion schema column
+    (object_schema / owner) resolves to an Oracle system schema, the
+    object name is kept verbatim to avoid pseudonymising SYS.DUAL,
+    AUDSYS packages, etc.
+    """
     out = list(row)
     for i, (_name, hint) in enumerate(schema_cols):
         if i >= len(out):
@@ -311,6 +340,10 @@ def anonymise_row(row, schema_cols, mapping):
         stripped = value.strip()
         if not stripped:
             continue
+        if hint == "PSEUDO:OBJECT":
+            owner = _schema_for_object_col(i, schema_cols, out)
+            if owner and owner in ORACLE_SYSTEM_SCHEMAS:
+                continue
         pseudo = mapping.get(stripped)
         if pseudo is not None:
             # Preserve incidental leading/trailing whitespace from the
