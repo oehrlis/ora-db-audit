@@ -98,6 +98,18 @@ Acceptance:
 
 ---
 
+## Highly Recommended v1.0.1 - "Post-release fixes and features"
+
+- Handle usability for audit trails with several million records. What kind of
+  possibilities do we have? Right now we have several queries with join, group by etc.
+- Find a solution to have a good overview also for large audit trails. Maybe a
+  summary report with the most important KPIs and only a sample of the findings?
+  But clearly identify blind spots when not all data can be processed in a
+  reasonable time frame.
+-
+
+---
+
 ## Beyond v1.0 - candidate features (no commitment yet)
 
 The list below is intentionally not prioritised. It is the staging area
