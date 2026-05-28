@@ -45,6 +45,12 @@ HOST if [ -n "${ORADBA_PDB:-}" ]; then echo "ALTER SESSION SET CONTAINER = \"${O
 @@/tmp/oradba_container.sql
 HOST rm -f /tmp/oradba_container.sql
 
+-- Sampling: ORADBA_SAMPLE_ROWS=0 means no limit; >0 injects AND ROWNUM <= N
+-- into the heavy profiling queries (08-12, 15) as a table-scan stop.
+HOST if [ "${ORADBA_SAMPLE_ROWS:-0}" != "0" ] 2>/dev/null; then echo "DEFINE sample_rows = '${ORADBA_SAMPLE_ROWS}'" > /tmp/oradba_sample.sql; echo "DEFINE SAMPLE_WHERE = 'AND ROWNUM <= ${ORADBA_SAMPLE_ROWS}'" >> /tmp/oradba_sample.sql; echo "DEFINE sampled = 'true'" >> /tmp/oradba_sample.sql; else echo "DEFINE sample_rows = '0'" > /tmp/oradba_sample.sql; echo "DEFINE SAMPLE_WHERE = '/* unsampled */'" >> /tmp/oradba_sample.sql; echo "DEFINE sampled = 'false'" >> /tmp/oradba_sample.sql; fi
+@@/tmp/oradba_sample.sql
+HOST rm -f /tmp/oradba_sample.sql
+
 -- Predictable NLS for CSV consumers.
 ALTER SESSION SET NLS_NUMERIC_CHARACTERS    = '.,';
 ALTER SESSION SET NLS_DATE_FORMAT           = 'YYYY-MM-DD HH24:MI:SS';
@@ -79,7 +85,7 @@ SET NULL ""
 -- Confirm setup once on the terminal (will appear in wrapper log).
 SET TERMOUT ON
 PROMPT
-PROMPT analysis_pack setup: DBSID=&DBSID PDB=&PDB_NAME days=&days top_n=&top_n
+PROMPT analysis_pack setup: DBSID=&DBSID PDB=&PDB_NAME days=&days top_n=&top_n sampled=&sampled
 PROMPT analysis_pack setup: LOGDIR=&LOGDIR DB_VERSION=&DB_VERSION
 PROMPT
 SET TERMOUT OFF

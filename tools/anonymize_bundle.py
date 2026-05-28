@@ -94,7 +94,7 @@ CATEGORY_ORDER = ("HOST", "DBUSER", "OSUSER", "CLIENT", "SCHEMA", "OBJECT")
 
 # Type hints valid in a "# schema:" line. Anything else triggers a warning
 # (we keep the column unchanged to avoid data loss).
-VALID_KEEP_TYPES = {"KEEP", "COUNT", "TIMESTAMP", "BYTES"}
+VALID_KEEP_TYPES = {"KEEP", "COUNT", "TIMESTAMP", "BYTES", "TABLESPACE_STATE"}
 VALID_PSEUDO_TYPES = {f"PSEUDO:{c}" for c in CATEGORY_ORDER}
 VALID_TYPES = VALID_KEEP_TYPES | VALID_PSEUDO_TYPES | {"REDACT"}
 

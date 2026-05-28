@@ -16,6 +16,7 @@ PROMPT # generated: &GENERATED_ISO
 PROMPT # cis_controls:
 PROMPT # date_range_days: &days
 PROMPT # top_n: &top_n
+PROMPT # sampled: &sampled
 PROMPT # schema: action_name=KEEP|events=COUNT|distinct_users=COUNT|distinct_objects=COUNT|distinct_policies=COUNT
 
 SET MARKUP CSV ON DELIMITER '|' QUOTE OFF
@@ -29,6 +30,7 @@ SELECT
 FROM unified_audit_trail
 WHERE event_timestamp_utc >= SYSTIMESTAMP - NUMTODSINTERVAL(TO_NUMBER('&days'), 'DAY')
   AND dbid = con_id_to_dbid(SYS_CONTEXT('USERENV','CON_ID'))
+  &SAMPLE_WHERE
 GROUP BY action_name
 ORDER BY 2 DESC
 FETCH FIRST TO_NUMBER('&top_n') ROWS ONLY;

@@ -1,6 +1,6 @@
 # Roadmap
 
-Current release: **v1.1.1** - Updated: 2026-05-28
+Current release: **v1.2.0** - Updated: 2026-05-28
 
 ---
 
@@ -15,6 +15,7 @@ Current release: **v1.1.1** - Updated: 2026-05-28
 | 1.0.2   | released | 2026-05-28 | Bundle quality fixes B1-B5: SQL*Plus continuation char, Phase 3 variable defaults, ORA-22848 CLOB DISTINCT, legacy_param for audit_mgmt rows, context-aware PSEUDO:OBJECT anonymization |
 | 1.1.0   | released | 2026-05-28 | R1+R2: CIS coverage (Section 9) + Audit-Roles (Section 10) report sections; R4: --export-prompt flag; AI section renumbered to 11 |
 | 1.1.1   | released | 2026-05-28 | R5: dual-language DE/EN output; D1: off-path detection doc + sql/19-offpath-candidates.sql |
+| 1.2.0   | released | 2026-05-28 | R3: --sample-rows flag; D2: export_siem.py (OCSF + Sentinel); B6: CSV sanity check; B7: TABLESPACE_STATE; UX1: no-arg -> --help; version alignment |
 <!-- markdownlint-enable MD013 MD060 -->
 
 ---
@@ -83,28 +84,38 @@ any provider.
 
 ---
 
-## v1.2.0 - "Off-path detection + SIEM adapters"
+## v1.2.0 - "Off-path detection + SIEM adapters" (released)
 
-Goal: formalise the off-path detection use case (currently lab-only
-in the eng repo) and add an optional SIEM-friendly output format.
+Goal: formalise the off-path detection use case and add an optional
+SIEM-friendly output format. Also includes `--sample-rows` for large
+audit trails and three bug fixes from field testing.
 
 ### Deliverables
 
-#### D1 - Off-path detection use case doc
+#### D1 - Off-path detection use case doc (done in v1.1.1)
 
-- Import and sanitise `uc_offpath_detection.md` from the eng repo.
-- Target: `docs/use-cases/off-path-detection.md`.
-- Supplement with a new SQL query `19-offpath-candidates.sql` that
-  surfaces host + user combinations not matching the expected
-  application-tier pattern, without requiring `ODB_AUDIT_CTX` to
-  be deployed.
+- `docs/use-cases/off-path-detection.md` and
+  `sql/19-offpath-candidates.sql` shipped in v1.1.1.
 
-**D2 - SIEM export adapter** (`tools/`)
+#### D2 - SIEM export adapter (done)
 
-- New script `tools/export_siem.py`: reads an anonymised bundle and
-  writes OCSF-flavoured JSON (or CSV-to-Sentinel schema) for ingestion
-  into a SIEM.
-- Opt-in via `bin/ora-db-audit.sh --export-siem FORMAT OUTPUT`.
+- `tools/export_siem.py`: reads an anonymised bundle and writes
+  OCSF 1.3 Database Activity JSON Lines (`--format ocsf`) or
+  Microsoft Sentinel / Log Analytics CSV (`--format sentinel`).
+- Wired into `bin/ora-db-audit.sh` via `--export-siem FORMAT OUTPUT`.
+
+#### R3 - Large audit trail performance (done)
+
+- `--sample-rows N` flag added to `bin/ora-db-audit.sh`.
+- `DEFINE SAMPLE_WHERE` injected via `sql/00-setup.sql` into queries
+  08-12, 15; each emits `# sampled: true/false` in its CSV preamble.
+- Executive summary notes the sampling blind spot.
+
+#### Bug fixes (done)
+
+- B6: CSV sanity-check filename mismatch (hyphens vs underscores).
+- B7: TABLESPACE_STATE schema type missing from anonymiser allowlist.
+- UX1: No-arg invocation now shows `--help` (multitenant default).
 
 ---
 
