@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.6] - 2026-05-28
+
+### Fixed
+
+- **`--include-appendix` missing from `bin/ora-db-audit.sh`**
+  (`bin/ora-db-audit.sh`) - the flag existed in `tools/audit_report.py`
+  but was never exposed in the shell entry point. Added `--include-appendix`
+  flag: sets `INCLUDE_APPENDIX=1`, passes `--include-appendix` to
+  `audit_report.py` via `render_report`. Help text describes when to use it.
+
 ## [1.3.5] - 2026-05-28
 
 ### Fixed

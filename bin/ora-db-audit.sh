@@ -7,7 +7,7 @@
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
 # Date.......: 2026.05.28
-# Version....: 1.3.4
+# Version....: 1.3.6
 # Purpose....: Extract Oracle Unified Audit Trail data from a target database,
 #              produce a self-contained CSV bundle, optionally anonymise it,
 #              and render a Markdown analysis report. Designed to be executed
@@ -31,6 +31,7 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.28  oes  Add --include-appendix flag; wire to audit_report.py. 1.3.6
 # 2026.05.28  oes  Add --to-html flag; include docs/ in dist tarball.    1.3.4
 # 2026.05.28  oes  CIS action-based coverage; top-n from manifest;       1.3.0
 #                  ORA$MANDATORY metric; UNIFIED AUDIT TRAIL FILES non-
@@ -64,6 +65,7 @@ DEANONYMIZE=0
 MAPPING_FILE=""
 CUSTOMER_PREFIX=""
 REPORT=0
+INCLUDE_APPENDIX=0
 LANG_REPORT="de"
 LANG_REPORT_EXPLICIT=0
 EXPORT_PROMPT=""
@@ -154,6 +156,10 @@ Options:
                        tools/audit_report.py). When combined with
                        --anonymize the report runs on the anonymised
                        bundle and is safe to share externally.
+  --include-appendix   Append a full action-level policy detail table and
+                       raw data sections at the end of the report. Without
+                       this flag only the overview table is included and
+                       a hint is shown. Only used with --report.
   --to-html            Convert audit_report.md to audit_report.html after
                        report generation (implies --report). Uses
                        tools/md_to_html.py with docs/report.css if found.
@@ -236,6 +242,7 @@ parse_args() {
             --mapping)          MAPPING_FILE="$2"; shift 2 ;;
             --customer-prefix)  CUSTOMER_PREFIX="$2"; shift 2 ;;
             --report)           REPORT=1; shift ;;
+            --include-appendix) INCLUDE_APPENDIX=1; shift ;;
             --lang)             LANG_REPORT="$2"; LANG_REPORT_EXPLICIT=1; shift 2 ;;
             --export-prompt)
                 if [[ ${2+x} ]] && [[ "${2:-}" != --* ]]; then
@@ -324,7 +331,7 @@ write_manifest() {
     local bundle_dir="$1" dbsid="$2" ts="$3"
     cat > "${bundle_dir}/manifest.json" <<EOF
 {
-  "bundle_version": "1.3.4",
+  "bundle_version": "1.3.6",
   "generated_at":   "$(date -u '+%Y-%m-%dT%H:%M:%SZ')",
   "dbsid":          "${dbsid}",
   "pdb":            "${PDB}",
@@ -337,7 +344,7 @@ write_manifest() {
 $(printf '    "%s",\n' "${QUERIES[@]:1}" | sed '$ s/,$//')
   ],
   "tool":           "ora-db-audit.sh",
-  "tool_version":   "1.3.4"
+  "tool_version":   "1.3.6"
 }
 EOF
 }
@@ -495,6 +502,9 @@ render_report() {
 
     local -a report_args=( "${bundle_dir}" --yes )
     report_args+=( --lang "${LANG_REPORT}" )
+    if [[ ${INCLUDE_APPENDIX} -eq 1 ]]; then
+        report_args+=( --include-appendix )
+    fi
     if [[ -n "${CUSTOMER_PREFIX}" ]]; then
         report_args+=( --customer-prefix "${CUSTOMER_PREFIX}" )
     fi
