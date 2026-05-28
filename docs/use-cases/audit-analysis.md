@@ -1,7 +1,7 @@
 # Use Case: ora-db-audit - CSV-Bundle-Pipeline
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-<!-- markdownlint-disable MD013 -->
+<!-- markdownlint-disable MD013 MD060 -->
 
 ## Übersicht
 

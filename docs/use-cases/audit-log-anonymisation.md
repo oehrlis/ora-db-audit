@@ -1,7 +1,7 @@
 # Use Case: Anonymisierung von Audit-Trail-Spool-Files
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-<!-- markdownlint-disable MD013 -->
+<!-- markdownlint-disable MD013 MD060 -->
 
 > **Status: Legacy / Ad-hoc-Tool.** Für den wiederkehrenden Phase-2-Workflow
 > empfehlen wir das CSV-Bundle-Pipeline-Toolset, dokumentiert in
