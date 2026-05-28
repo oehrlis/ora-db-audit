@@ -1,0 +1,12 @@
+# Python requirements for ora-db-audit reporting and HTML conversion.
+# Core collection (--days, --pdb, etc.) requires no Python packages.
+#
+# Required for: --report, --anonymize, --export-siem
+#   (uses Python stdlib only - no extra packages)
+#
+# Required for: --to-html
+markdown>=3.0
+#
+# Required for: --ai (Claude API mode)
+# Uncomment or install separately if you use --ai with an API key:
+# anthropic>=0.18.0

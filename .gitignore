@@ -38,6 +38,9 @@ artefacts/*.pdf
 workspace/*
 !workspace/.gitkeep
 
+# Internal planning / session history - not for public repo
+docs/history/
+
 # Claude Code agent worktrees - transient sub-agent state
 .claude/worktrees/
 
