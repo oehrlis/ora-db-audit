@@ -118,6 +118,9 @@ QUERIES=(
     "16-policy-ddl.sql"
     "17-cis-coverage.sql"
     "18-audit-roles.sql"
+    "19-offpath-candidates.sql"
+    "20-fp-role-grantees.sql"
+    "21-uncovered-users.sql"
 )
 
 # ------------------------------------------------------------------------------
@@ -863,32 +866,49 @@ run() {
     export ORADBA_SAMPLE_ROWS="${SAMPLE_ROWS}"
     export ORADBA_PDB="${PDB}"
 
-    # Build the @-chain. Setup must be the first script.
-    local -a sqlplus_cmds=()
+    # Run each query in its own sqlplus session so progress can be reported
+    # between queries. 00-setup.sql is prepended to every session so all
+    # DEFINEs (LOGDIR, days, top_n, DBSID, ...) are available fresh.
+    # SQL files use underscores (08_top_users.csv); QUERIES uses hyphens.
+    local total="${#QUERIES[@]}"
+    local q_idx=0 q_failed=0 q_stem q_csv q_t0 q_t1 q_elapsed
+    : > "${bundle_dir}/_sqlplus.log"
+
+    log "running ${total} queries (one sqlplus session per query)..."
     for q in "${QUERIES[@]}"; do
-        sqlplus_cmds+=( "@${SQL_DIR}/${q}" )
-    done
-    sqlplus_cmds+=( "EXIT" )
+        q_idx=$(( q_idx + 1 ))
+        printf '[%2d/%2d] %-42s' "${q_idx}" "${total}" "${q}"
 
-    log "running sqlplus session with ${#QUERIES[@]} scripts..."
-    printf '%s\n' "${sqlplus_cmds[@]}" \
-        | sqlplus -S -L "${CONNECT}" \
-        | tee "${bundle_dir}/_sqlplus.log"
+        q_t0=$(date '+%s')
 
-    # Quick sanity-check: did each query produce a CSV?
-    # SQL files use underscores (08_top_users.csv); the QUERIES array uses
-    # hyphens (08-top-users.sql) - normalise before the existence check.
-    local missing=0
-    for q in "${QUERIES[@]:1}"; do
-        local stem="${q%.sql}"
-        local csv="${bundle_dir}/${stem//-/_}.csv"
-        if [[ ! -s "${csv}" ]]; then
-            err "missing or empty output: ${csv}"
-            missing=$((missing + 1))
+        if [[ "${q}" == "00-setup.sql" ]]; then
+            # First query: validate connection and establish DEFINEs
+            printf '@%s\nEXIT\n' "${SQL_DIR}/${q}" \
+                | sqlplus -S -L "${CONNECT}" \
+                >> "${bundle_dir}/_sqlplus.log" 2>&1
+            printf ' done (%ds)\n' "$(( $(date '+%s') - q_t0 ))"
+            continue
+        fi
+
+        printf '@%s\n@%s\nEXIT\n' "${SQL_DIR}/00-setup.sql" "${SQL_DIR}/${q}" \
+            | sqlplus -S -L "${CONNECT}" \
+            >> "${bundle_dir}/_sqlplus.log" 2>&1
+
+        q_t1=$(date '+%s')
+        q_elapsed=$(( q_t1 - q_t0 ))
+        q_stem="${q%.sql}"
+        q_csv="${bundle_dir}/${q_stem//-/_}.csv"
+
+        if [[ -s "${q_csv}" ]]; then
+            printf ' done (%ds)\n' "${q_elapsed}"
+        else
+            printf ' FAILED - no CSV output (%ds)\n' "${q_elapsed}"
+            q_failed=$(( q_failed + 1 ))
         fi
     done
-    if (( missing > 0 )); then
-        err "${missing} query output(s) missing - check ${bundle_dir}/_sqlplus.log"
+
+    if (( q_failed > 0 )); then
+        err "${q_failed} query output(s) missing - check ${bundle_dir}/_sqlplus.log"
     fi
 
     write_manifest "${bundle_dir}" "${dbsid}" "${ts}"

@@ -6,8 +6,8 @@
 # Name.......: audit_report_messages.py
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
-# Date.......: 2026.05.28
-# Version....: 1.2.0
+# Date.......: 2026.05.29
+# Version....: 1.3.0
 # Purpose....: Centralised user-facing message dictionary for audit_report.py.
 #              Keeps every German string in one place so v1.1 can add an EN
 #              translation by extending the dict; no code changes required.
@@ -22,6 +22,7 @@
 # License....: Apache License Version 2.0
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.29  oes  v1.3.0: F1-F6a keys for v1.7.0 report features.        1.3.0
 # 2026.05.28  oes  R3: add exec.sampling_note key (DE+EN); align version   1.2.0
 #                  to repo SemVer.
 # 2026.05.28  oes  R5: populate MESSAGES["en"] with full EN translations;  1.1.1
@@ -435,6 +436,73 @@ MESSAGES: dict[str, dict[str, str]] = {
             "eine eindeutige Suppression-Heuristik. Manuelle Analyse "
             "der Action `{action}` erforderlich."
         ),
+
+        # --- F1: 7.2.1 Context-Policy event list ---
+        "offpath.ctx_events_header": "Events unter diesen Context-Policies (Top-N, aus 05_policy_user_action.csv)",
+        "offpath.ctx_events_none": "_(keine Events unter diesen Policies im Zeitfenster)_",
+        "label.user": "User",
+        "label.action": "Action",
+        "label.return_code_short": "RC",
+
+        # --- F2: 7.2.2 user column ---
+        "label.users": "Users",
+
+        # --- F3: AI section headers (language-aware) ---
+        "ai.section_title": "12. AI-Findings (Claude)",
+        "ai.generated_line": "> Generiert: `{ts}` | Modell: `{model}`  ",
+        "ai.disclaimer": "> Automatisch generierte Analyse - Findings sind zu verifizieren.",
+        "ai.standalone_title": "# AI-Findings - Audit Trail Analyse",
+        "ai.standalone_generated": "Generiert",
+        "ai.standalone_model": "Modell",
+        "ai.standalone_dbsid": "DBSID",
+        "ai.footer": "_Generiert von `audit_report.py` v{version} via Claude API_",
+        "ai.fp_section_note": "  incl. {n} FP-Verdacht(e) in Abschnitt 13",
+
+        # --- F4: Exec summary AI placeholder ---
+        "metric.ai_findings": "AI-Analyse",
+        "metric.ai_pending": "ausstehend (--ai Flag)",
+        "metric.ai_done": "Section 12 - {n} Finding(s)",
+
+        # --- F5: Uncovered users ---
+        "section.07_3_uncovered": "7.3 Benutzer ohne Non-Logon Policy-Abdeckung",
+        "metric.uncovered_users": "Principals ohne Policy-Abdeckung",
+        "uncovered.all_users_note": (
+            "_ALL USERS Policy mit Non-Logon-Aktionen aktiv - "
+            "alle Principals gelten als abgedeckt._"
+        ),
+        "uncovered.none": "_Alle Principals durch Non-Logon Policies abgedeckt._",
+        "uncovered.found": "**{n} Principal(s)** ohne Non-Logon Policy-Abdeckung (P1=direkt, P2=via Rolle):",
+        "uncovered.intro": (
+            "Principals (User-Accounts und Rollen aus `DBA_USERS` / `DBA_ROLES`, "
+            "nicht Oracle-supplied, Account-Status OPEN) ohne Abdeckung durch eine "
+            "aktuell aktive Non-Logon Audit-Policy. "
+            "P1 = direkte BY USER Bindung; "
+            "P2 = via BY GRANTED ROLE (Tiefe 1, direkte Grants)."
+        ),
+        "uncovered.depth_note": (
+            "_Hinweis: Indirekte Rollen-Ketten (Rolle -> Rolle -> User) "
+            "werden nicht traversiert. Fuer vollstaendige Pruefung "
+            "`SESSION_ROLES` im Kontext des jeweiligen Users pruefen._"
+        ),
+        "uncovered.source": "Quelle: `21_uncovered_users.csv`",
+        "uncovered.csv_missing": "_(21_uncovered_users.csv nicht im Bundle)_",
+        "label.principal": "Principal",
+        "label.principal_type": "Typ",
+        "label.covered_direct": "P1 (Direkt)",
+        "label.covered_role": "P2 (Via Rolle)",
+
+        # --- F6a: Policy DDL section (custom only) ---
+        "section.11_policy_ddl": "11. Policy-Definitionen (Custom)",
+        "policy_ddl.section_intro": (
+            "DDL-Definitionen aller Custom Audit-Policies aus "
+            "`DBMS_METADATA.GET_DDL`. Oracle-supplied Policies werden ausgeblendet. "
+            "Dient als Referenz fuer Policy-Analyse und Anpassungsvorschlaege."
+        ),
+        "policy_ddl.none": (
+            "_Keine Custom Policy-DDL verfuegbar - "
+            "`16_policy_ddl.csv` fehlt oder wurde ohne `AUDIT_ADMIN`-Privileg erzeugt._"
+        ),
+        "policy_ddl.source": "Quelle: `16_policy_ddl.csv` (DBMS_METADATA.GET_DDL)",
     },
     "en": {
         # --- Report header / page title ---
@@ -819,6 +887,73 @@ MESSAGES: dict[str, dict[str, str]] = {
             "an unambiguous suppression heuristic. Manual analysis "
             "of action `{action}` required."
         ),
+
+        # --- F1: 7.2.1 Context-Policy event list ---
+        "offpath.ctx_events_header": "Events under these Context Policies (Top-N, from 05_policy_user_action.csv)",
+        "offpath.ctx_events_none": "_(no events under these policies in the time window)_",
+        "label.user": "User",
+        "label.action": "Action",
+        "label.return_code_short": "RC",
+
+        # --- F2: 7.2.2 user column ---
+        "label.users": "Users",
+
+        # --- F3: AI section headers (language-aware) ---
+        "ai.section_title": "12. AI-Findings (Claude)",
+        "ai.generated_line": "> Generated: `{ts}` | Model: `{model}`  ",
+        "ai.disclaimer": "> Automatically generated analysis - findings require verification.",
+        "ai.standalone_title": "# AI-Findings - Audit Trail Analysis",
+        "ai.standalone_generated": "Generated",
+        "ai.standalone_model": "Model",
+        "ai.standalone_dbsid": "DBSID",
+        "ai.footer": "_Generated by `audit_report.py` v{version} via Claude API_",
+        "ai.fp_section_note": "  incl. {n} FP suspect(s) in Section 13",
+
+        # --- F4: Exec summary AI placeholder ---
+        "metric.ai_findings": "AI Analysis",
+        "metric.ai_pending": "pending (use --ai flag)",
+        "metric.ai_done": "Section 12 - {n} finding(s)",
+
+        # --- F5: Uncovered users ---
+        "section.07_3_uncovered": "7.3 Principals without Non-Logon Policy Coverage",
+        "metric.uncovered_users": "Principals without policy coverage",
+        "uncovered.all_users_note": (
+            "_ALL USERS policy with non-logon actions is active - "
+            "all principals are considered covered._"
+        ),
+        "uncovered.none": "_All principals are covered by non-logon audit policies._",
+        "uncovered.found": "**{n} principal(s)** without non-logon policy coverage (P1=direct, P2=via role):",
+        "uncovered.intro": (
+            "Principals (user accounts and roles from `DBA_USERS` / `DBA_ROLES`, "
+            "non-Oracle-supplied, account status OPEN) not covered by any "
+            "currently active non-logon audit policy. "
+            "P1 = direct BY USER binding; "
+            "P2 = via BY GRANTED ROLE (depth 1, direct grants only)."
+        ),
+        "uncovered.depth_note": (
+            "_Note: indirect role chains (role -> role -> user) are not traversed. "
+            "For full coverage verification, check `SESSION_ROLES` "
+            "in the context of each specific user._"
+        ),
+        "uncovered.source": "Source: `21_uncovered_users.csv`",
+        "uncovered.csv_missing": "_(21_uncovered_users.csv not in bundle)_",
+        "label.principal": "Principal",
+        "label.principal_type": "Type",
+        "label.covered_direct": "P1 (Direct)",
+        "label.covered_role": "P2 (Via Role)",
+
+        # --- F6a: Policy DDL section (custom only) ---
+        "section.11_policy_ddl": "11. Policy Definitions (Custom)",
+        "policy_ddl.section_intro": (
+            "DDL definitions of all custom audit policies from "
+            "`DBMS_METADATA.GET_DDL`. Oracle-supplied policies are excluded. "
+            "Serves as reference for policy analysis and modification suggestions."
+        ),
+        "policy_ddl.none": (
+            "_No custom policy DDL available - "
+            "`16_policy_ddl.csv` missing or generated without `AUDIT_ADMIN` privilege._"
+        ),
+        "policy_ddl.source": "Source: `16_policy_ddl.csv` (DBMS_METADATA.GET_DDL)",
     },
 }
 

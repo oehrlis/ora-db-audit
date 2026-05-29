@@ -7,6 +7,119 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-05-29
+
+### Added
+
+- **Section 7.3 - Uncovered Users** (`render_section_07_3_uncovered`) - new report
+  section listing all open non-Oracle user accounts and roles that are not covered
+  by any enabled non-logon audit policy. Coverage tiers: P1 (BY USER direct),
+  P2 (BY GRANTED ROLE, depth=1), ALL USERS (blanket policy, result is empty).
+  Source: `21_uncovered_users.csv`.
+- **`sql/21-uncovered-users.sql`** - new bundle query using CTEs `non_logon_policies`,
+  `all_users_flag`, `direct_covered`, `role_covered`, `all_principals`. Result set is
+  empty when an ALL USERS policy is active. Outputs `principal`, `principal_type`
+  (USER/ROLE), `covered_direct`, `covered_via_role`, `covered_all_users`.
+- **Section 11 - Policy DDL** (`render_section_11_policy_ddl`) - new report section
+  rendering DBMS_METADATA.GET_DDL output for each custom audit policy. Oracle-supplied
+  policies (`ORA$`, `ORA_`, `UNIFIED_AUDIT_` prefixes) are excluded. Source:
+  `16_policy_ddl.csv`.
+- **Executive summary AI placeholder** - `<!-- AI_STATUS_PENDING -->` sentinel in
+  the metrics table is replaced with the actual AI finding count when `--ai` runs,
+  giving readers a meaningful summary before opening the AI section.
+- **Progress output per SQL query** in `bin/ora-db-audit.sh` - each of the 23 queries
+  now prints `[N/M] filename ... done (Xs)` or `FAIL` to stdout. Each query runs in an
+  independent sqlplus session (re-runs `00-setup.sql` for DEFINEs). All sessions log
+  to `_sqlplus.log`.
+- **Section 7.2.1 context event list** (F1) - after the context-policy table, a second
+  table lists the actual `policy / user / action / events / RC` rows for all events
+  fired by context-conditioned policies (excluding LOGON/LOGOFF). Source:
+  `05_policy_user_action.csv`.
+- **User list column in Section 7.2.2** (F2) - off-path host table now includes a
+  `Users` column listing up to 5 distinct DB users per host (then `+N more`). Derived
+  from `11_host_user_program.csv`, no SQL change required.
+- **Language-aware AI section header** (F3) - Section 11 (AI-Findings) heading and
+  generated/disclaimer lines are now rendered via `t()` using the active `--lang`,
+  eliminating hardcoded German text.
+- **`--fp-patterns FILE`** entries `19-offpath-candidates.sql`, `20-fp-role-grantees.sql`,
+  `21-uncovered-users.sql` added to `QUERIES` array in `bin/ora-db-audit.sh`.
+- **New message keys** in `audit_report_messages.py` (DE + EN): `offpath.ctx_events_header`,
+  `offpath.ctx_events_none`, `label.user`, `label.action`, `label.return_code_short`,
+  `label.users`, `ai.section_title`, `ai.generated_line`, `ai.disclaimer`,
+  `ai.standalone_title`, `ai.standalone_generated`, `ai.standalone_model`,
+  `ai.standalone_dbsid`, `ai.footer`, `ai.fp_section_note`, `metric.ai_findings`,
+  `metric.ai_pending`, `metric.ai_done`, `section.07_3_uncovered`,
+  `metric.uncovered_users`, `uncovered.all_users_note`, `uncovered.none`,
+  `uncovered.found`, `uncovered.intro`, `uncovered.depth_note`, `uncovered.source`,
+  `uncovered.csv_missing`, `label.principal`, `label.principal_type`,
+  `label.covered_direct`, `label.covered_role`, `section.11_policy_ddl`,
+  `policy_ddl.section_intro`, `policy_ddl.none`, `policy_ddl.source`.
+
+### Changed
+
+- **`tools/audit_report.py` `TOOL_VERSION`** bumped `1.4.0` → `1.5.0`.
+- **`QUERY_FILES`** extended with entries `"19": "19_offpath_candidates"` and
+  `"21": "21_uncovered_users"`.
+- **`render_section_07_security_signals`** now calls `render_section_07_3_uncovered`
+  at the end (both the normal and early-return paths render Section 7.3).
+- **`render_report`** now calls `render_section_11_policy_ddl` after Section 10.
+- **`render_executive_summary`** extended with two new metric rows: uncovered user
+  count (from `21_uncovered_users.csv`) and AI findings (sentinel / actual count).
+- **`_run_ai_analysis`** uses language-aware strings for the AI section header,
+  generated line, and disclaimer; replaces the `_AI_STATUS_SENTINEL` in the
+  already-written report with the actual finding count before appending the AI section.
+- **`tools/audit_report_messages.py` version** bumped `1.2.0` → `1.3.0`.
+- **`bin/ora-db-audit.sh`** QUERIES array now has 23 entries (was 20).
+
+## [1.6.0] - 2026-05-29
+
+### Added
+
+- **False Positive Detection Framework** - programmatic pre-AI screening for
+  structural Oracle Unified Audit engine behaviors that produce spurious events.
+  Four detection patterns (FP-001 to FP-004) identify false positive candidates
+  before the AI call and inject context into the AI prompt; results are also
+  appended as a separate Section 12 in the report.
+- **`sql/20-fp-role-grantees.sql`** - new bundle query that cross-references
+  `BY GRANTED ROLE` audit policy bindings with actual `DBA_ROLE_PRIVS` grants.
+  Allows FP-001 detection to confirm whether audit-trail users actually hold
+  the audited role. LEFT JOIN so policies with no grantees (empty role) appear
+  with `grantee = NONE`. Output file: `20_fp_role_grantees.csv`.
+- **`tools/fp_patterns.json`** - machine-readable false positive pattern
+  definitions. Each pattern has `id`, `detection_type`, `oracle_behavior`,
+  `policy_requirement`, `verify_sql`, and `remediation`. Custom patterns can
+  be added via `--fp-patterns custom.json`.
+- **`docs/false-positive-patterns.md`** - full documentation of Oracle engine
+  behaviors that cause false positives (FP-001 to FP-004), policy requirements
+  and assumptions (A1-A4), detection logic, fix guidance, and extension framework.
+- **`--fp-patterns FILE`** CLI argument in `audit_report.py` - optional path to
+  a custom FP pattern JSON file. Defaults to `tools/fp_patterns.json` next to
+  the script.
+- **FP detection engine in `audit_report.py`** (`load_fp_patterns`,
+  `detect_false_positives`, `render_fp_context_for_ai`, `render_fp_section`) -
+  four detection functions mapping to `detection_type` values in the pattern JSON:
+  `role_binding_check` (FP-001), `when_condition_check` (FP-002),
+  `context_null_check` (FP-003), `policy_enabled_check` (FP-004).
+- **`{fp_context}` injection** in both AI user prompt templates (de/en) -
+  FP candidates detected by the engine are rendered as a structured block
+  prepended to the report text, instructing the AI to tag affected findings
+  with `[FP-SUSPECT: FP-NNN]`.
+- **`docs/ai-analysis-rules.md` §2.8** - "Oracle Engine Behaviors - Known False
+  Positive Sources" rule contract for the AI: FP-001 to FP-004 behaviors,
+  mandatory `[FP-SUSPECT]` tagging, and the verify-before-conclude rule for
+  `BY GRANTED ROLE` findings. Version bumped 0.3.0 → 0.4.0.
+
+### Changed
+
+- **`tools/audit_report.py` `TOOL_VERSION`** bumped `1.3.2` → `1.4.0`.
+- **`QUERY_FILES`** extended with entry `"20": "20_fp_role_grantees"`.
+- **AI system prompts** (de/en) extended with Oracle engine behavior notes
+  for FP-001, FP-002, FP-003, and cross-check instructions.
+- **`_run_ai_analysis`** now accepts optional `bundle`, `policy_ddl_map`, and
+  `fp_patterns` parameters to enable pre-AI FP detection.
+- **`_write_export_prompt`** now accepts optional `fp_context` parameter so
+  exported prompts include FP candidate context.
+
 ## [1.5.0] - 2026-05-28
 
 ### Added
