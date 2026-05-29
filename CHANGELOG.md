@@ -5,12 +5,19 @@ All notable changes to this repository will be documented in this file.
 The format is based on Keep a Changelog.
 This project adheres to Semantic Versioning.
 
-## [1.7.1] - 2026-05-29
-### Added
-- 
-
-
 ## [Unreleased]
+
+## [1.7.2] - 2026-05-29
+
+### Fixed
+
+- Fix markdownlint MD022/MD009/MD012 errors in CHANGELOG.md introduced in v1.7.1
+
+## [1.7.1] - 2026-05-29
+
+### Added
+
+- Placeholder release entry (no functional changes)
 
 ## [1.7.0] - 2026-05-29
 
