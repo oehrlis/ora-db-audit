@@ -2,10 +2,10 @@
 
 <!-- markdownlint-disable MD013 -->
 
-| Field | Value |
-|-------|-------|
-| Version | 1.0.0 |
-| Updated | 2026-05-29 |
+| Field      | Value                                                          |
+|------------|----------------------------------------------------------------|
+| Version    | 1.0.0                                                          |
+| Updated    | 2026-05-29                                                     |
 | Applies to | `audit_report.py` >= 1.4.0, bundle query `20_fp_role_grantees` |
 
 ## Overview
@@ -36,12 +36,12 @@ applicable to any Oracle 19c or 26ai installation with Unified Auditing in Pure 
 The following assumptions define the "ideal" policy state. Deviations do not
 break the tool but increase false positive volume in AI findings.
 
-| # | Assumption | Affected Pattern |
-|---|------------|-----------------|
-| A1 | LOGON/LOGOFF auditing is centralized in a single unconditional policy covering ALL USERS. Specialized policies (BY GRANTED ROLE, BY USER, WHEN conditions) focus on post-logon actions. | FP-001, FP-002, FP-003 |
-| A2 | The logon trigger that sets a custom application context always sets an explicit non-NULL value for every authenticated session (e.g. 'TRUE' or 'FALSE'), not only for the matching case. | FP-003 |
-| A3 | WHEN conditions that discriminate connection type use `NETWORK_PROTOCOL IS NULL` (bequeath) rather than `IP_ADDRESS IS NULL`. | FP-002 |
-| A4 | Every audit policy that is created is either explicitly enabled or explicitly dropped. No ghost policies exist in the data dictionary. | FP-004 |
+| #  | Assumption                                                                                                                                                                                | Affected Pattern       |
+|----|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------|
+| A1 | LOGON/LOGOFF auditing is centralized in a single unconditional policy covering ALL USERS. Specialized policies (BY GRANTED ROLE, BY USER, WHEN conditions) focus on post-logon actions.   | FP-001, FP-002, FP-003 |
+| A2 | The logon trigger that sets a custom application context always sets an explicit non-NULL value for every authenticated session (e.g. 'TRUE' or 'FALSE'), not only for the matching case. | FP-003                 |
+| A3 | WHEN conditions that discriminate connection type use `NETWORK_PROTOCOL IS NULL` (bequeath) rather than `IP_ADDRESS IS NULL`.                                                             | FP-002                 |
+| A4 | Every audit policy that is created is either explicitly enabled or explicitly dropped. No ghost policies exist in the data dictionary.                                                    | FP-004                 |
 
 ---
 
@@ -347,12 +347,12 @@ audit_report.py BUNDLE_DIR --ai --fp-patterns custom_fp.json
 The custom file must follow the same schema as `tools/fp_patterns.json`. The
 `detection_type` field maps to a detection function in the Python engine:
 
-| `detection_type` | Detects |
-|------------------|---------|
-| `role_binding_check` | BY GRANTED ROLE + all-failed-LOGON events |
+| `detection_type`       | Detects                                            |
+|------------------------|----------------------------------------------------|
+| `role_binding_check`   | BY GRANTED ROLE + all-failed-LOGON events          |
 | `when_condition_check` | Specific string in audit_condition + failed LOGONs |
-| `context_null_check` | Non-USERENV SYS_CONTEXT IS NULL + failed LOGONs |
-| `policy_enabled_check` | Policy in inventory but success=NO and failure=NO |
+| `context_null_check`   | Non-USERENV SYS_CONTEXT IS NULL + failed LOGONs    |
+| `policy_enabled_check` | Policy in inventory but success=NO and failure=NO  |
 
 To add a new detection strategy, add a new `detection_type` value and implement
 the corresponding `_detect_<type>(bundle, pattern)` function in `audit_report.py`.
