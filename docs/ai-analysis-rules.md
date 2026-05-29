@@ -285,6 +285,101 @@ source for trail-management findings.
 
 ---
 
+## 2.8 Oracle Engine Behaviors - Known False Positive Sources
+
+Oracle Unified Auditing has documented engine behaviors that produce audit
+trail records even when policy restrictions should prevent them. The Python
+detection engine in `audit_report.py` pre-screens for these patterns and
+injects a `{fp_context}` block into the AI prompt when candidates are found.
+
+**Rule for the AI:** Before raising any finding related to a BY GRANTED ROLE
+policy, failed LOGONs, or policy-enabled status, check whether the finding
+text was pre-tagged with `[FP-SUSPECT: FP-NNN]` by the detection engine. If
+tagged, the finding MUST include the tag AND the verify SQL for the human
+reviewer. Do NOT suppress the finding, but downgrade its severity and add
+the `[FP-SUSPECT]` marker so the reviewer can confirm or dismiss it.
+
+### FP-001: BY GRANTED ROLE - Failed LOGONs without role membership check
+
+Oracle does **not** evaluate `BY GRANTED ROLE` membership for unauthenticated
+sessions. When a LOGON attempt fails (ORA-01017 wrong password, ORA-01045 no
+CREATE SESSION), the session is never established and the role grant lookup
+against `DBA_ROLE_PRIVS` is skipped. The audit record is written with the
+attempted username regardless of actual role membership.
+
+**AI rule:** A high volume of failed LOGONs under a `BY GRANTED ROLE` policy
+does NOT prove the user holds the role. ALWAYS cross-check with
+`20_fp_role_grantees.csv` (if available) or query `DBA_ROLE_PRIVS` before
+concluding that the user is a role member. If all events for a user under
+a `BY GRANTED ROLE` policy are failures (`return_code != 0`), treat this as
+an FP-001 candidate and tag accordingly.
+
+**Verify SQL template:**
+
+```sql
+SELECT grantee, granted_role, admin_option
+FROM   dba_role_privs
+WHERE  granted_role = '<role_name>'
+ORDER  BY grantee;
+```
+
+### FP-002: IP_ADDRESS IS NULL - Failed remote LOGONs captured as direct access
+
+`USERENV.IP_ADDRESS` is NULL for **all** failed authentication events,
+including remote TCP connections. A WHEN condition using
+`SYS_CONTEXT('USERENV','IP_ADDRESS') IS NULL` to detect bequeath/local
+connections therefore also fires for every remote failed LOGON. Events from
+this pattern are NOT evidence of direct database access by the affected users.
+
+**AI rule:** When a policy's WHEN condition contains `IP_ADDRESS IS NULL` and
+events include failed LOGONs, do NOT conclude that the failing users are
+connecting via bequeath/direct connections. The correct discriminator is
+`NETWORK_PROTOCOL IS NULL` (which is set at the listener layer before
+authentication and is reliable even for failed auth).
+
+### FP-003: Custom App Context IS NULL - All failed LOGONs match WHEN condition
+
+Custom application contexts (non-USERENV namespaces set by a LOGON trigger via
+`DBMS_SESSION.SET_CONTEXT`) are **never** populated for failed LOGON events.
+The LOGON trigger does not fire when authentication fails, so any
+`SYS_CONTEXT('<custom_ns>', '<attr>')` returns NULL for failed sessions.
+
+A common defensive WHEN pattern `ctx_attr != 'TRUE' OR ctx_attr IS NULL`
+matches **every** failed LOGON as a side effect of the `IS NULL` arm.
+
+**AI rule:** When a policy's WHEN condition contains a non-USERENV
+`SYS_CONTEXT(...)` call with an `IS NULL` branch, failed LOGON events under
+that policy are structurally expected - they do not indicate that the failing
+users satisfy the policy's intent. This compounds with FP-001 when the same
+policy also uses `BY GRANTED ROLE`.
+
+### FP-004: Policy created but never enabled
+
+`CREATE AUDIT POLICY` registers a policy in `AUDIT_UNIFIED_POLICIES` but does
+NOT activate event collection. A separate `AUDIT POLICY <name>` statement is
+required to enable the policy. A policy where `success = 'NO'` AND
+`failure = 'NO'` in `AUDIT_UNIFIED_POLICIES` generates zero operational events.
+
+**AI rule:** Do not reference a policy with `success=NO` and `failure=NO` as
+an active control. Report it as a structural gap (planned coverage not yet
+activated), not as a security finding based on observed events.
+
+### Detection engine output
+
+When the `audit_report.py` detection engine identifies FP candidates, it:
+
+1. Prepends a `{fp_context}` block to the AI prompt listing each candidate
+   with pattern ID, affected policy, users, and verify SQL.
+2. Appends a **Section 12 - Suspected False Positives** table to the report.
+
+The AI MUST treat the `{fp_context}` candidates as authoritative pre-screening
+and reflect them in findings using the `[FP-SUSPECT: FP-NNN]` tag.
+
+Cross-reference: `docs/false-positive-patterns.md` (full pattern catalog with
+policy fix guidance), `tools/fp_patterns.json` (machine-readable definitions).
+
+---
+
 ## 3. UNIFIED_AUDIT_POLICIES concatenation semantics
 
 `UNIFIED_AUDIT_TRAIL.UNIFIED_AUDIT_POLICIES` is a comma-separated
@@ -570,12 +665,13 @@ changes, future versions will too). Amendments to this document:
    an issue tagged `breaking-rule-change` so downstream consumers
    (audit_report.py, CI tests) update in sync.
 
-**Version**: 0.3.0 (2026-05-28)
+**Version**: 0.4.0 (2026-05-29)
 
 **Change log**:
 
 | Date       | Version | Change                                                                        |
 |------------|---------|-------------------------------------------------------------------------------|
+| 2026-05-29 | 0.4.0   | Add §2.8: Oracle Engine Behaviors - Known False Positive Sources (FP-001 to FP-004 AI rule contract). |
 | 2026-05-28 | 0.3.0   | Rewrite §2.6: two-scenario model (Context vs. Pattern-based); remove tool-specific names. |
 | 2026-05-28 | 0.2.0   | Add sections 2.5 (ghost events), 2.6 (off-path inference), 2.7 (purge metadata reliability). |
 | 2026-05-28 | 0.1.0   | Initial draft. Addresses F1-F5 from `tasks/rework-plan.md`. |

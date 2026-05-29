@@ -6,8 +6,8 @@
 # Name.......: audit_report.py
 # Author.....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 # Editor.....: Stefan Oehrli
-# Date.......: 2026.05.28
-# Version....: 1.2.0
+# Date.......: 2026.05.29
+# Version....: 1.7.0
 # Purpose....: Read a (raw or anonymised) ora-db-audit bundle and render a
 #              structured Markdown report for DBA, Security Engineer and
 #              Auditor audiences. Generates an executive summary plus
@@ -20,9 +20,12 @@
 #              its structure based on which one is fed in. Pattern config
 #              defaults to a small built-in set; pass --patterns FILE.json
 #              for customer-specific host classification patterns.
+#              FP pattern config defaults to tools/fp_patterns.json; override
+#              with --fp-patterns FILE.json for site-specific extensions.
 #
 # Usage......: audit_report.py BUNDLE_DIR [--output FILE]
 #                              [--patterns FILE.json]
+#                              [--fp-patterns FILE.json]
 #                              [--include-appendix]
 #                              [--top-n N]
 #                              [--customer-prefix PREFIX]
@@ -33,6 +36,15 @@
 #              at http://www.apache.org/licenses/
 # ------------------------------------------------------------------------------
 # CHANGE LOG:
+# 2026.05.29  oes  F1-F7: Section 7.3 uncovered users, Section 11 policy   1.7.0
+#                  DDL, exec summary AI sentinel, per-query progress,
+#                  ctx event list, off-path user list, language-aware AI
+#                  header; QUERY_FILES 19+21; wire render_section_07_3 +
+#                  render_section_11_policy_ddl into render pipeline.
+# 2026.05.29  oes  False positive detection engine: QUERY_FILES entry 20,  1.4.0
+#                  load_fp_patterns(), detect_false_positives(), render
+#                  helpers, AI prompt hardening (Oracle behavior rules +
+#                  fp_context injection), --fp-patterns CLI arg, Section 12.
 # 2026.05.28  oes  R3: sampling note in exec summary; align version to     1.2.0
 #                  repo SemVer (VERSION file = single source of truth).
 # 2026.05.28  oes  R1+R2: CIS coverage (Section 9) and Audit-Roles        1.1.0
@@ -70,8 +82,9 @@ from audit_report_messages import (  # noqa: E402
 )
 
 
-TOOL_VERSION = "1.3.2"
+TOOL_VERSION = "1.7.0"
 DEFAULT_TOP_N = None  # None = use bundle manifest top_n; 0 = unlimited
+_AI_STATUS_SENTINEL = "<!-- AI_STATUS_PENDING -->"
 DEFAULT_CUSTOMER_PREFIX = ""
 DEFAULT_AI_MODEL = "claude-sonnet-4-6"
 DEFAULT_AI_OP_PATH = ""
@@ -92,7 +105,14 @@ AI_SYSTEM_PROMPTS: dict[str, str] = {
         "sind ausdruecklich KEINE gueltigen Findings - der Tool-Scope ist "
         "Pure Mode. Bewerte die im Report generierten Tuning-Vorschlaege "
         "(Abschnitt 8.1) als Bedingungs-Ausdruecke, die manuell via "
-        "DROP + CREATE AUDIT POLICY anzuwenden sind. Antworte auf Deutsch; "
+        "DROP + CREATE AUDIT POLICY anzuwenden sind. "
+        "Bekannte Oracle-Engine-Verhaltensweisen produzieren systematisch "
+        "Artefakte im Audit Trail: BY GRANTED ROLE wird bei fehlgeschlagener "
+        "Authentifizierung nicht ausgewertet; USERENV.IP_ADDRESS ist NULL "
+        "fuer alle fehlgeschlagenen LOGONs (auch remote TCP); Custom-Context "
+        "IS NULL Arme in WHEN-Bedingungen matchen alle failed LOGONs. "
+        "Diese Regeln IMMER pruefen bevor Event-Mengen als Security-Evidenz "
+        "gewertet werden. Antworte auf Deutsch; "
         "Oracle-Objekt-Namen, SQL und Code-Bloecke bleiben Englisch."
     ),
     "en": (
@@ -103,8 +123,15 @@ AI_SYSTEM_PROMPTS: dict[str, str] = {
         "explicitly NOT valid findings - the tool scope is Pure Mode. "
         "Evaluate the tuning suggestions in the report (Section 8.1) as "
         "condition expressions to be applied manually via "
-        "DROP + CREATE AUDIT POLICY. Reply in English; Oracle object names, "
-        "SQL, and code blocks stay in English."
+        "DROP + CREATE AUDIT POLICY. "
+        "Known Oracle engine behaviors produce systematic audit trail "
+        "artefacts: BY GRANTED ROLE is not evaluated for failed auth; "
+        "USERENV.IP_ADDRESS is NULL for all failed LOGONs including remote "
+        "TCP; custom-context IS NULL branches in WHEN conditions match all "
+        "failed LOGONs. Always apply these rules before interpreting event "
+        "volumes as security evidence. "
+        "Reply in English; Oracle object names, SQL, and code blocks stay "
+        "in English."
     ),
 }
 
@@ -184,6 +211,38 @@ Bewerte jeden Vorschlag:
 - Praezision: Kombination User+Programm ist enger als nur User - bevorzugen
 - Falls KEIN Vorschlag sicher anwendbar: alternativen Ansatz begruenden
   (Audit-Context, Whitelist, separate Suppression-Policy)
+
+## Oracle-Engine-Verhalten: Bekannte False-Positive-Quellen
+
+Diese Regeln beschreiben Oracle-Verhaltensweisen die systematisch Artefakte
+in der Audit-Trail erzeugen. MUSS geprueft werden bevor Event-Mengen als
+Security-Evidenz gewertet werden. Details: `docs/false-positive-patterns.md`.
+
+**FP-001 (BY_GRANTED_ROLE_FAILED_LOGON):** Oracle wertet `BY GRANTED ROLE`
+NICHT aus fuer unauthentifizierte Sessions. Jeder gescheiterte LOGON-Versuch
+(ORA-01017, ORA-01045) erscheint unter einer BY GRANTED ROLE Policy unabhaengig
+davon ob der User die Rolle tatsaechlich hat. Regel: Wenn ALLE Events eines
+Users unter einer BY GRANTED ROLE Policy fehlgeschlagene LOGONs sind,
+Rollenmitgliedschaft via `dba_role_privs` verifizieren bevor Schlussfolgerungen
+gezogen werden. Tag: `[FP-SUSPECT: FP-001]`.
+
+**FP-002 (IP_ADDRESS_NULL_FAILED_LOGON):** `USERENV.IP_ADDRESS` ist NULL fuer
+ALLE fehlgeschlagenen Auth-Events, auch remote TCP. Eine WHEN-Bedingung mit
+`IP_ADDRESS IS NULL` feuert daher auch fuer jeden fehlgeschlagenen Remote-LOGON.
+Hohe Event-Zahlen unter einer solchen Policy bedeuten NICHT zwingend direkten
+Datenbankzugriff (Bequeath). Tag: `[FP-SUSPECT: FP-002]`.
+
+**FP-003 (APP_CONTEXT_NULL_FAILED_LOGON):** Custom Application Contexts (nicht
+USERENV, gesetzt via Logon-Trigger) werden NIEMALS fuer fehlgeschlagene LOGONs
+populiert. WHEN-Bedingungen mit `OR ctx IS NULL` (defensiver Arm) matchen
+dadurch alle fehlgeschlagenen LOGONs als Nebeneffekt. Tag: `[FP-SUSPECT: FP-003]`.
+
+**FP-004 (POLICY_NOT_ENABLED):** Eine Policy die via `CREATE AUDIT POLICY`
+angelegt aber nie aktiviert wurde erzeugt keinerlei operative Audit-Records.
+Jede Referenz auf eine solche Policy beschreibt eine Konfigurationsluecke,
+kein Security-Event. Tag: `[FP-SUSPECT: FP-004]`.
+
+{fp_context}
 
 ## Audit-Report
 
@@ -301,6 +360,36 @@ Evaluate each suggestion:
 - If NO suggestion is safely applicable: justify an alternative approach
   (audit context, whitelist, separate suppression policy)
 
+## Oracle Engine Behavior: Known False Positive Sources
+
+These rules describe Oracle behaviors that systematically produce artefacts in
+the audit trail. MUST be checked before interpreting event volumes as security
+evidence. Details: `docs/false-positive-patterns.md`.
+
+**FP-001 (BY_GRANTED_ROLE_FAILED_LOGON):** Oracle does NOT evaluate `BY GRANTED
+ROLE` membership for unauthenticated sessions. Every failed LOGON (ORA-01017,
+ORA-01045) appears under a BY GRANTED ROLE policy regardless of actual role
+membership. Rule: if ALL events for a user under a BY GRANTED ROLE policy are
+failed LOGONs, verify role membership via `dba_role_privs` before drawing
+conclusions. Tag: `[FP-SUSPECT: FP-001]`.
+
+**FP-002 (IP_ADDRESS_NULL_FAILED_LOGON):** `USERENV.IP_ADDRESS` is NULL for ALL
+failed auth events, including remote TCP connections. A WHEN condition with
+`IP_ADDRESS IS NULL` therefore fires for every failed remote LOGON. High event
+counts under such a policy do NOT necessarily indicate direct (bequeath) database
+access. Tag: `[FP-SUSPECT: FP-002]`.
+
+**FP-003 (APP_CONTEXT_NULL_FAILED_LOGON):** Custom application contexts (non-USERENV,
+set by logon trigger) are NEVER populated for failed LOGONs. WHEN conditions with
+`OR ctx IS NULL` (defensive arm) therefore match all failed LOGONs as a side
+effect. Tag: `[FP-SUSPECT: FP-003]`.
+
+**FP-004 (POLICY_NOT_ENABLED):** A policy created via `CREATE AUDIT POLICY` but
+never activated generates zero operational audit records. Any reference to such
+a policy describes a configuration gap, not a security event. Tag: `[FP-SUSPECT: FP-004]`.
+
+{fp_context}
+
 ## Audit Report
 
 {report_text}
@@ -390,7 +479,385 @@ QUERY_FILES = {
     "15": "15_noise_candidates",
     "17": "17_cis_coverage",
     "18": "18_audit_roles",
+    "19": "19_offpath_candidates",
+    "20": "20_fp_role_grantees",
+    "21": "21_uncovered_users",
 }
+
+
+# ---------------------------------------------------------------------------
+# False Positive detection engine
+# ---------------------------------------------------------------------------
+
+DEFAULT_FP_PATTERNS_FILE = _HERE / "fp_patterns.json"
+
+
+def load_fp_patterns(path=None):
+    """Load FP pattern definitions from JSON. Falls back to DEFAULT_FP_PATTERNS_FILE.
+    Returns list of enabled pattern dicts."""
+    target = Path(path) if path else DEFAULT_FP_PATTERNS_FILE
+    if not target.is_file():
+        return []
+    try:
+        data = json.loads(target.read_text(encoding="utf-8"))
+        return [p for p in data.get("patterns", []) if p.get("enabled", True)]
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"WARN: could not load FP patterns from {target}: {exc}",
+              file=sys.stderr)
+        return []
+
+
+def _fp_get_role_grantees(bundle):
+    """Return set of (policy_name, role_name, grantee_upper) from 20_fp_role_grantees.csv."""
+    fd = bundle["_files"].get("20")
+    if not fd:
+        return set()
+    idx_pol = _col_index(fd, "policy_name")
+    idx_role = _col_index(fd, "role_name")
+    idx_gran = _col_index(fd, "grantee")
+    result = set()
+    for row in fd.get("rows", []):
+        pol = _row_get(row, idx_pol)
+        role = _row_get(row, idx_role)
+        gran = _row_get(row, idx_gran)
+        if pol and role and gran and gran.upper() != "NONE":
+            result.add((pol, role, gran.upper()))
+    return result
+
+
+def _fp_detect_role_binding(bundle, pattern):
+    """FP-001: BY GRANTED ROLE policies where all events for a user are failed auth."""
+    inv = bundle["_files"].get("03")
+    pua = bundle["_files"].get("05")
+    if not inv or not pua:
+        return []
+
+    idx_pol = _col_index(inv, "policy_name")
+    idx_etype = _col_index(inv, "entity_type")
+    idx_ename = _col_index(inv, "entity_name")
+    role_policies = {}  # policy_name -> role_name
+    for row in inv.get("rows", []):
+        if _row_get(row, idx_etype).upper() == "ROLE":
+            pname = _row_get(row, idx_pol)
+            rname = _row_get(row, idx_ename)
+            if pname and rname:
+                role_policies[pname] = rname
+    if not role_policies:
+        return []
+
+    idx_p = _col_index(pua, "policy_name")
+    idx_u = _col_index(pua, "db_username")
+    idx_rc = _col_index(pua, "return_code")
+    idx_cnt = _col_index(pua, "event_count")
+
+    events_by_pu = defaultdict(list)
+    for row in pua.get("rows", []):
+        pol = _row_get(row, idx_p)
+        usr = _row_get(row, idx_u)
+        if pol in role_policies and usr:
+            events_by_pu[(pol, usr)].append(
+                (_row_get(row, idx_rc), _to_int(_row_get(row, idx_cnt), 0))
+            )
+
+    grantees = _fp_get_role_grantees(bundle)
+    has_grantee_data = bool(grantees)
+
+    candidates = []
+    for (pol, usr), ev_list in events_by_pu.items():
+        if not all(rc != "0" and rc != "" for rc, _ in ev_list):
+            continue
+        role = role_policies[pol]
+        if has_grantee_data and (pol, role, usr.upper()) in grantees:
+            continue
+        total = sum(cnt for _, cnt in ev_list)
+        candidates.append({
+            "pattern_id": pattern["id"],
+            "pattern_title": pattern["title"],
+            "policy_name": pol,
+            "role_name": role,
+            "user_name": usr,
+            "event_count": total,
+            "all_failed": True,
+            "verify_sql": pattern.get("verify_sql", "").replace("{role_name}", role),
+            "remediation": pattern.get("remediation", ""),
+            "oracle_behavior": pattern.get("oracle_behavior", ""),
+        })
+    return candidates
+
+
+def _fp_detect_when_condition(bundle, pattern):
+    """FP-002: Policies with specific strings in audit_condition + failed LOGONs."""
+    inv = bundle["_files"].get("03")
+    pua = bundle["_files"].get("05")
+    if not inv or not pua:
+        return []
+
+    must_contain = [s.upper() for s in pattern.get("when_condition_contains", [])]
+    if not must_contain:
+        return []
+
+    idx_pol = _col_index(inv, "policy_name")
+    idx_cond = _col_index(inv, "audit_condition")
+    matching_policies = set()
+    for row in inv.get("rows", []):
+        cond = _row_get(row, idx_cond).upper()
+        if all(s in cond for s in must_contain):
+            pname = _row_get(row, idx_pol)
+            if pname:
+                matching_policies.add(pname)
+    if not matching_policies:
+        return []
+
+    idx_p = _col_index(pua, "policy_name")
+    idx_u = _col_index(pua, "db_username")
+    idx_act = _col_index(pua, "action_name")
+    idx_rc = _col_index(pua, "return_code")
+    idx_cnt = _col_index(pua, "event_count")
+
+    candidates = []
+    seen = set()
+    for row in pua.get("rows", []):
+        pol = _row_get(row, idx_p)
+        if pol not in matching_policies:
+            continue
+        rc = _row_get(row, idx_rc)
+        if _row_get(row, idx_act).upper() != "LOGON" or rc in ("0", ""):
+            continue
+        usr = _row_get(row, idx_u)
+        if (pol, usr) in seen:
+            continue
+        seen.add((pol, usr))
+        candidates.append({
+            "pattern_id": pattern["id"],
+            "pattern_title": pattern["title"],
+            "policy_name": pol,
+            "role_name": "",
+            "user_name": usr,
+            "event_count": _to_int(_row_get(row, idx_cnt), 0),
+            "all_failed": True,
+            "verify_sql": pattern.get("verify_sql", "").replace("{policy_name}", pol),
+            "remediation": pattern.get("remediation", ""),
+            "oracle_behavior": pattern.get("oracle_behavior", ""),
+        })
+    return candidates
+
+
+def _fp_detect_context_null(bundle, pattern):
+    """FP-003: Non-USERENV SYS_CONTEXT IS NULL in WHEN condition + failed LOGONs."""
+    inv = bundle["_files"].get("03")
+    pua = bundle["_files"].get("05")
+    if not inv or not pua:
+        return []
+
+    _ctx_re = re.compile(
+        r"SYS_CONTEXT\s*\(\s*'(?!USERENV\b)([^']+)'", re.IGNORECASE
+    )
+    _null_re = re.compile(r"\bIS\s+NULL\b", re.IGNORECASE)
+
+    idx_pol = _col_index(inv, "policy_name")
+    idx_cond = _col_index(inv, "audit_condition")
+    matching_policies = set()
+    for row in inv.get("rows", []):
+        cond = _row_get(row, idx_cond)
+        if _ctx_re.search(cond) and _null_re.search(cond):
+            pname = _row_get(row, idx_pol)
+            if pname:
+                matching_policies.add(pname)
+    if not matching_policies:
+        return []
+
+    idx_p = _col_index(pua, "policy_name")
+    idx_u = _col_index(pua, "db_username")
+    idx_act = _col_index(pua, "action_name")
+    idx_rc = _col_index(pua, "return_code")
+    idx_cnt = _col_index(pua, "event_count")
+
+    candidates = []
+    seen = set()
+    for row in pua.get("rows", []):
+        pol = _row_get(row, idx_p)
+        if pol not in matching_policies:
+            continue
+        rc = _row_get(row, idx_rc)
+        if _row_get(row, idx_act).upper() != "LOGON" or rc in ("0", ""):
+            continue
+        usr = _row_get(row, idx_u)
+        if (pol, usr) in seen:
+            continue
+        seen.add((pol, usr))
+        candidates.append({
+            "pattern_id": pattern["id"],
+            "pattern_title": pattern["title"],
+            "policy_name": pol,
+            "role_name": "",
+            "user_name": usr,
+            "event_count": _to_int(_row_get(row, idx_cnt), 0),
+            "all_failed": True,
+            "verify_sql": pattern.get("verify_sql", "").replace("{policy_name}", pol),
+            "remediation": pattern.get("remediation", ""),
+            "oracle_behavior": pattern.get("oracle_behavior", ""),
+        })
+    return candidates
+
+
+def _fp_detect_policy_enabled(bundle, pattern, policy_ddl_map=None):
+    """FP-004: Custom policy in DDL log but never enabled (success=NO, failure=NO)."""
+    inv = bundle["_files"].get("03")
+    if not inv:
+        return []
+
+    idx_pol = _col_index(inv, "policy_name")
+    idx_supp = _col_index(inv, "oracle_supplied")
+    idx_succ = _col_index(inv, "success")
+    idx_fail = _col_index(inv, "failure")
+
+    policy_flags = defaultdict(lambda: {"success": set(), "failure": set()})
+    for row in inv.get("rows", []):
+        pname = _row_get(row, idx_pol)
+        if not pname or _row_get(row, idx_supp).upper() == "YES":
+            continue
+        policy_flags[pname]["success"].add(_row_get(row, idx_succ).upper())
+        policy_flags[pname]["failure"].add(_row_get(row, idx_fail).upper())
+
+    candidates = []
+    for pname, flags in policy_flags.items():
+        if "YES" in flags["success"] or "YES" in flags["failure"]:
+            continue
+        if policy_ddl_map is not None and pname not in policy_ddl_map:
+            continue
+        candidates.append({
+            "pattern_id": pattern["id"],
+            "pattern_title": pattern["title"],
+            "policy_name": pname,
+            "role_name": "",
+            "user_name": "",
+            "event_count": 0,
+            "all_failed": False,
+            "verify_sql": pattern.get("verify_sql", "").replace("{policy_name}", pname),
+            "remediation": pattern.get("remediation", "").replace("{policy_name}", pname),
+            "oracle_behavior": pattern.get("oracle_behavior", ""),
+        })
+    return candidates
+
+
+_FP_DETECTORS = {
+    "role_binding_check": _fp_detect_role_binding,
+    "when_condition_check": _fp_detect_when_condition,
+    "context_null_check": _fp_detect_context_null,
+    "policy_enabled_check": _fp_detect_policy_enabled,
+}
+
+
+def detect_false_positives(bundle, patterns, policy_ddl_map=None):
+    """Run all enabled FP patterns against the bundle data. Returns list of candidate dicts."""
+    all_candidates = []
+    for pat in patterns:
+        dtype = pat.get("detection_type", "")
+        detector = _FP_DETECTORS.get(dtype)
+        if not detector:
+            continue
+        if dtype == "policy_enabled_check":
+            found = detector(bundle, pat, policy_ddl_map=policy_ddl_map)
+        else:
+            found = detector(bundle, pat)
+        all_candidates.extend(found)
+    return all_candidates
+
+
+def render_fp_context_for_ai(candidates, lang="de"):
+    """Render the FP pre-analysis block to inject into the AI user prompt."""
+    if not candidates:
+        return ""
+    if lang == "en":
+        header = (
+            "## False Positive Pre-Analysis\n\n"
+            "The following potential false positives were identified programmatically. "
+            "For each entry you MUST either confirm it as a false positive (add "
+            "`[FP-SUSPECT: <id>]` tag) or provide evidence it is genuine.\n\n"
+        )
+        cols = ["Pattern", "Policy", "User", "Events", "Reason"]
+    else:
+        header = (
+            "## False-Positive-Voranalyse\n\n"
+            "Die folgenden Kandidaten wurden programmatisch erkannt. "
+            "Pro Eintrag: als False Positive bestaetigen (`[FP-SUSPECT: <id>]`) "
+            "oder Begruendung liefern warum es trotzdem echt ist.\n\n"
+        )
+        cols = ["Pattern", "Policy", "User", "Ereignisse", "Begruendung"]
+
+    rows = []
+    for c in candidates:
+        parts = []
+        if c["all_failed"] and c["event_count"]:
+            parts.append(
+                f"All {c['event_count']} events failed auth"
+                if lang == "en"
+                else f"Alle {c['event_count']} Events = Auth-Fehler"
+            )
+        if c.get("role_name"):
+            parts.append(
+                f"BY GRANTED ROLE {c['role_name']} not checked for failed auth"
+                if lang == "en"
+                else f"BY GRANTED ROLE {c['role_name']} bei failed auth nicht geprueft"
+            )
+        reason = "; ".join(parts) if parts else c["pattern_title"]
+        rows.append([
+            c["pattern_id"],
+            c["policy_name"] or "-",
+            c["user_name"] or "-",
+            str(c["event_count"]) if c["event_count"] else "-",
+            reason,
+        ])
+    return header + render_table(cols, rows) + "\n"
+
+
+def render_fp_section(candidates, lang="de"):
+    """Render Section 12: Suspected False Positives, appended after AI findings."""
+    if not candidates:
+        return ""
+    if lang == "en":
+        out = "\n## 12. Suspected False Positives\n\n"
+        out += (
+            "> Identified programmatically based on known Oracle Unified Audit engine "
+            "behaviors. Run the verify SQL before escalating. "
+            "See `docs/false-positive-patterns.md` for explanations and policy fixes.\n\n"
+        )
+        cols = ["#", "Pattern", "Title", "Policy", "User", "Events"]
+    else:
+        out = "\n## 12. Verdaechtige False Positives\n\n"
+        out += (
+            "> Programmatisch erkannt basierend auf bekannten Oracle Unified Audit "
+            "Engine-Verhaltensweisen. Verify-SQL ausfuehren vor dem Eskalieren. "
+            "Siehe `docs/false-positive-patterns.md` fuer Erklaerungen und Policy-Fixes.\n\n"
+        )
+        cols = ["#", "Pattern", "Titel", "Policy", "User", "Ereignisse"]
+
+    rows = []
+    for i, c in enumerate(candidates, 1):
+        title_short = (c["pattern_title"][:57] + "...") if len(c["pattern_title"]) > 60 else c["pattern_title"]
+        rows.append([
+            str(i), c["pattern_id"], title_short,
+            c["policy_name"] or "-", c["user_name"] or "-",
+            str(c["event_count"]) if c["event_count"] else "-",
+        ])
+    out += "<!-- markdownlint-disable MD013 -->\n"
+    out += render_table(cols, rows)
+    out += "<!-- markdownlint-enable MD013 -->\n"
+
+    for i, c in enumerate(candidates, 1):
+        label = "FP Candidate" if lang == "en" else "FP-Kandidat"
+        out += f"\n### {label} {i}: {c['pattern_id']} - {c['policy_name'] or 'N/A'}\n\n"
+        if c["oracle_behavior"]:
+            bhdr = "**Oracle behavior:**" if lang == "en" else "**Oracle-Verhalten:**"
+            out += f"{bhdr} {c['oracle_behavior']}\n\n"
+        if c["verify_sql"]:
+            vhdr = "**Verify SQL:**" if lang == "en" else "**Verify SQL:**"
+            out += f"{vhdr}\n\n```sql\n{c['verify_sql']}\n```\n\n"
+        if c["remediation"]:
+            rhdr = "**Remediation:**" if lang == "en" else "**Massnahme:**"
+            rem = c["remediation"]
+            out += f"{rhdr} {rem[:300] + '...' if len(rem) > 300 else rem}\n\n"
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -1058,6 +1525,17 @@ def render_executive_summary(bundle, classifier, top_n):
                 except ValueError:
                     pass
 
+    # Uncovered users count from 21_uncovered_users.csv (F5)
+    uncovered_count = 0
+    fd21 = files.get("21")
+    if fd21:
+        rows21 = fd21.get("rows", [])
+        idx_allus = _col_index(fd21, "covered_all_users")
+        if rows21 and idx_allus >= 0:
+            first_allus = _row_get(rows21[0], idx_allus).strip().upper()
+            if first_allus != "YES":
+                uncovered_count = len(rows21)
+
     out += section_header(3, t("section.metrics", lang=LANG))
     metrics_rows = [
         [t("metric.pol_events", lang=LANG), fmt_int(pol_events)],
@@ -1068,6 +1546,8 @@ def render_executive_summary(bundle, classifier, top_n):
          fmt_int(_unique_policy_count(files.get("03"))[0])],
         [t("metric.storage_partitions", lang=LANG),
          fmt_int(len(files.get("02", {}).get("rows", [])))],
+        [t("metric.uncovered_users", lang=LANG), fmt_int(uncovered_count)],
+        [t("metric.ai_findings", lang=LANG), _AI_STATUS_SENTINEL],
     ]
     out += render_table(
         [t("label.metric", lang=LANG), t("label.value", lang=LANG)],
@@ -1513,6 +1993,8 @@ def render_section_07_security_signals(files, classifier, top_n):
     fd12 = files.get("12")
     if fd12 is None:
         out += t("note.offpath_skipped", lang=LANG) + "\n\n"
+        sec73, _count = render_section_07_3_uncovered(files.get("21"), top_n)
+        out += sec73
         return out
 
     # --- 7.2.1 Scenario A: Application Context ---
@@ -1533,12 +2015,63 @@ def render_section_07_security_signals(files, classifier, top_n):
         )
         out += "\n"
         out += t("offpath.ctx_hint_null", lang=LANG) + "\n\n"
+
+        # F1: Event list for context-conditioned policies from 05_policy_user_action.csv
+        fd05 = files.get("05")
+        ctx_policy_set = {p for e in ctx_entries for p in e["policies"]}
+        if fd05 and ctx_policy_set:
+            out += t("offpath.ctx_events_header", lang=LANG) + "\n\n"
+            idx_pol = _col_index(fd05, "policy_name")
+            idx_usr = _col_index(fd05, "db_username")
+            idx_act = _col_index(fd05, "action_name")
+            idx_evt = _col_index(fd05, "events")
+            idx_rc  = _col_index(fd05, "return_code")
+            evt_rows = []
+            for row in fd05.get("rows", []):
+                pol = _row_get(row, idx_pol).strip()
+                if pol not in ctx_policy_set:
+                    continue
+                act = _row_get(row, idx_act).strip().upper()
+                if act in ("LOGON", "LOGOFF"):
+                    continue
+                evt_rows.append([
+                    pol,
+                    _row_get(row, idx_usr).strip(),
+                    act,
+                    fmt_int(_row_get(row, idx_evt)),
+                    _row_get(row, idx_rc).strip(),
+                ])
+            if evt_rows:
+                out += "<!-- markdownlint-disable MD013 -->\n"
+                out += render_table(
+                    [t("label.policy", lang=LANG),
+                     t("label.user", lang=LANG),
+                     t("label.action", lang=LANG),
+                     t("label.events", lang=LANG),
+                     t("label.return_code_short", lang=LANG)],
+                    evt_rows, max_rows=top_n,
+                )
+                out += "<!-- markdownlint-enable MD013 -->\n\n"
+            else:
+                out += t("offpath.ctx_events_none", lang=LANG) + "\n\n"
     else:
         out += t("offpath.ctx_none", lang=LANG) + "\n\n"
 
     # --- 7.2.2 Scenario B: Pattern-based ---
     out += section_header(4, t("section.07_2b_pattern", lang=LANG))
     out += t("offpath.pattern_intro", lang=LANG) + "\n\n"
+
+    # Build host -> [user, ...] mapping from 11_host_user_program.csv (F2)
+    fd11 = files.get("11")
+    host_users: dict = {}
+    if fd11:
+        idx_h11 = _col_index(fd11, "userhost")
+        idx_u11 = _col_index(fd11, "dbusername")
+        for row in fd11.get("rows", []):
+            hst = _row_get(row, idx_h11).strip()
+            usr = _row_get(row, idx_u11).strip()
+            if hst and usr:
+                host_users.setdefault(hst, set()).add(usr)
 
     idx_host = _col_index(fd12, "userhost")
     idx_logins = _col_index(fd12, "logins")
@@ -1550,22 +2083,117 @@ def render_section_07_security_signals(files, classifier, top_n):
             continue
         if classifier.classify(host) != "OFF-PATH":
             continue
+        users = host_users.get(host, set())
+        user_list = sorted(users)
+        if len(user_list) > 5:
+            user_str = ", ".join(user_list[:5]) + f" +{len(user_list)-5}"
+        else:
+            user_str = ", ".join(user_list) if user_list else "-"
         offpath_rows.append([
             host,
             fmt_int(_row_get(row, idx_logins)),
             fmt_int(_row_get(row, idx_users)),
+            user_str,
         ])
     if not offpath_rows:
         out += t("offpath.none", lang=LANG) + "\n\n"
     else:
         out += t("offpath.found", lang=LANG, n=len(offpath_rows)) + "\n\n"
+        out += "<!-- markdownlint-disable MD013 -->\n"
         out += render_table(
             [t("label.host", lang=LANG),
              t("label.logins", lang=LANG),
-             t("label.distinct_users", lang=LANG)],
+             t("label.distinct_users", lang=LANG),
+             t("label.users", lang=LANG)],
             offpath_rows, max_rows=top_n,
         )
-        out += "\n"
+        out += "<!-- markdownlint-enable MD013 -->\n\n"
+
+    # --- 7.3 Uncovered Users ---
+    sec73, _count = render_section_07_3_uncovered(files.get("21"), top_n)
+    out += sec73
+    return out
+
+
+def render_section_07_3_uncovered(file_data, top_n):
+    """Section 7.3: principals without non-logon policy coverage (21_uncovered_users.csv)."""
+    out = section_header(3, t("section.07_3_uncovered", lang=LANG))
+    if file_data is None:
+        out += t("uncovered.csv_missing", lang=LANG) + "\n\n"
+        return out, 0
+
+    out += t("uncovered.intro", lang=LANG) + "\n\n"
+
+    rows = file_data.get("rows", [])
+    idx_prin = _col_index(file_data, "principal")
+    idx_type = _col_index(file_data, "principal_type")
+    idx_allus = _col_index(file_data, "covered_all_users")
+
+    # If any row says covered_all_users=YES, all principals are covered
+    if rows and idx_allus >= 0:
+        first_allus = _row_get(rows[0], idx_allus).strip().upper()
+        if first_allus == "YES":
+            out += t("uncovered.all_users_note", lang=LANG) + "\n\n"
+            out += t("uncovered.source", lang=LANG) + "\n\n"
+            return out, 0
+
+    if not rows:
+        out += t("uncovered.none", lang=LANG) + "\n\n"
+        out += t("uncovered.source", lang=LANG) + "\n\n"
+        return out, 0
+
+    out += t("uncovered.found", lang=LANG, n=len(rows)) + "\n\n"
+    idx_d = _col_index(file_data, "covered_direct")
+    idx_r = _col_index(file_data, "covered_via_role")
+    table_rows = []
+    for row in rows[:top_n] if top_n else rows:
+        table_rows.append([
+            _row_get(row, idx_prin),
+            _row_get(row, idx_type),
+            _row_get(row, idx_d) if idx_d >= 0 else "-",
+            _row_get(row, idx_r) if idx_r >= 0 else "-",
+        ])
+    out += render_table(
+        [t("label.principal", lang=LANG),
+         t("label.principal_type", lang=LANG),
+         t("label.covered_direct", lang=LANG),
+         t("label.covered_role", lang=LANG)],
+        table_rows,
+    )
+    out += "\n"
+    out += t("uncovered.depth_note", lang=LANG) + "\n\n"
+    out += t("uncovered.source", lang=LANG) + "\n\n"
+    return out, len(rows)
+
+
+def render_section_11_policy_ddl(policy_ddl_map, top_n=None):
+    """Section 11: custom audit policy DDL definitions (16_policy_ddl.csv)."""
+    out = section_header(2, t("section.11_policy_ddl", lang=LANG))
+    if not policy_ddl_map:
+        out += t("policy_ddl.none", lang=LANG) + "\n\n"
+        return out
+
+    out += t("policy_ddl.section_intro", lang=LANG) + "\n\n"
+
+    oracle_prefixes = ("ORA$", "ORA_", "UNIFIED_AUDIT_")
+    custom_policies = [
+        (name, ddl)
+        for name, ddl in sorted(policy_ddl_map.items())
+        if not any(name.upper().startswith(p) for p in oracle_prefixes)
+    ]
+
+    if not custom_policies:
+        out += t("policy_ddl.none", lang=LANG) + "\n\n"
+        return out
+
+    shown = custom_policies[:top_n] if top_n else custom_policies
+    for name, ddl in shown:
+        out += section_header(4, name)
+        out += "```sql\n"
+        out += ddl.strip() + "\n"
+        out += "```\n\n"
+
+    out += t("policy_ddl.source", lang=LANG) + "\n\n"
     return out
 
 
@@ -1894,6 +2522,7 @@ def render_report(bundle, classifier, top_n, include_appendix,
     out += render_section_08_tuning(files.get("15"), top_n, policy_ddl_map)
     out += render_section_09_cis_coverage(files.get("17"), inv_data=files.get("03"))
     out += render_section_10_audit_roles(files.get("18"))
+    out += render_section_11_policy_ddl(policy_ddl_map, top_n)
     if include_appendix:
         out += render_appendix(bundle, top_n)
     out += "---\n\n"
@@ -2007,6 +2636,7 @@ def _generate_ai_findings(
     api_key: str,
     customer_prefix: str,
     lang: str = "de",
+    fp_context: str = "",
 ) -> str:
     """Call Claude and return findings text.
 
@@ -2019,6 +2649,7 @@ def _generate_ai_findings(
     user_prompt = tmpl.format(
         customer_prefix=customer_prefix,
         report_text=report_text,
+        fp_context=fp_context,
     )
     if api_key:
         return _generate_via_sdk(user_prompt, model, api_key, lang=lang)
@@ -2038,15 +2669,39 @@ def _run_ai_analysis(
     bundle_dir: Path,
     report_path: Path,
     report_text: str,
+    bundle: dict = None,
+    policy_ddl_map: dict = None,
+    fp_patterns: list = None,
 ) -> int:
-    """Append AI Section 9 to the report and write standalone audit_ai_findings.md."""
+    """Append AI findings + FP section to the report and write standalone audit_ai_findings.md."""
     from datetime import datetime, timezone
+
+    # FP detection: run before AI call so context can be injected into prompt
+    fp_candidates = []
+    fp_section = ""
+    if bundle is not None:
+        active_fp_patterns = fp_patterns if fp_patterns is not None else load_fp_patterns(
+            getattr(args, "fp_patterns", None)
+        )
+        if active_fp_patterns:
+            fp_candidates = detect_false_positives(
+                bundle, active_fp_patterns, policy_ddl_map=policy_ddl_map
+            )
+            if fp_candidates:
+                print(
+                    f"[FP] {len(fp_candidates)} false positive candidate(s) detected",
+                    file=sys.stderr,
+                )
+        fp_section = render_fp_section(fp_candidates, lang=LANG)
+
+    fp_context = render_fp_context_for_ai(fp_candidates, lang=LANG)
+
     print(f"[AI] Generating findings (model: {args.ai_model})...", file=sys.stderr)
     try:
         api_key = _get_api_key(args.ai_op_path)
         ai_text = _generate_ai_findings(
             report_text, args.ai_model, api_key, args.customer_prefix,
-            lang=LANG,
+            lang=LANG, fp_context=fp_context,
         )
     except RuntimeError as exc:
         print(f"ERROR (AI): {exc}", file=sys.stderr)
@@ -2054,32 +2709,48 @@ def _run_ai_analysis(
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    # Count AI findings lines starting with "##" as a rough finding count
+    finding_count = sum(1 for ln in ai_text.splitlines() if ln.startswith("## "))
+
+    # F3: language-aware section header
     ai_section = (
-        "\n## 11. AI-Findings (Claude)\n\n"
-        f"> Generiert: `{ts}` | Modell: `{args.ai_model}`  \n"
-        "> Automatisch generierte Analyse - Findings sind zu verifizieren.\n\n"
+        f"\n## {t('ai.section_title', lang=LANG)}\n\n"
+        + t("ai.generated_line", lang=LANG, ts=ts, model=args.ai_model) + "\n"
+        + t("ai.disclaimer", lang=LANG) + "\n\n"
         + ai_text + "\n"
+        + fp_section
     )
-    with report_path.open("a", encoding="utf-8") as fh:
-        fh.write(ai_section)
+
+    # F4: replace sentinel in already-written report with actual finding summary
+    ai_status = t("metric.ai_done", lang=LANG, n=finding_count)
+    report_text_updated = report_path.read_text(encoding="utf-8").replace(
+        _AI_STATUS_SENTINEL, ai_status
+    )
+    report_path.write_text(report_text_updated + ai_section, encoding="utf-8")
     print(f"Appended AI findings    -> {report_path}")
 
     standalone_path = bundle_dir / "audit_ai_findings.md"
+    gen_label = t("ai.standalone_generated", lang=LANG)
+    mod_label = t("ai.standalone_model", lang=LANG)
+    sid_label = t("ai.standalone_dbsid", lang=LANG)
+    standalone_title = t("ai.standalone_title", lang=LANG)
     standalone = (
         "<!-- markdownlint-disable MD013 MD033 MD060 -->\n"
-        "# AI-Findings - Audit Trail Analyse\n\n"
-        f"| Feld | Wert |\n"
+        + standalone_title + "\n\n"
+        f"| {gen_label} | `{ts}` |\n"
         f"|------|------|\n"
-        f"| Generiert | `{ts}` |\n"
-        f"| Modell | `{args.ai_model}` |\n"
-        f"| Bundle | `{bundle_dir.name}` |\n\n"
-        "> **Automatisch generierte Analyse - Findings sind zu verifizieren.**\n\n"
+        f"| {mod_label} | `{args.ai_model}` |\n"
+        f"| {sid_label} | `{bundle_dir.name}` |\n\n"
+        + t("ai.disclaimer", lang=LANG) + "\n\n"
         + ai_text + "\n\n"
-        "---\n\n"
-        f"_Generiert von `audit_report.py` v{TOOL_VERSION} via Claude API_\n"
+        + fp_section
+        + "---\n\n"
+        + t("ai.footer", lang=LANG, version=TOOL_VERSION) + "\n"
     )
     standalone_path.write_text(standalone, encoding="utf-8")
     print(f"Wrote standalone findings -> {standalone_path}")
+    if fp_candidates:
+        print(t("ai.fp_section_note", lang=LANG, n=len(fp_candidates)))
     return 0
 
 
@@ -2110,6 +2781,7 @@ def _write_export_prompt(
     customer_prefix: str,
     dest: Path,
     lang: str = "de",
+    fp_context: str = "",
 ) -> None:
     """Build the full AI user prompt and write it to dest.
 
@@ -2122,6 +2794,7 @@ def _write_export_prompt(
     tmpl = AI_USER_PROMPT_TEMPLATES.get(lang, AI_USER_PROMPT_TEMPLATES["de"])
     user_prompt = tmpl.format(
         customer_prefix=customer_prefix,
+        fp_context=fp_context,
         report_text=report_text,
     )
     if lang == "en":
@@ -2168,6 +2841,11 @@ def parse_args(argv):
     p.add_argument("--patterns", type=Path,
                    help="JSON file with host-pattern lists "
                         "(default: built-in community / customer-configurable set).")
+    p.add_argument("--fp-patterns", type=Path, dest="fp_patterns",
+                   metavar="FILE",
+                   help="JSON file with false-positive pattern definitions "
+                        "(default: tools/fp_patterns.json next to this script). "
+                        "Use to add custom FP patterns or override built-in ones.")
     p.add_argument("--top-n", type=int, default=None,
                    metavar="N",
                    help="Row cap per table in the report. "
@@ -2255,6 +2933,12 @@ def main(argv=None):
         return 2
     classifier = HostClassifier(patterns)
 
+    try:
+        fp_patterns = load_fp_patterns(args.fp_patterns)
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        print(f"ERROR loading FP patterns: {exc}", file=sys.stderr)
+        return 2
+
     bundle = read_bundle(bundle_dir)
     files = bundle["_files"]
     if args.verbose:
@@ -2299,8 +2983,13 @@ def main(argv=None):
     )
 
     if args.export_prompt:
+        fp_candidates_export = detect_false_positives(
+            bundle, fp_patterns, policy_ddl_map=policy_ddl_map
+        )
+        fp_ctx_export = render_fp_context_for_ai(fp_candidates_export, lang=LANG)
         _write_export_prompt(report_text, args.customer_prefix,
-                             args.export_prompt, lang=LANG)
+                             args.export_prompt, lang=LANG,
+                             fp_context=fp_ctx_export)
         print(f"Wrote AI prompt export  -> {args.export_prompt}")
         return 0
 
@@ -2323,7 +3012,11 @@ def main(argv=None):
     print(f"Wrote report            -> {output}")
 
     if args.ai:
-        return _run_ai_analysis(args, bundle_dir, output, report_text)
+        return _run_ai_analysis(
+            args, bundle_dir, output, report_text,
+            bundle=bundle, policy_ddl_map=policy_ddl_map,
+            fp_patterns=fp_patterns,
+        )
     return 0
 
 

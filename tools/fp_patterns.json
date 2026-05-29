@@ -1,0 +1,59 @@
+{
+  "_meta": {
+    "version": "1.0.0",
+    "description": "Oracle Unified Audit false positive pattern definitions for audit_report.py",
+    "doc": "docs/false-positive-patterns.md",
+    "format": "Each pattern has an id, detection_type (maps to Python engine), and fields used by that type. Add --fp-patterns custom.json to override or extend."
+  },
+  "patterns": [
+    {
+      "id": "FP-001",
+      "enabled": true,
+      "name": "by_granted_role_failed_logon",
+      "detection_type": "role_binding_check",
+      "title": "BY GRANTED ROLE: failed LOGONs captured without role membership check",
+      "oracle_behavior": "Oracle Unified Auditing does not evaluate BY GRANTED ROLE membership for unauthenticated sessions. When a LOGON attempt fails (ORA-01017, ORA-01045), the session is never established and the role grant lookup against DBA_ROLE_PRIVS is skipped. The audit record is written with the attempted username regardless of actual role membership. This affects every policy that uses BY GRANTED ROLE and includes LOGON in its action scope (explicitly or via ACTIONS ALL).",
+      "policy_requirement": "A BY GRANTED ROLE audit policy with ACTIONS ALL (or ACTIONS LOGON) will capture ALL failed LOGON events regardless of role membership. To avoid this, either (a) remove LOGON/LOGOFF from the action scope of role-restricted policies and rely on a separate unconditional LOGON policy, or (b) add AND SYS_CONTEXT('USERENV','NETWORK_PROTOCOL') IS NULL to the WHEN condition so that remote TCP failed LOGONs are excluded.",
+      "detection_logic": "From 03_policy_inventory.csv: collect (policy_name, role_name) pairs where entity_type=ROLE and oracle_supplied=NO. From 05_policy_user_action.csv: for each (policy, user) pair, check if ALL return_code values are non-zero (all events are authentication failures). From 20_fp_role_grantees.csv (if available): check whether the user appears as a direct grantee of the role. If all events are failures AND the user is not a confirmed grantee: emit FP-001 candidate.",
+      "verify_sql": "SELECT grantee, granted_role, admin_option\nFROM   dba_role_privs\nWHERE  granted_role = '{role_name}'\nORDER  BY grantee;",
+      "remediation": "1. Run verify_sql to confirm actual role grantees. If the user does NOT hold the role: the finding is a false positive. 2. To eliminate the false positive in the policy: convert ACTIONS ALL to an explicit action list that excludes LOGON/LOGOFF, or add AND SYS_CONTEXT('USERENV','NETWORK_PROTOCOL') IS NULL to the WHEN condition. 3. Centralize LOGON/LOGOFF auditing in a single unconditional policy (e.g. ACTIONS LOGON, LOGOFF without BY GRANTED ROLE). See docs/false-positive-patterns.md#fp-001 for WHEN-condition fix examples."
+    },
+    {
+      "id": "FP-002",
+      "enabled": true,
+      "name": "ip_address_null_failed_remote",
+      "detection_type": "when_condition_check",
+      "title": "IP_ADDRESS IS NULL: failed remote LOGONs captured as direct/bequeath access",
+      "oracle_behavior": "USERENV.IP_ADDRESS is NULL for ALL failed authentication events, including remote TCP connections. At ORA-01017 failure, the Oracle session context is not fully populated: IP_ADDRESS is set at a later stage of session initialisation that is not reached for failed auth. A WHEN condition relying on SYS_CONTEXT('USERENV','IP_ADDRESS') IS NULL to detect bequeath/local connections therefore also fires for every failed LOGON from remote clients.",
+      "policy_requirement": "A WHEN condition using IP_ADDRESS IS NULL as the sole discriminator for direct/bequeath connections will produce false positives for all remote failed LOGONs. To fix: replace IP_ADDRESS IS NULL with SYS_CONTEXT('USERENV','NETWORK_PROTOCOL') IS NULL. NETWORK_PROTOCOL is set at the listener/SQLNet layer before authentication and correctly reflects bequeath (NULL) vs TCP ('tcp').",
+      "when_condition_contains": ["IP_ADDRESS", "IS NULL"],
+      "detection_logic": "From 03_policy_inventory.csv: collect policy_name where audit_condition contains both 'IP_ADDRESS' and 'IS NULL' (case-insensitive). From 05_policy_user_action.csv: for each such policy, check if any LOGON events exist with return_code != 0. If yes: emit FP-002 candidate per (policy, user) combination with failed LOGONs.",
+      "verify_sql": "SELECT db_username, userhost, return_code, COUNT(*) AS cnt\nFROM   unified_audit_trail\nWHERE  unified_audit_policies = '{policy_name}'\nAND    action_name = 'LOGON'\nAND    return_code != 0\nGROUP  BY db_username, userhost, return_code\nORDER  BY cnt DESC\nFETCH FIRST 20 ROWS ONLY;",
+      "remediation": "Replace the WHEN condition: change SYS_CONTEXT('USERENV','IP_ADDRESS') IS NULL to SYS_CONTEXT('USERENV','NETWORK_PROTOCOL') IS NULL. Verify in a test session that bequeath connections show NETWORK_PROTOCOL=NULL and TCP connections show NETWORK_PROTOCOL='tcp'. LOGON events under this policy from failed remote auth will then no longer be captured. See docs/false-positive-patterns.md#fp-002 for the complete ALTER POLICY example."
+    },
+    {
+      "id": "FP-003",
+      "enabled": true,
+      "name": "app_context_null_failed_logon",
+      "detection_type": "context_null_check",
+      "title": "Custom app context IS NULL branch: all failed LOGONs match WHEN condition",
+      "oracle_behavior": "Custom application contexts set via DBMS_SESSION.SET_CONTEXT in a logon trigger are NEVER populated for failed LOGON events. When authentication fails, the logon trigger does not fire, so any SYS_CONTEXT attribute from a non-USERENV namespace returns NULL. A WHEN condition that includes 'OR custom_context IS NULL' as a defensive catch-all (to audit sessions where the context package is not deployed) therefore matches every failed LOGON as a side effect.",
+      "policy_requirement": "A WHEN condition of the form 'ctx_attr != ''TRUE'' OR ctx_attr IS NULL' will capture all failed LOGONs regardless of other policy restrictions (BY GRANTED ROLE, BY USER, etc.). To reduce false positives: either (a) remove the OR IS NULL arm and ensure the logon trigger always sets an explicit value (not NULL) for authenticated sessions, or (b) add AND SYS_CONTEXT('USERENV','NETWORK_PROTOCOL') IS NULL to scope the IS NULL arm to local/bequeath sessions only where the trigger may not fire.",
+      "detection_logic": "From 03_policy_inventory.csv: collect policy_name where audit_condition contains a SYS_CONTEXT call with a non-USERENV namespace AND contains 'IS NULL' (indicating the defensive IS NULL arm). From 05_policy_user_action.csv: for each such policy, check if any LOGON events exist with return_code != 0. If yes: emit FP-003 candidate.",
+      "verify_sql": "SELECT unified_audit_policies, db_username, action_name, return_code, COUNT(*) AS cnt\nFROM   unified_audit_trail\nWHERE  unified_audit_policies = '{policy_name}'\nAND    action_name = 'LOGON'\nGROUP  BY unified_audit_policies, db_username, action_name, return_code\nORDER  BY cnt DESC\nFETCH FIRST 20 ROWS ONLY;",
+      "remediation": "Option A (clean): ensure the logon trigger explicitly sets the context attribute to 'FALSE' (not NULL) for all non-matching sessions. Then remove the 'OR IS NULL' arm from the WHEN condition. NULL then only occurs for failed LOGONs, which correctly do not match. Option B (targeted): add 'AND SYS_CONTEXT(''USERENV'',''NETWORK_PROTOCOL'') IS NULL' to the IS NULL arm to restrict it to bequeath sessions. See docs/false-positive-patterns.md#fp-003 for examples."
+    },
+    {
+      "id": "FP-004",
+      "enabled": true,
+      "name": "policy_created_not_enabled",
+      "detection_type": "policy_enabled_check",
+      "title": "Policy created but never enabled - generates no operational events",
+      "oracle_behavior": "Creating an audit policy (CREATE AUDIT POLICY) registers it in AUDIT_UNIFIED_POLICIES but does not activate event collection. A separate AUDIT POLICY statement is required to enable the policy. A policy that exists in the data dictionary but has never been enabled (success=NO, failure=NO) produces zero operational audit records. Any reference to such a policy in an AI analysis is therefore about a structural gap, not an observed security event.",
+      "policy_requirement": "Every audit policy that is created should either be explicitly enabled (AUDIT POLICY name) or explicitly documented as intentionally deferred. Policies that exist in the data dictionary but are never enabled are dead code and should be either activated or dropped to avoid confusion in audit analysis.",
+      "detection_logic": "From 03_policy_inventory.csv: collect policy_name where success=NO AND failure=NO AND oracle_supplied=NO (custom policy, not enabled). Cross-reference with 16_policy_ddl.csv: if the policy appears there (has a CREATE AUDIT POLICY event), it was deliberately created but never activated. Emit FP-004 candidate.",
+      "verify_sql": "SELECT policy_name, enabled_option, success, failure\nFROM   audit_unified_policies\nWHERE  policy_name = '{policy_name}';",
+      "remediation": "Either enable the policy (AUDIT POLICY {policy_name}) or drop it (DROP AUDIT POLICY {policy_name}) if intentionally deferred. If deferral is intentional, document the reason in the policy DDL comment or in the site audit concept document to prevent recurring false-positive findings."
+    }
+  ]
+}
