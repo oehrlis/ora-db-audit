@@ -209,6 +209,7 @@ Options:
                        Markdown report (implies --report).
                        Requires 'anthropic' Python package.
                        API key: ANTHROPIC_API_KEY env var or --ai-op-path.
+                       Expected runtime: ~2-3 min (API), ~6 min (claude CLI).
   --ai-model MODEL     Claude model (default: claude-sonnet-4-6).
   --ai-op-path PATH    1Password op:// path for the Anthropic API key.
                        Used when ANTHROPIC_API_KEY is not set.

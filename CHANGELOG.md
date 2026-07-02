@@ -7,6 +7,14 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.7.3] - 2026-07-02
+
+### Documentation
+
+- Add expected runtime hint for `--ai` flag in `bin/ora-db-audit.sh` usage text
+  (~2-3 min via Anthropic API, ~6 min via `claude` CLI)
+- Add runtime note to `docs/usage.md` UC-7 (AI Findings)
+
 ## [1.7.2] - 2026-05-29
 
 ### Fixed

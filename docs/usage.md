@@ -151,6 +151,9 @@ python3 tools/export_siem.py ./bundle_dir \
 When no `ANTHROPIC_API_KEY` is set, the tool falls back to the `claude` CLI if it is installed.
 Output is appended to `audit_report.md` and also written to `audit_ai_findings.md`.
 
+> **Note:** Expected runtime is ~2-3 minutes via the Anthropic API and ~6 minutes via the
+> `claude` CLI. Plan accordingly before starting an interactive session.
+
 To use a specific model with an API key:
 
 ```bash
