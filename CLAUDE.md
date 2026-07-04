@@ -86,6 +86,15 @@ Load on demand:
 - Use `dbms_output.put_line` consistently for status messages
 - Apache 2.0 header in every standalone SQL file
 
+### Known Traps
+
+- New flags in `bin/ora-db-audit.sh` must always be wired to `tools/audit_report.py` as well
+  (has been missed multiple times: `--lang`, `--export-prompt`, `--customer-prefix`)
+- Actual file names: `tools/audit_report.py`, `bin/ora-db-audit.sh`
+  (not `audit_pack_report.py` / `run_analysis_pack.sh`)
+- Oracle LONG columns (`HIGH_VALUE`, etc.) cannot appear in SQL JOINs → ORA-00997; use PL/SQL cursor loop
+- `ALTER AUDIT POLICY ... CONDITION` is invalid Oracle syntax; WHEN changes require DROP + recreate
+
 ### Python (optional reporters)
 
 - Python 3.10+
