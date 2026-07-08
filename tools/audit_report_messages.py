@@ -275,8 +275,9 @@ MESSAGES: dict[str, dict[str, str]] = {
 
         # --- Section 6 - privileged activity ---
         "section.06_intro": (
-            "Aktivitaet privilegierter User (SYS, SYSTEM, "
-            "Customer-DBA-Accounts)."
+            "Aktivitaet privilegierter User (SYS, SYSTEM, Customer-DBA-Accounts). "
+            "V2: umfasst auch BY GRANTED ROLE Ziele (z.B. C##ODB_ROLE_DBA-Holder) - "
+            "diese werden dynamisch aus `AUDIT_UNIFIED_ENABLED_POLICIES` abgeleitet."
         ),
 
         # --- Section 7 - security signals / off-path ---
@@ -503,6 +504,85 @@ MESSAGES: dict[str, dict[str, str]] = {
             "`16_policy_ddl.csv` fehlt oder wurde ohne `AUDIT_ADMIN`-Privileg erzeugt._"
         ),
         "policy_ddl.source": "Quelle: `16_policy_ddl.csv` (DBMS_METADATA.GET_DDL)",
+
+        # --- V2 alignment (G-05 to G-11) ---
+
+        # G-05: Adhoc-Policy-Detection (Section 3)
+        "policy.adhoc_warn": (
+            "> ⚠️ **ACTIONS-ALL-Policy aktiv: {policies}** - "
+            "Diese Policy(s) sind fuer alle Aktionen aktiviert (keine Einschraenkung). "
+            "Typischer Einsatz: Incident-Analyse. Nach Abschluss der Untersuchung "
+            "deaktivieren (`NOAUDIT POLICY <name>`) um Trail-Volumen zu begrenzen."
+        ),
+
+        # G-07: Double-coverage note (Section 4.1)
+        "vol.ddl_double_coverage_note": (
+            "> ℹ️ **DDL-Doppelzaehlung (by design):** Eine DDL-Sammel-Policy "
+            "(z.B. `ODB_LOC_DDL_ALL_V2`) und eine Off-Path-Policy "
+            "(z.B. `ODB_LOC_APP_OFFPATH_V2`) sind gleichzeitig aktiv. "
+            "Off-Path-DDL erscheint in beiden Policies (je ein Record). "
+            "Dies ist ein bewusstes V2-Design-Entscheid (vollstaendige Traceability). "
+            "Kein Finding - nur Erklaerung fuer erhoehtes DDL-Volumen."
+        ),
+
+        # G-08: 26ai DDL actions note (Section 9)
+        "cis.26ai_ddl_note": (
+            "> ℹ️ **Oracle 26ai-spezifische DDL-Actions:** `ODB_LOC_DDL_ALL_V2` "
+            "enthaelt Aktionen die nur auf Oracle 26ai existieren: "
+            "`MLE MODULE`, `MLE ENV`, `DOMAIN`, `PROPERTY GRAPH`. "
+            "Auf Oracle 19c werden diese beim Deployment uebersprungen "
+            "(ORA-46351). CIS 5.1 Abdeckung gilt unabhaengig von der "
+            "installierten DB-Version."
+        ),
+
+        # G-09: Off-path V2 cross-reference note (Section 7.2)
+        "offpath.v2_crossref_note": (
+            "> ℹ️ **V2 Off-Path-Detection aktiv:** Eine OFFPATH-Policy mit "
+            "`SYS_CONTEXT`-WHEN-Bedingung ist deployiert. "
+            "Records in `UNIFIED_AUDIT_TRAIL` unter dieser Policy sind "
+            "per Definition Off-Path (WHEN-Bedingung feuerte = Context-Flag FALSE/NULL). "
+            "Szenario A (Application Context, 7.2.1) zeigt Policy-getaggte Events. "
+            "Szenario B (Pattern-basiert, 7.2.2) ist ein unabhaengiger, "
+            "kontextfreier Fallback - beide Sichten sind komplementaer."
+        ),
+
+        # G-04 + G-10: Section 6 subsections
+        "section.06_1_priv": "6.1 Privilegierte User-Aktivitaet",
+        "section.06_2_crit_pkg": "6.2 Kritische Packages - CIS 5.1.3 (ODB_LOC_CRIT_PKG_V2)",
+        "section.06_3_dev": "6.3 Developer-Aktivitaet (BY-USER Policy-Bindungen)",
+        "section.06_2_intro": (
+            "EXECUTE-Events auf die 19 CIS Benchmark 5.1.3 kritischen SYS-Packages "
+            "(Scope: `ODB_LOC_CRIT_PKG_V2`). Zeigt wer welches sicherheitskritische "
+            "Package wann und von wo ausgefuehrt hat."
+        ),
+        "section.06_3_intro": (
+            "Custom Audit-Policies mit BY-USER Bindung (kein SYS/SYSTEM/Standard-Account). "
+            "Zeigt ob eine Developer-Audit-Policy (`ODB_LOC_DEV_ALL_V2` oder aequivalent) "
+            "aktiv und korrekt gebunden ist."
+        ),
+        "pkg.no_events": (
+            "_Keine EXECUTE-Events auf kritische SYS-Packages im Analysefenster._"
+        ),
+        "pkg.policy_missing_note": (
+            "> ℹ️ **Hinweis:** Keine aktive Policy mit `CRIT_PKG` im Namen gefunden. "
+            "Events kommen moeglicherweise nur von `ORA$MANDATORY` (DBMS_FGA, "
+            "DBMS_AUDIT_MGMT). `ODB_LOC_CRIT_PKG_V2` deployen und aktivieren "
+            "fuer vollstaendige CIS 5.1.3 Abdeckung."
+        ),
+        "dev.policies_found": (
+            "**{n} BY-USER Policy-Bindung(en)** fuer nicht-Standard-Accounts aktiv:"
+        ),
+        "dev.hint": (
+            "_Hinweis: Developer-Audit-Events erscheinen in Abschnitt 4 "
+            "(Policy-Volumen) unter der jeweiligen Policy. "
+            "Kein separater Developer-Bericht in diesem Tool - "
+            "fuer detaillierte Auswertung `05_policy_user_action.csv` filtern._"
+        ),
+        "dev.none_found": (
+            "_Keine BY-USER Policy-Bindungen fuer nicht-Standard-Accounts. "
+            "Entweder kein Developer-Audit konfiguriert oder "
+            "Developer-Accounts entsprechen Standard-Account-Mustern._"
+        ),
     },
     "en": {
         # --- Report header / page title ---
@@ -726,8 +806,9 @@ MESSAGES: dict[str, dict[str, str]] = {
 
         # --- Section 6 - privileged activity ---
         "section.06_intro": (
-            "Activity of privileged users (SYS, SYSTEM, "
-            "customer DBA accounts)."
+            "Activity of privileged users (SYS, SYSTEM, customer DBA accounts). "
+            "V2: also covers BY GRANTED ROLE targets (e.g. C##ODB_ROLE_DBA holders) — "
+            "derived dynamically from `AUDIT_UNIFIED_ENABLED_POLICIES`."
         ),
 
         # --- Section 7 - security signals / off-path ---
@@ -954,6 +1035,84 @@ MESSAGES: dict[str, dict[str, str]] = {
             "`16_policy_ddl.csv` missing or generated without `AUDIT_ADMIN` privilege._"
         ),
         "policy_ddl.source": "Source: `16_policy_ddl.csv` (DBMS_METADATA.GET_DDL)",
+
+        # --- V2 alignment (G-05 to G-11) ---
+
+        # G-05: Adhoc-Policy-Detection (Section 3)
+        "policy.adhoc_warn": (
+            "> ⚠️ **ACTIONS-ALL policy active: {policies}** - "
+            "This policy/these policies audit all actions (unrestricted scope). "
+            "Typical use: incident investigation. After the investigation, "
+            "disable with `NOAUDIT POLICY <name>` to limit trail volume."
+        ),
+
+        # G-07: Double-coverage note (Section 4.1)
+        "vol.ddl_double_coverage_note": (
+            "> ℹ️ **DDL double-counting (by design):** A general DDL policy "
+            "(e.g. `ODB_LOC_DDL_ALL_V2`) and an off-path policy "
+            "(e.g. `ODB_LOC_APP_OFFPATH_V2`) are both active. "
+            "Off-path DDL events appear in both policies (one record each). "
+            "This is a deliberate V2 design decision (full traceability). "
+            "Not a finding - explanation for elevated DDL volume only."
+        ),
+
+        # G-08: 26ai DDL actions note (Section 9)
+        "cis.26ai_ddl_note": (
+            "> ℹ️ **Oracle 26ai-specific DDL actions:** `ODB_LOC_DDL_ALL_V2` "
+            "includes actions that only exist on Oracle 26ai: "
+            "`MLE MODULE`, `MLE ENV`, `DOMAIN`, `PROPERTY GRAPH`. "
+            "On Oracle 19c these are skipped at deployment time "
+            "(ORA-46351). CIS 5.1 coverage applies regardless of "
+            "the installed DB version."
+        ),
+
+        # G-09: Off-path V2 cross-reference note (Section 7.2)
+        "offpath.v2_crossref_note": (
+            "> ℹ️ **V2 off-path detection active:** An OFFPATH policy with "
+            "a `SYS_CONTEXT` WHEN condition is deployed. "
+            "Records in `UNIFIED_AUDIT_TRAIL` tagged to this policy are "
+            "off-path by definition (WHEN fired = context flag FALSE/NULL). "
+            "Scenario A (Application Context, 7.2.1) shows policy-tagged events. "
+            "Scenario B (pattern-based, 7.2.2) is an independent, "
+            "context-free fallback - both views are complementary."
+        ),
+
+        # G-04 + G-10: Section 6 subsections
+        "section.06_1_priv": "6.1 Privileged User Activity",
+        "section.06_2_crit_pkg": "6.2 Critical Packages - CIS 5.1.3 (ODB_LOC_CRIT_PKG_V2)",
+        "section.06_3_dev": "6.3 Developer Activity (BY-USER Policy Bindings)",
+        "section.06_2_intro": (
+            "EXECUTE events on the 19 CIS Benchmark 5.1.3 critical SYS packages "
+            "(scope: `ODB_LOC_CRIT_PKG_V2`). Shows who executed which "
+            "security-critical package, when, and from where."
+        ),
+        "section.06_3_intro": (
+            "Custom audit policies with BY-USER binding (excluding SYS/SYSTEM/standard accounts). "
+            "Indicates whether a developer audit policy (`ODB_LOC_DEV_ALL_V2` or equivalent) "
+            "is active and correctly bound."
+        ),
+        "pkg.no_events": (
+            "_No EXECUTE events on critical SYS packages in the analysis window._"
+        ),
+        "pkg.policy_missing_note": (
+            "> ℹ️ **Note:** No active policy with `CRIT_PKG` in the name found. "
+            "Events may come from `ORA$MANDATORY` only (DBMS_FGA, DBMS_AUDIT_MGMT). "
+            "Deploy and enable `ODB_LOC_CRIT_PKG_V2` for full CIS 5.1.3 coverage."
+        ),
+        "dev.policies_found": (
+            "**{n} BY-USER policy binding(s)** for non-standard accounts active:"
+        ),
+        "dev.hint": (
+            "_Note: Developer audit events appear in Section 4 "
+            "(policy volume) under the respective policy. "
+            "No separate developer report in this tool - "
+            "filter `05_policy_user_action.csv` for detailed analysis._"
+        ),
+        "dev.none_found": (
+            "_No BY-USER policy bindings for non-standard accounts. "
+            "Either no developer audit is configured or "
+            "developer accounts match standard-account patterns._"
+        ),
     },
 }
 

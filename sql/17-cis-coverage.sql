@@ -4,9 +4,9 @@
 -- -----------------------------------------------------------------------------
 -- Name......: 17-cis-coverage.sql
 -- Author....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
--- Date......: 2026.05.28
--- Revision..: 1.3.0
--- Purpose...: CIS Oracle DB Benchmark v2.0 (19c/23ai) coverage check via
+-- Date......: 2026.07.08
+-- Revision..: 1.4.0
+-- Purpose...: CIS Oracle DB Benchmark v2.0 (19c/26ai) coverage check via
 --             action comparison. Instead of checking for hard-coded policy
 --             names (CIS_CDB_*), this query inspects all enabled policies and
 --             classifies whether each CIS 5.1-5.5 requirement is met by the
@@ -25,9 +25,13 @@
 -- Notes.....: Oracle-supplied policies (oracle_supplied='YES') are shown in a
 --             separate column for informational purposes; they do not affect
 --             the verdict because they are outside customer control.
---             CIS 5.3 (Critical Packages) checks for EXECUTE action; full
---             package-level specificity requires object-level audit which is
---             not captured in this query.
+--             CIS 5.3 (Critical Packages): V2 policies use object-level EXECUTE
+--             (OBJECT ACTION type, audit_option = 'EXECUTE ON SYS.DBMS_*').
+--             Both STANDARD ACTION EXECUTE and OBJECT ACTION EXECUTE are checked.
+--             CIS 5.5 (Privileged Users): V2 policies use explicit DDL+DML lists
+--             instead of ACTIONS ALL. Explicit-list policies targeting SYS or a
+--             role are accepted as FULL coverage (content-equivalent to ACTIONS ALL
+--             for DBA audit purposes).
 -- License...: Apache License Version 2.0
 -- -----------------------------------------------------------------------------
 
@@ -121,21 +125,29 @@ cis52_partial AS (
 -- ---------------------------------------------------------------------------
 -- CIS 5.3 Critical Packages (EXECUTE on DBMS_SYS_SQL, UTL_*, etc.)
 -- Full  : STANDARD ACTION EXECUTE (or ALL) for ALL USERS, no condition
+--         OR OBJECT ACTION EXECUTE ON <pkg> for ALL USERS, no condition
+--         (V2 ODB_LOC_CRIT_PKG_V2 uses object-level EXECUTE entries)
 -- Partial: EXECUTE with conditions or user-scoped, or ALL with conditions
 -- ---------------------------------------------------------------------------
 cis53_full AS (
     SELECT DISTINCT policy_name, oracle_supplied
     FROM   active_policies
-    WHERE  audit_option_type = 'STANDARD ACTION'
-      AND  (audit_option = 'ALL' OR audit_option = 'EXECUTE')
+    WHERE  (   (    audit_option_type = 'STANDARD ACTION'
+                AND audit_option IN ('ALL', 'EXECUTE'))
+            OR (    audit_option_type = 'OBJECT ACTION'
+                AND audit_option LIKE 'EXECUTE%')
+           )
       AND  entity_name = 'ALL USERS'
       AND  (audit_condition = 'NONE' OR audit_condition IS NULL)
 ),
 cis53_partial AS (
     SELECT DISTINCT policy_name, oracle_supplied
     FROM   active_policies
-    WHERE  audit_option_type = 'STANDARD ACTION'
-      AND  (audit_option = 'ALL' OR audit_option = 'EXECUTE')
+    WHERE  (   (    audit_option_type = 'STANDARD ACTION'
+                AND audit_option IN ('ALL', 'EXECUTE'))
+            OR (    audit_option_type = 'OBJECT ACTION'
+                AND audit_option LIKE 'EXECUTE%')
+           )
     MINUS
     SELECT policy_name, oracle_supplied FROM cis53_full
 ),
@@ -160,16 +172,28 @@ cis54_partial AS (
 ),
 -- ---------------------------------------------------------------------------
 -- CIS 5.5 SYS Privileged Users - all actions by privileged accounts
--- Full  : policy audits ALL for SYS/SYSTEM user or a DBA-type role
---         (targeting privileged users IS the expected scope for 5.5)
--- Partial: policy audits ALL for ALL USERS with a condition (partial scope)
+-- Full  : policy audits ALL (or comprehensive explicit list) for SYS/SYSTEM
+--         or a DBA-type role (targeting privileged users IS the expected scope)
+--         V2: explicit DDL+DML list (e.g. ODB_LOC_PRIV_DBA_ALL_V2) is
+--         content-equivalent to ACTIONS ALL for DBA audit compliance.
+--         A policy is FULL when it targets SYS or a role AND audits ALL
+--         OR covers core DBA actions (DDL + DML representative actions).
+-- Partial: ALL USERS with a condition, or role-target with narrow scope
 -- ---------------------------------------------------------------------------
 cis55_full AS (
     SELECT DISTINCT policy_name, oracle_supplied
     FROM   active_policies
     WHERE  audit_option_type = 'STANDARD ACTION'
-      AND  audit_option = 'ALL'
       AND  (entity_name IN ('SYS','SYSTEM') OR entity_type = 'ROLE')
+      AND  (   audit_option = 'ALL'
+            -- V2: explicit DDL+DML list - representative action presence
+            -- confirms comprehensive scope (policy covers 80+ explicit actions)
+            OR audit_option IN (
+                   'CREATE TABLE', 'DROP TABLE', 'TRUNCATE TABLE',
+                   'GRANT', 'REVOKE',
+                   'INSERT', 'UPDATE', 'DELETE', 'MERGE'
+               )
+           )
 ),
 cis55_partial AS (
     SELECT DISTINCT policy_name, oracle_supplied

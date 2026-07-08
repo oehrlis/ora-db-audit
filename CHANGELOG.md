@@ -7,6 +7,53 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-08
+
+### Added
+
+- **`sql/22-crit-pkg-executions.sql`** - new query for CIS 5.1.3 critical SYS package
+  execution events (19 packages: DBMS_AW, DBMS_CRYPTO, DBMS_FGA, DBMS_JAVA_TEST,
+  DBMS_JOB, DBMS_LOGMNR, DBMS_NETWORK_ACL_ADMIN, DBMS_OBFUSCATION_TOOLKIT,
+  DBMS_REDACT, DBMS_REDEFINITION, DBMS_RLS, DBMS_SCHEDULER, DBMS_SQL_TRANSLATOR,
+  DBMS_SYS_SQL, DBMS_TSDP_MANAGE, DBMS_TSDP_PROTECT, DBMS_XMLGEN, DBMS_XMLSTORE,
+  OWA_UTIL). Aggregated by package x user x host.
+- **Section 6.2 - Critical Package Executions** in report - new subsection listing
+  CIS 5.1.3 package activity with policy-presence check. Source: `22_crit_pkg_executions.csv`.
+- **Section 6.3 - Developer BY-USER Policies** in report - new subsection listing
+  developer-scoped `BY USER` audit bindings with a scope hint.
+- **`docs/v2-policy-architecture.md`** - cross-reference for the `ODB_LOC_*_V2`
+  policy set: three-pillar architecture, context attributes, DDL double-coverage
+  explanation, object-level EXECUTE note, role-based targets, 26ai DDL actions,
+  and which report sections are affected.
+
+### Changed
+
+- **`sql/17-cis-coverage.sql`** (1.4.0) - CIS 5.3 check now covers both
+  `STANDARD ACTION` and `OBJECT ACTION` EXECUTE (fixes false FAIL with V2
+  `ODB_LOC_CRIT_PKG_V2` which audits at object level). CIS 5.5 FULL verdict
+  now accepts explicit representative DDL+DML actions (CREATE TABLE, DROP TABLE,
+  TRUNCATE TABLE, GRANT, REVOKE, INSERT, UPDATE, DELETE, MERGE) in addition to
+  `ALL` - fixes false PARTIAL verdict when SYS/SYSTEM are audited by an
+  explicit action list rather than `ACTIONS ALL`.
+- **`sql/14-privileged-activity.sql`** - WHERE clause extended to include role
+  holders via dynamic subquery on `AUDIT_UNIFIED_ENABLED_POLICIES` joined with
+  `DBA_ROLE_PRIVS`. Covers `BY GRANTED ROLE` V2 targets (e.g. C##ODB_ROLE_DBA
+  holders) without a static user list.
+- **`tools/audit_report.py`** - Section 6 refactored into three subsections (6.1
+  privileged users, 6.2 critical packages, 6.3 developer BY-USER). ADHOC policy
+  detection added to section 3. DDL double-coverage note in section 4-7 volume
+  block. Off-path V2 cross-reference note in section 7.2. 26ai DDL actions note
+  after CIS coverage table. AI prompts updated to reference IS_KNOWN_CLIENT
+  alongside IS_APP_ACCESS for FP-003 patterns.
+- **`tools/audit_report_messages.py`** - new message keys for all V2-related
+  additions: `policy.adhoc_warn`, `vol.ddl_double_coverage_note`,
+  `cis.26ai_ddl_note`, `offpath.v2_crossref_note`, `section.06_1_priv`,
+  `section.06_2_crit_pkg`, `section.06_3_dev`, `section.06_2_intro`,
+  `section.06_3_intro`, `pkg.no_events`, `pkg.policy_missing_note`,
+  `dev.policies_found`, `dev.hint`, `dev.none_found`. Section 6 and 6.1 intro
+  strings updated to reference V2 role-based targets.
+- **`bin/ora-db-audit.sh`** - added `22-crit-pkg-executions.sql` to QUERIES array.
+
 ## [1.7.3] - 2026-07-02
 
 ### Documentation
