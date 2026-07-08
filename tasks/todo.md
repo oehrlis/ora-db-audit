@@ -37,7 +37,7 @@
 Folgende strukturelle Änderungen haben direkten Impact auf das Reporting-Tool:
 
 | Policy | V1 → V2 Änderung |
-|---|---|
+| --- | --- |
 | `ODB_LOC_LOGON_EVENTS_V2` | LOGON+LOGOFF in einer Policy (war getrennt) |
 | `ODB_LOC_DDL_ALL_V2` | Explizite Action-Liste (~80 Aktionen, kein ACTION ALL); 26ai-Actions hinzu |
 | `ODB_LOC_CRIT_PKG_V2` | **Neu**: 19 kritische SYS-Packages (CIS 5.1.3), Object-Level EXECUTE |

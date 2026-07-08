@@ -9,7 +9,7 @@ Cross-reference for the `ODB_LOC_*_V2` policy set used as the canonical input fo
 
 <!-- markdownlint-disable MD013 MD060 -->
 | Policy name | Actions | Enable scope | CIS |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `ODB_LOC_LOGON_EVENTS_V2` | LOGON, LOGOFF | ALL USERS | 5.2 |
 | `ODB_LOC_SYS_PARAM_V2` | ALTER DATABASE/SYSTEM, CREATE PFILE/SPFILE | ALL USERS | 5.4 |
 | `ODB_LOC_SECURE_CONFIG_V2` | Critical system privileges | ALL USERS | 5.4 |
@@ -57,7 +57,7 @@ management from the general DDL policy:
 ## Context Attributes (`ODB_AUDIT_CTX`)
 
 | Attribute | True when | Used by |
-|---|---|---|
+| --- | --- | --- |
 | `IS_APP_ACCESS` | Connection from known app server | OFFPATH |
 | `IS_KNOWN_CLIENT` | Known DBA workstation / jumphost | OFFPATH, DEV_ALL (NOJUMP variant) |
 | `IS_OEM_ACCESS` | OEM monitoring connection | - (prepared, no active policy) |
@@ -154,7 +154,7 @@ never appear in the audit trail.
 ## Report Sections Affected by V2
 
 | Report section | V2 impact |
-|---|---|
+| --- | --- |
 | 3 - Policy inventory | Detects ADHOC (ACTIONS ALL), shows BY-USER bindings |
 | 6.1 - Privileged users | Role-holder expansion via DBA_ROLE_PRIVS |
 | 6.2 - Critical packages | New section: CIS 5.1.3 package execution summary |
