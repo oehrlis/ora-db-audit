@@ -243,6 +243,12 @@ dadurch alle fehlgeschlagenen LOGONs als Nebeneffekt. Dies gilt fuer BEIDE
 V2-Context-Attribute: `IS_APP_ACCESS` und `IS_KNOWN_CLIENT` - beide sind NULL
 bei jedem gescheiterten LOGON (Trigger laeuft nicht). Tag: `[FP-SUSPECT: FP-003]`.
 
+**FP-005 (ISDBA_SESSION_EXCLUDED):** `ODB_LOC_APP_OFFPATH_V2` schliesst
+SYSDBA-Verbindungen (`ISDBA = TRUE`) explizit via WHEN-Klausel aus. DML-Events
+von SYS-Verbindungen mit SYSDBA-Privileg erscheinen daher NICHT in Off-Path-Records,
+auch wenn IS_APP_ACCESS und IS_KNOWN_CLIENT beide FALSE/NULL sind. SYS-DML
+wird stattdessen via `ODB_LOC_PRIV_DBA_ALL_V2` erfasst. Tag: `[FP-SUSPECT: FP-005]`.
+
 **FP-004 (POLICY_NOT_ENABLED):** Eine Policy die via `CREATE AUDIT POLICY`
 angelegt aber nie aktiviert wurde erzeugt keinerlei operative Audit-Records.
 Jede Referenz auf eine solche Policy beschreibt eine Konfigurationsluecke,
@@ -395,6 +401,12 @@ Tag: `[FP-SUSPECT: FP-003]`.
 **FP-004 (POLICY_NOT_ENABLED):** A policy created via `CREATE AUDIT POLICY` but
 never activated generates zero operational audit records. Any reference to such
 a policy describes a configuration gap, not a security event. Tag: `[FP-SUSPECT: FP-004]`.
+
+**FP-005 (ISDBA_SESSION_EXCLUDED):** `ODB_LOC_APP_OFFPATH_V2` explicitly excludes
+SYSDBA connections (`ISDBA = TRUE`) via WHEN clause. DML events from SYS sessions
+with SYSDBA privilege therefore do NOT appear in off-path records, even when both
+IS_APP_ACCESS and IS_KNOWN_CLIENT are FALSE/NULL. SYS DML is captured instead by
+`ODB_LOC_PRIV_DBA_ALL_V2`. Tag: `[FP-SUSPECT: FP-005]`.
 
 {fp_context}
 
@@ -1976,25 +1988,6 @@ def _find_by_user_policies(inv_data):
     return result
 
 
-def _detect_v2_ddl_double_coverage(vol_data, inv_data):
-    """Return True when both a general DDL policy and an off-path DDL policy
-    are active (V2 design: DDL in ODB_LOC_DDL_ALL_V2 + ODB_LOC_APP_OFFPATH_V2).
-    Uses the policy volume data (04) to find enabled policies with DDL events."""
-    if vol_data is None or inv_data is None:
-        return False
-    idx_pn = _col_index(vol_data, "policy_name")
-    active_names = {
-        _row_get(r, idx_pn).strip().upper()
-        for r in vol_data.get("rows", [])
-        if _row_get(r, idx_pn).strip()
-    }
-    # Check whether both a DDL-all policy and an off-path policy are active.
-    # Pattern match: any policy containing DDL_ALL and any containing OFFPATH.
-    has_ddl_all = any("DDL_ALL" in n or "DDL" in n and "OFFPATH" not in n
-                      for n in active_names)
-    has_offpath = any("OFFPATH" in n for n in active_names)
-    return has_ddl_all and has_offpath
-
 
 def render_section_04_07_volumes(files, top_n):
     out = section_header(2, t("section.04_07_volumes", lang=LANG))
@@ -2024,12 +2017,6 @@ def render_section_04_07_volumes(files, top_n):
                 for pol, evts in ghost:
                     out += f"  - `{pol}` ({fmt_int(evts)})\n"
                 out += "\n"
-            # G-07: double-coverage note for V2 DDL overlap
-            inv = files.get("03")
-            if inv is not None:
-                _ddl_note = _detect_v2_ddl_double_coverage(fd, inv)
-                if _ddl_note:
-                    out += t("vol.ddl_double_coverage_note", lang=LANG) + "\n\n"
     return out
 
 
@@ -2148,9 +2135,9 @@ def render_section_07_security_signals(files, classifier, top_n):
 
     # --- 7.2 Off-Path Candidates ---
     out += section_header(3, t("section.07_2_offpath", lang=LANG))
-    # G-09: cross-reference note for V2 context-based vs pattern-based detection
     if _policy_active_in_inv(files.get("03"), "OFFPATH"):
         out += t("offpath.v2_crossref_note", lang=LANG) + "\n\n"
+        out += t("offpath.isdba_exclusion_note", lang=LANG) + "\n\n"
     fd12 = files.get("12")
     if fd12 is None:
         out += t("note.offpath_skipped", lang=LANG) + "\n\n"

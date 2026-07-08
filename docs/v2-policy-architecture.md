@@ -7,19 +7,22 @@ Cross-reference for the `ODB_LOC_*_V2` policy set used as the canonical input fo
 
 ## Policy Overview
 
-| Policy name | Subject | Scope | CIS |
+<!-- markdownlint-disable MD013 MD060 -->
+| Policy name | Actions | Enable scope | CIS |
 |---|---|---|---|
-| `ODB_LOC_LOGON_EVENTS_V2` | All login/logoff events | ALL USERS | 5.2 |
-| `ODB_LOC_SYS_PARAM_V2` | System-parameter changes | SYS, SYSTEM | 5.4 |
-| `ODB_LOC_SECURE_CONFIG_V2` | Security-config actions | ALL USERS | 5.4 |
-| `ODB_LOC_DIRECTORY_V2` | Directory CREATE/DROP | ALL USERS | 5.4 |
-| `ODB_LOC_DATA_PUMP_V2` | Data Pump operations | ALL USERS | 5.4 |
-| `ODB_LOC_DDL_ALL_V2` | All DDL (SYS + SYSTEM) | SYS, SYSTEM | 5.5 |
-| `ODB_LOC_CRIT_PKG_V2` | 19 critical SYS packages | ALL USERS | 5.1.3 / 5.3 |
-| `ODB_LOC_APP_OFFPATH_V2` | Off-path DDL+DML (context) | ALL USERS | 5.5 |
-| `ODB_LOC_PRIV_DBA_ALL_V2` | Privileged DBA role | ROLE: C##ODB_ROLE_DBA | 5.5 |
-| `ODB_LOC_DEV_ALL_V2` | Developer BY USER | named users | 5.5 |
-| `ODB_LOC_ADHOC_ALL_V2` | Ad-hoc tools | ALL USERS | 5.5 |
+| `ODB_LOC_LOGON_EVENTS_V2` | LOGON, LOGOFF | ALL USERS | 5.2 |
+| `ODB_LOC_SYS_PARAM_V2` | ALTER DATABASE/SYSTEM, CREATE PFILE/SPFILE | ALL USERS | 5.4 |
+| `ODB_LOC_SECURE_CONFIG_V2` | Critical system privileges | ALL USERS | 5.4 |
+| `ODB_LOC_DIRECTORY_V2` | READ/WRITE/EXECUTE DIRECTORY | ALL USERS | 5.4 |
+| `ODB_LOC_DATA_PUMP_V2` | DATAPUMP EXPORT/IMPORT | ALL USERS | 5.4 |
+| `ODB_LOC_ACC_MGMT_V2` | CREATE/ALTER/DROP USER+ROLE, GRANT, REVOKE, SET ROLE | ALL USERS | 4.1 |
+| `ODB_LOC_DDL_ALL_V2` | Explicit DDL action list (schema lifecycle) | ALL USERS | 5.5 |
+| `ODB_LOC_CRIT_PKG_V2` | EXECUTE on 19 critical SYS packages (CIS 5.1.3) | ALL USERS | 5.1.3 / 5.3 |
+| `ODB_LOC_APP_OFFPATH_V2` | DML: INSERT/UPDATE/DELETE/MERGE (context-filtered) | ALL USERS | 5.5 |
+| `ODB_LOC_PRIV_DBA_ALL_V2` | Explicit DDL+DML for DBA role holders | ROLE: C##ODB_ROLE_DBA + BY SYS | 5.5 |
+| `ODB_LOC_DEV_ALL_V2` | Explicit DDL+DML for developer accounts | BY user-list | 5.5 |
+| `ODB_LOC_ADHOC_ALL_V2` | ACTIONS ALL (not enabled - incident reserve) | Manual | - |
+<!-- markdownlint-enable MD013 MD060 -->
 
 ---
 
@@ -27,10 +30,10 @@ Cross-reference for the `ODB_LOC_*_V2` policy set used as the canonical input fo
 
 ```text
 Pillar 1: Always-on baseline (no WHEN clause, ALL USERS)
-  - LOGON_EVENTS, SYS_PARAM, SECURE_CONFIG, DIRECTORY, DATA_PUMP
+  - LOGON_EVENTS, SYS_PARAM, SECURE_CONFIG, DIRECTORY, DATA_PUMP, ACC_MGMT, DDL_ALL
 
-Pillar 2: Privileged-scope (SYS, SYSTEM, BY ROLE)
-  - DDL_ALL, PRIV_DBA_ALL
+Pillar 2: Privileged-scope (BY ROLE + BY SYS)
+  - PRIV_DBA_ALL
 
 Pillar 3: Context-conditioned filters (EVALUATE PER SESSION WHEN ...)
   - CRIT_PKG, APP_OFFPATH, DEV_ALL, ADHOC_ALL
@@ -38,31 +41,49 @@ Pillar 3: Context-conditioned filters (EVALUATE PER SESSION WHEN ...)
 
 ---
 
-## Context Attributes (`ODB_AUDIT_CTX`)
+## ACC_MGMT_V2 - Account Management (V2.1 new)
 
-| Attribute | True when |
-|---|---|
-| `IS_APP_ACCESS` | Connection comes from known application |
-| `IS_KNOWN_CLIENT` | Client tool is approved / whitelisted |
-| `IS_OEM_ACCESS` | OEM agent / Grid Control connection |
-| `IS_DEV_TOOL` | Interactive developer tool (SQL*Plus, SQL Developer, etc.) |
+`ODB_LOC_ACC_MGMT_V2` was introduced in V2.1 to isolate account and privilege
+management from the general DDL policy:
 
-WHEN clauses use `= 'FALSE'` - Oracle evaluates the WHEN on first statement after
-logon. If the context is NULL (failed logon, not yet set), EVALUATE PER SESSION
-fires as though the condition were FALSE, so failed logins are **not** suppressed
-by OFFPATH or CRIT_PKG policies.
+- **Actions**: `CREATE/ALTER/DROP USER`, `CREATE/ALTER/DROP ROLE`, `GRANT`, `REVOKE`, `SET ROLE`
+- **Scope**: ALL USERS (generic, Phase A)
+- **CIS mapping**: 4.1 (Restrict Unnecessary Privileges - audit who grants what to whom)
+- **Not included**: `PROFILE`, `CHANGE PASSWORD`, `CREATE SCHEMA` (stay in `ODB_LOC_DDL_ALL_V2`)
+- `ODB_LOC_DDL_ALL_V2` and `ODB_LOC_PRIV_DBA_ALL_V2` no longer contain GRANT/REVOKE
 
 ---
 
-## DDL Double-Coverage (Intentional)
+## Context Attributes (`ODB_AUDIT_CTX`)
 
-`ODB_LOC_DDL_ALL_V2` and `ODB_LOC_APP_OFFPATH_V2` both capture DDL for
-SYS/SYSTEM. This is by design - pending final customer decision on retention scope.
+| Attribute | True when | Used by |
+|---|---|---|
+| `IS_APP_ACCESS` | Connection from known app server | OFFPATH |
+| `IS_KNOWN_CLIENT` | Known DBA workstation / jumphost | OFFPATH, DEV_ALL (NOJUMP variant) |
+| `IS_OEM_ACCESS` | OEM monitoring connection | - (prepared, no active policy) |
+| `IS_DEV_TOOL` | SQL Developer / Toad client detected | PRIV_DBA, DEV_ALL (NOTOOL variant) |
 
-Consequence for reporting: DDL events for SYS/SYSTEM may appear in **both**
-the privileged-activity report (section 6) and the off-path signals (section 7).
-The `ora-db-audit` report tool detects this configuration and emits an
-explanatory note.
+WHEN clauses use `!= 'TRUE'` with a NULL-safe OR arm - Oracle evaluates the WHEN on first
+statement after logon. If the context is NULL (failed logon, trigger did not run),
+EVALUATE PER SESSION fires as though the condition were TRUE (fail-secure), so failed
+logons are audited by context-conditioned policies.
+
+---
+
+## OFFPATH Scope (V2.1)
+
+`ODB_LOC_APP_OFFPATH_V2` is **DML-only** since V2.1:
+
+- **Actions**: INSERT, UPDATE, DELETE, MERGE
+- **DDL is not included**: covered by `ODB_LOC_DDL_ALL_V2` for ALL USERS - no overlap
+- **WHEN clause** (evaluated per session, fail-secure):
+  - `ISDBA != 'TRUE'` - SYSDBA sessions excluded (captured by PRIV_DBA_ALL_V2 instead)
+  - `IS_APP_ACCESS != 'TRUE'` - known app server path excluded
+  - `IS_KNOWN_CLIENT != 'TRUE'` - known DBA workstation excluded
+  - NULL context triggers the audit (fail-secure)
+
+There is **no DDL double-coverage** in V2.1: DDL_ALL covers schema changes for all
+users, OFFPATH covers off-path DML. The policies are complementary, not overlapping.
 
 ---
 
@@ -100,6 +121,21 @@ This means:
 
 ---
 
+## Schema Owner Exclusion from DDL_ALL_V2
+
+`odb_policies_enable_aud.sql` may exclude schema owner accounts from DDL_ALL_V2:
+
+```sql
+NOAUDIT POLICY odb_loc_ddl_all_v2 BY <schema_owner>;
+```
+
+This creates an EXCEPT USER entry in `AUDIT_UNIFIED_ENABLED_POLICIES`
+(enabled_option = 'EXCEPT OPTION EXCEPT USER'). Schema owners creating objects
+in their own schema as part of normal application lifecycle are excluded to reduce
+noise. Their DDL is still captured if they access objects outside their schema.
+
+---
+
 ## 26ai-Specific DDL Actions
 
 Oracle Database 26ai introduces additional DDL actions not present in 19c:
@@ -120,11 +156,10 @@ never appear in the audit trail.
 | Report section | V2 impact |
 |---|---|
 | 3 - Policy inventory | Detects ADHOC (ACTIONS ALL), shows BY-USER bindings |
-| 4-7 - Volume analysis | DDL double-coverage note if DDL_ALL + OFFPATH both active |
 | 6.1 - Privileged users | Role-holder expansion via DBA_ROLE_PRIVS |
 | 6.2 - Critical packages | New section: CIS 5.1.3 package execution summary |
 | 6.3 - Developer by-user | New section: DEV_ALL BY-USER policy bindings |
-| 7 - Off-path signals | V2 OFFPATH cross-reference note |
+| 7 - Off-path signals | V2 OFFPATH cross-reference note; ISDBA exclusion (FP-005) |
 | 17 - CIS coverage | CIS 5.3 and 5.5 updated for object-level EXECUTE + role targets |
 
 ---
