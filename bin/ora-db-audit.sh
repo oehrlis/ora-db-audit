@@ -121,6 +121,7 @@ QUERIES=(
     "19-offpath-candidates.sql"
     "20-fp-role-grantees.sql"
     "21-uncovered-users.sql"
+    "22-crit-pkg-executions.sql"
 )
 
 # ------------------------------------------------------------------------------

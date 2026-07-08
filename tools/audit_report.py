@@ -110,7 +110,9 @@ AI_SYSTEM_PROMPTS: dict[str, str] = {
         "Artefakte im Audit Trail: BY GRANTED ROLE wird bei fehlgeschlagener "
         "Authentifizierung nicht ausgewertet; USERENV.IP_ADDRESS ist NULL "
         "fuer alle fehlgeschlagenen LOGONs (auch remote TCP); Custom-Context "
-        "IS NULL Arme in WHEN-Bedingungen matchen alle failed LOGONs. "
+        "IS NULL Arme in WHEN-Bedingungen matchen alle failed LOGONs - "
+        "dies gilt fuer beide V2-Context-Attribute IS_APP_ACCESS und "
+        "IS_KNOWN_CLIENT gleichermassen (beide NULL bei failed LOGON). "
         "Diese Regeln IMMER pruefen bevor Event-Mengen als Security-Evidenz "
         "gewertet werden. Antworte auf Deutsch; "
         "Oracle-Objekt-Namen, SQL und Code-Bloecke bleiben Englisch."
@@ -128,7 +130,9 @@ AI_SYSTEM_PROMPTS: dict[str, str] = {
         "artefacts: BY GRANTED ROLE is not evaluated for failed auth; "
         "USERENV.IP_ADDRESS is NULL for all failed LOGONs including remote "
         "TCP; custom-context IS NULL branches in WHEN conditions match all "
-        "failed LOGONs. Always apply these rules before interpreting event "
+        "failed LOGONs - this applies equally to both V2 context attributes "
+        "IS_APP_ACCESS and IS_KNOWN_CLIENT (both NULL on failed LOGON). "
+        "Always apply these rules before interpreting event "
         "volumes as security evidence. "
         "Reply in English; Oracle object names, SQL, and code blocks stay "
         "in English."
@@ -235,7 +239,9 @@ Datenbankzugriff (Bequeath). Tag: `[FP-SUSPECT: FP-002]`.
 **FP-003 (APP_CONTEXT_NULL_FAILED_LOGON):** Custom Application Contexts (nicht
 USERENV, gesetzt via Logon-Trigger) werden NIEMALS fuer fehlgeschlagene LOGONs
 populiert. WHEN-Bedingungen mit `OR ctx IS NULL` (defensiver Arm) matchen
-dadurch alle fehlgeschlagenen LOGONs als Nebeneffekt. Tag: `[FP-SUSPECT: FP-003]`.
+dadurch alle fehlgeschlagenen LOGONs als Nebeneffekt. Dies gilt fuer BEIDE
+V2-Context-Attribute: `IS_APP_ACCESS` und `IS_KNOWN_CLIENT` - beide sind NULL
+bei jedem gescheiterten LOGON (Trigger laeuft nicht). Tag: `[FP-SUSPECT: FP-003]`.
 
 **FP-004 (POLICY_NOT_ENABLED):** Eine Policy die via `CREATE AUDIT POLICY`
 angelegt aber nie aktiviert wurde erzeugt keinerlei operative Audit-Records.
@@ -382,7 +388,9 @@ access. Tag: `[FP-SUSPECT: FP-002]`.
 **FP-003 (APP_CONTEXT_NULL_FAILED_LOGON):** Custom application contexts (non-USERENV,
 set by logon trigger) are NEVER populated for failed LOGONs. WHEN conditions with
 `OR ctx IS NULL` (defensive arm) therefore match all failed LOGONs as a side
-effect. Tag: `[FP-SUSPECT: FP-003]`.
+effect. This applies to BOTH V2 context attributes: `IS_APP_ACCESS` and
+`IS_KNOWN_CLIENT` - both are NULL on every failed LOGON (trigger does not run).
+Tag: `[FP-SUSPECT: FP-003]`.
 
 **FP-004 (POLICY_NOT_ENABLED):** A policy created via `CREATE AUDIT POLICY` but
 never activated generates zero operational audit records. Any reference to such
@@ -482,6 +490,7 @@ QUERY_FILES = {
     "19": "19_offpath_candidates",
     "20": "20_fp_role_grantees",
     "21": "21_uncovered_users",
+    "22": "22_crit_pkg_executions",
 }
 
 
@@ -1877,6 +1886,35 @@ def render_section_03_policy_inventory(file_data, top_n, include_appendix):
     out += "\n"
 
     # ----------------------------------------------------------------
+    # G-05: Adhoc-Policy-Detection
+    # Warn if any custom policy with ACTIONS ALL is currently enabled.
+    # ODB_LOC_ADHOC_ALL_V2 (and equivalents) should only be active
+    # during incident investigations and must be disabled afterwards.
+    # ----------------------------------------------------------------
+    idx_opt_type = _col_index(file_data, "audit_option_type")
+    idx_opt = _col_index(file_data, "audit_option")
+    idx_ena_opt = _col_index(file_data, "enabled_option")
+    idx_pol = _col_index(file_data, "policy_name")
+    idx_ora_s = _col_index(file_data, "oracle_supplied")
+    adhoc_active = []
+    seen_adhoc = set()
+    for r in rows:
+        pol = _row_get(r, idx_pol).strip()
+        if pol in seen_adhoc:
+            continue
+        opt_type = _row_get(r, idx_opt_type).strip().upper()
+        opt = _row_get(r, idx_opt).strip().upper()
+        ena = _row_get(r, idx_ena_opt).strip()
+        ora = _row_get(r, idx_ora_s).strip().upper()
+        # ALL action on a custom policy that is enabled (has an enabled_option)
+        if opt == "ALL" and opt_type == "STANDARD ACTION" and ora == "NO" and ena:
+            adhoc_active.append(pol)
+            seen_adhoc.add(pol)
+    if adhoc_active:
+        out += t("policy.adhoc_warn", lang=LANG,
+                 policies=", ".join(f"`{p}`" for p in adhoc_active)) + "\n\n"
+
+    # ----------------------------------------------------------------
     # Full action-level detail: appendix only, never truncated
     # ----------------------------------------------------------------
     if include_appendix:
@@ -1886,6 +1924,76 @@ def render_section_03_policy_inventory(file_data, top_n, include_appendix):
     else:
         out += t("policy.see_appendix", lang=LANG) + "\n\n"
     return out
+
+
+def _policy_active_in_inv(inv_data, keyword):
+    """Return True if any enabled custom policy name contains keyword (case-insensitive)."""
+    if inv_data is None:
+        return False
+    idx_pn = _col_index(inv_data, "policy_name")
+    idx_ena = _col_index(inv_data, "enabled_option")
+    idx_ora = _col_index(inv_data, "oracle_supplied")
+    kw = keyword.upper()
+    for r in inv_data.get("rows", []):
+        pol = _row_get(r, idx_pn).strip().upper()
+        ena = _row_get(r, idx_ena).strip()
+        ora = _row_get(r, idx_ora).strip().upper()
+        if kw in pol and ora == "NO" and ena:
+            return True
+    return False
+
+
+def _find_by_user_policies(inv_data):
+    """Return list of (policy_name, entity_name) for custom BY-USER bindings
+    that are not standard Oracle accounts (heuristic: not SYS/SYSTEM/AUDIT_*)."""
+    if inv_data is None:
+        return []
+    idx_pn = _col_index(inv_data, "policy_name")
+    idx_ent = _col_index(inv_data, "entity_name")
+    idx_etype = _col_index(inv_data, "entity_type")
+    idx_opt = _col_index(inv_data, "enabled_option")
+    idx_ora = _col_index(inv_data, "oracle_supplied")
+    standard_accounts = {
+        "SYS", "SYSTEM", "SYSMAN", "DBSNMP", "AUDSYS",
+        "AUDIT_ADMIN", "AUDIT_VIEWER", "SYSBACKUP",
+        "SYSDG", "SYSKM", "SYSRAC", "ALL USERS",
+    }
+    seen = set()
+    result = []
+    for r in inv_data.get("rows", []):
+        pol = _row_get(r, idx_pn).strip()
+        ent = _row_get(r, idx_ent).strip()
+        etype = _row_get(r, idx_etype).strip().upper()
+        opt = _row_get(r, idx_opt).strip()
+        ora = _row_get(r, idx_ora).strip().upper()
+        key = (pol, ent)
+        if key in seen:
+            continue
+        if (etype == "USER" and ora == "NO" and opt
+                and ent.upper() not in standard_accounts):
+            seen.add(key)
+            result.append((pol, ent))
+    return result
+
+
+def _detect_v2_ddl_double_coverage(vol_data, inv_data):
+    """Return True when both a general DDL policy and an off-path DDL policy
+    are active (V2 design: DDL in ODB_LOC_DDL_ALL_V2 + ODB_LOC_APP_OFFPATH_V2).
+    Uses the policy volume data (04) to find enabled policies with DDL events."""
+    if vol_data is None or inv_data is None:
+        return False
+    idx_pn = _col_index(vol_data, "policy_name")
+    active_names = {
+        _row_get(r, idx_pn).strip().upper()
+        for r in vol_data.get("rows", [])
+        if _row_get(r, idx_pn).strip()
+    }
+    # Check whether both a DDL-all policy and an off-path policy are active.
+    # Pattern match: any policy containing DDL_ALL and any containing OFFPATH.
+    has_ddl_all = any("DDL_ALL" in n or "DDL" in n and "OFFPATH" not in n
+                      for n in active_names)
+    has_offpath = any("OFFPATH" in n for n in active_names)
+    return has_ddl_all and has_offpath
 
 
 def render_section_04_07_volumes(files, top_n):
@@ -1916,6 +2024,12 @@ def render_section_04_07_volumes(files, top_n):
                 for pol, evts in ghost:
                     out += f"  - `{pol}` ({fmt_int(evts)})\n"
                 out += "\n"
+            # G-07: double-coverage note for V2 DDL overlap
+            inv = files.get("03")
+            if inv is not None:
+                _ddl_note = _detect_v2_ddl_double_coverage(fd, inv)
+                if _ddl_note:
+                    out += t("vol.ddl_double_coverage_note", lang=LANG) + "\n\n"
     return out
 
 
@@ -1962,16 +2076,60 @@ def render_section_05_connect_profile(files, classifier, top_n):
     return out
 
 
-def render_section_06_privileged(file_data, top_n):
+def render_section_06_privileged(file_data, top_n, crit_pkg_data=None,
+                                  inv_data=None):
     out = section_header(2, t("section.06_privileged", lang=LANG))
+
+    # --- 6.1 Privileged User Activity (SYS / SYSTEM / DBA role holders) ---
+    out += section_header(3, t("section.06_1_priv", lang=LANG))
     if file_data is None:
         out += t("note.csv_missing", lang=LANG,
                  fname="14_privileged_activity.csv") + "\n\n"
-        return out
-    out += t("section.06_intro", lang=LANG) + "\n\n"
-    out += render_table(file_data["headers"], file_data["rows"],
-                        max_rows=top_n)
-    out += "\n"
+    else:
+        out += t("section.06_intro", lang=LANG) + "\n\n"
+        out += render_table(file_data["headers"], file_data["rows"],
+                            max_rows=top_n)
+        out += "\n"
+
+    # --- 6.2 Critical Package Executions (CIS 5.1.3 - ODB_LOC_CRIT_PKG_V2) ---
+    out += section_header(3, t("section.06_2_crit_pkg", lang=LANG))
+    out += t("section.06_2_intro", lang=LANG) + "\n\n"
+    if crit_pkg_data is None:
+        out += t("note.csv_missing", lang=LANG,
+                 fname="22_crit_pkg_executions.csv") + "\n\n"
+    else:
+        rows = crit_pkg_data.get("rows", [])
+        if not rows:
+            out += t("pkg.no_events", lang=LANG) + "\n\n"
+        else:
+            # Check if this looks like only ORA$MANDATORY coverage
+            # (only DBMS_FGA / DBMS_AUDIT_MGMT without ODB_LOC_CRIT_PKG_V2)
+            _inv_has_crit_pkg = _policy_active_in_inv(inv_data, "CRIT_PKG")
+            if not _inv_has_crit_pkg:
+                out += t("pkg.policy_missing_note", lang=LANG) + "\n\n"
+            out += render_table(crit_pkg_data["headers"], rows, max_rows=top_n)
+            out += "\n"
+
+    # --- 6.3 Developer Activity (ODB_LOC_DEV_ALL_V2 BY-USER bindings) ---
+    out += section_header(3, t("section.06_3_dev", lang=LANG))
+    out += t("section.06_3_intro", lang=LANG) + "\n\n"
+    if inv_data is not None:
+        dev_policies = _find_by_user_policies(inv_data)
+        if dev_policies:
+            out += t("dev.policies_found", lang=LANG,
+                     n=len(dev_policies)) + "\n\n"
+            dev_rows = [[pol, users] for pol, users in dev_policies]
+            out += render_table(
+                [t("label.policy", lang=LANG), t("label.entity", lang=LANG)],
+                dev_rows,
+            )
+            out += "\n"
+            out += t("dev.hint", lang=LANG) + "\n\n"
+        else:
+            out += t("dev.none_found", lang=LANG) + "\n\n"
+    else:
+        out += t("note.csv_missing", lang=LANG,
+                 fname="03_policy_inventory.csv") + "\n\n"
     return out
 
 
@@ -1990,6 +2148,9 @@ def render_section_07_security_signals(files, classifier, top_n):
 
     # --- 7.2 Off-Path Candidates ---
     out += section_header(3, t("section.07_2_offpath", lang=LANG))
+    # G-09: cross-reference note for V2 context-based vs pattern-based detection
+    if _policy_active_in_inv(files.get("03"), "OFFPATH"):
+        out += t("offpath.v2_crossref_note", lang=LANG) + "\n\n"
     fd12 = files.get("12")
     if fd12 is None:
         out += t("note.offpath_skipped", lang=LANG) + "\n\n"
@@ -2388,6 +2549,8 @@ def render_section_09_cis_coverage(file_data, inv_data=None):
     )
     out += "\n" + t("cis.coverage_note", lang=LANG) + "\n"
     out += t("cis.source", lang=LANG) + "\n\n"
+    # G-08: 26ai-specific DDL actions note
+    out += t("cis.26ai_ddl_note", lang=LANG) + "\n\n"
 
     # ----------------------------------------------------------------
     # Detail table: policies from inventory that cover CIS requirements
@@ -2517,7 +2680,11 @@ def render_report(bundle, classifier, top_n, include_appendix,
     )
     out += render_section_04_07_volumes(files, top_n)
     out += render_section_05_connect_profile(files, classifier, top_n)
-    out += render_section_06_privileged(files.get("14"), top_n)
+    out += render_section_06_privileged(
+        files.get("14"), top_n,
+        crit_pkg_data=files.get("22"),
+        inv_data=files.get("03"),
+    )
     out += render_section_07_security_signals(files, classifier, top_n)
     out += render_section_08_tuning(files.get("15"), top_n, policy_ddl_map)
     out += render_section_09_cis_coverage(files.get("17"), inv_data=files.get("03"))

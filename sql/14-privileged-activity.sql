@@ -4,6 +4,11 @@
 -- Purpose...: Privileged-user activity (SYS, SYSTEM, SYSDBA, AUDIT_ADMIN
 --             etc). Compliance requirement (CIS, PCI-DSS) - privileged
 --             actions must be fully traceable and visible.
+--             V2: also captures role-based DBA audit targets (BY GRANTED ROLE).
+--             Any user appearing in AUDIT_UNIFIED_ENABLED_POLICIES with
+--             entity_type = 'ROLE' and whose role is tracked in DBA_ROLE_PRIVS
+--             is included dynamically - covers C##ODB_ROLE_DBA holders and
+--             any other customer-specific DBA role used in audit policy bindings.
 -- Pattern...: Filtered multi-dimension aggregate.
 -- Notes.....: Privileged USERNAMES stay KEEP (visible) per compliance.
 --             Object schema/name still PSEUDO (customer data).
@@ -36,9 +41,23 @@ SELECT
 FROM unified_audit_trail
 WHERE event_timestamp_utc >= SYSTIMESTAMP - NUMTODSINTERVAL(TO_NUMBER('&days'), 'DAY')
   AND dbid = con_id_to_dbid(SYS_CONTEXT('USERENV','CON_ID'))
-  AND dbusername IN ('SYS', 'SYSTEM', 'AUDIT_VIEWER', 'AUDIT_ADMIN',
-                     'SYSBACKUP', 'SYSDG', 'SYSKM', 'SYSRAC',
-                     'DBSNMP', 'AUDSYS')
+  AND (
+        -- Standard Oracle privileged accounts
+        dbusername IN ('SYS', 'SYSTEM', 'AUDIT_VIEWER', 'AUDIT_ADMIN',
+                       'SYSBACKUP', 'SYSDG', 'SYSKM', 'SYSRAC',
+                       'DBSNMP', 'AUDSYS')
+        -- V2: role-based DBA audit targets (BY GRANTED ROLE bindings).
+        -- Covers C##ODB_ROLE_DBA holders and any other customer DBA role
+        -- referenced in enabled audit policies (depth=1, direct grants only).
+        OR dbusername IN (
+               SELECT DISTINCT r.grantee
+               FROM   audit_unified_enabled_policies e
+               JOIN   dba_role_privs r
+                      ON  UPPER(r.granted_role) = UPPER(e.entity_name)
+               WHERE  UPPER(e.entity_type) = 'ROLE'
+                 AND  e.oracle_supplied     = 'NO'
+           )
+      )
 GROUP BY dbusername, action_name, object_schema, object_name, return_code
 ORDER BY 6 DESC
 FETCH FIRST TO_NUMBER('&top_n') ROWS ONLY;
