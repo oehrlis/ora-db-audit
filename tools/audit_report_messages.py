@@ -515,14 +515,12 @@ MESSAGES: dict[str, dict[str, str]] = {
             "deaktivieren (`NOAUDIT POLICY <name>`) um Trail-Volumen zu begrenzen."
         ),
 
-        # G-07: Double-coverage note (Section 4.1)
-        "vol.ddl_double_coverage_note": (
-            "> ℹ️ **DDL-Doppelzaehlung (by design):** Eine DDL-Sammel-Policy "
-            "(z.B. `ODB_LOC_DDL_ALL_V2`) und eine Off-Path-Policy "
-            "(z.B. `ODB_LOC_APP_OFFPATH_V2`) sind gleichzeitig aktiv. "
-            "Off-Path-DDL erscheint in beiden Policies (je ein Record). "
-            "Dies ist ein bewusstes V2-Design-Entscheid (vollstaendige Traceability). "
-            "Kein Finding - nur Erklaerung fuer erhoehtes DDL-Volumen."
+        # N-04: ISDBA exclusion in OFFPATH (FP-005, Section 7)
+        "offpath.isdba_exclusion_note": (
+            "> ℹ️ **ISDBA-Sessions nicht in Off-Path-Records:** "
+            "`ODB_LOC_APP_OFFPATH_V2` schliesst SYSDBA-Verbindungen (`ISDBA = TRUE`) "
+            "via WHEN-Klausel explizit aus. SYS-DML wird stattdessen durch "
+            "`ODB_LOC_PRIV_DBA_ALL_V2` erfasst. Fehlen von SYS-DML in Off-Path ist erwartet."
         ),
 
         # G-08: 26ai DDL actions note (Section 9)
@@ -1046,14 +1044,12 @@ MESSAGES: dict[str, dict[str, str]] = {
             "disable with `NOAUDIT POLICY <name>` to limit trail volume."
         ),
 
-        # G-07: Double-coverage note (Section 4.1)
-        "vol.ddl_double_coverage_note": (
-            "> ℹ️ **DDL double-counting (by design):** A general DDL policy "
-            "(e.g. `ODB_LOC_DDL_ALL_V2`) and an off-path policy "
-            "(e.g. `ODB_LOC_APP_OFFPATH_V2`) are both active. "
-            "Off-path DDL events appear in both policies (one record each). "
-            "This is a deliberate V2 design decision (full traceability). "
-            "Not a finding - explanation for elevated DDL volume only."
+        # N-04: ISDBA exclusion in OFFPATH (FP-005, Section 7)
+        "offpath.isdba_exclusion_note": (
+            "> ℹ️ **ISDBA sessions excluded from off-path records:** "
+            "`ODB_LOC_APP_OFFPATH_V2` explicitly excludes SYSDBA connections "
+            "(`ISDBA = TRUE`) via WHEN clause. SYS DML is captured instead by "
+            "`ODB_LOC_PRIV_DBA_ALL_V2`. Absence of SYS DML in off-path records is expected."
         ),
 
         # G-08: 26ai DDL actions note (Section 9)

@@ -7,6 +7,28 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-07-08
+
+### Fixed
+
+- **DDL double-coverage note removed** (`tools/audit_report.py`): The
+  `_detect_v2_ddl_double_coverage()` function and its Section 4.1 note were based on
+  an outdated V2 assumption where `ODB_LOC_APP_OFFPATH_V2` included DDL actions.
+  Since V2.1 OFFPATH is DML-only (INSERT/UPDATE/DELETE/MERGE); DDL_ALL covers schema
+  changes for ALL USERS with no overlap. The misleading double-counting warning is removed.
+- **`docs/v2-policy-architecture.md`**: Corrected OFFPATH scope (DML-only, no DDL
+  overlap), added `ODB_LOC_ACC_MGMT_V2` (new V2.1 policy for GRANT/REVOKE/USER+ROLE
+  management), expanded WHEN-clause description to include ISDBA exclusion, added
+  schema-owner EXCEPT USER section, updated context attribute table with `Used by` column.
+
+### Added
+
+- **FP-005 (ISDBA_SESSION_EXCLUDED)** in AI prompts (DE + EN): SYSDBA sessions
+  (`ISDBA = TRUE`) are excluded from `ODB_LOC_APP_OFFPATH_V2` via WHEN clause - SYS
+  DML appears in PRIV_DBA_ALL_V2 records, not in off-path signals.
+- **`offpath.isdba_exclusion_note`** message (DE + EN) in Section 7.2 when OFFPATH
+  policy is active: explains that absent SYS DML in off-path records is expected.
+
 ## [1.8.0] - 2026-07-08
 
 ### Added
