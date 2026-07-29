@@ -1,1 +1,1 @@
-/Users/stefan.oehrli/repos/own/oehrlis/ai-toolkit/claude/commands/bash-perf-audit.md
+../../../ai-toolkit/claude/commands/bash-perf-audit.md
