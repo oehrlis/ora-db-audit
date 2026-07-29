@@ -1,1 +1,1 @@
-/Users/stefan.oehrli/repos/own/oehrlis/ai-toolkit/claude/commands/analyse.md
+../../../ai-toolkit/claude/commands/analyse.md
