@@ -5,7 +5,7 @@
 -- Name......: 20-fp-role-grantees.sql
 -- Author....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
 -- Date......: 2026.05.29
--- Revision..: 0.1.0
+-- Revision..: 0.1.1
 -- Purpose...: Cross-reference BY GRANTED ROLE audit policy bindings with the
 --             actual role grants in DBA_ROLE_PRIVS. Used by audit_report.py
 --             to detect FP-001 false positives: failed LOGON events appearing
@@ -63,10 +63,11 @@ SELECT
     END                                                                     AS "grantee_type",
     NVL(r.admin_option, 'N/A')                                              AS "admin_option"
 FROM (
-    SELECT DISTINCT policy_name, entity_name
-    FROM   audit_unified_policies
-    WHERE  entity_type    = 'ROLE'
-    AND    oracle_supplied = 'NO'
+    SELECT DISTINCT e.policy_name, e.entity_name
+    FROM   audit_unified_enabled_policies e
+    JOIN   audit_unified_policies p ON p.policy_name = e.policy_name
+    WHERE  UPPER(e.entity_type) = 'ROLE'
+    AND    p.oracle_supplied    = 'NO'
 ) p
 LEFT JOIN dba_role_privs r  ON  r.granted_role = p.entity_name
 LEFT JOIN dba_roles      dr ON  dr.role        = r.grantee
