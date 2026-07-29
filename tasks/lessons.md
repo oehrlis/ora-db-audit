@@ -69,6 +69,8 @@ in v1.3.1 fix). Flag worked at shell level but silently had no effect on report.
 
 **verify:** `grep -A2 "report_args+=" bin/ora-db-audit.sh | grep "<new-flag>"`
 
+[promoted → rule: CLAUDE.md Known Traps]
+
 ---
 
 ## L-05: Task descriptions must use actual file names
@@ -82,3 +84,7 @@ confusion when verifying completion.
 
 **How to apply:** When writing tasks, confirm file existence with `ls` before
 referencing a path.
+
+**verify:** `ls bin/ora-db-audit.sh tools/audit_report.py` → both files exist
+
+[promoted → rule: CLAUDE.md Known Traps]
