@@ -29,6 +29,28 @@ Files are run in sequence. Each query writes its output to a CSV file in the bun
 | `17-cis-coverage.sql` | CIS 5.1-5.5 policy presence + enabled/disabled check | 5.1-5.5 |
 | `18-audit-roles.sql` | AUDIT_ADMIN and AUDIT_VIEWER role membership + risk flags | - |
 | `19-offpath-candidates.sql` | Hosts not matching app/infra/DBA patterns | - |
+| `20-fp-role-grantees.sql` | Cross-reference BY GRANTED ROLE policy bindings with actual role grants | - |
+| `21-uncovered-users.sql` | DB users not covered by any enabled non-logon audit policy (3 coverage tiers) | 5.1, 5.2 |
+| `22-crit-pkg-executions.sql` | Audit trail events for the 19 CIS 5.1.3 critical SYS packages | 5.3 |
+| `23-blind-spot-pdb.sql` | Blind-spot report, PDB scope (current container, dba_* views) | 5.1, 5.2 |
+| `24-blind-spot-cdb.sql` | Blind-spot report, CDB scope (CONTAINERS() + cdb_* views, all open PDBs) | 5.1, 5.2 |
 <!-- markdownlint-enable -->
 
 Queries 08-12 and 15 support `--sample-rows N` via `ROWNUM <= N` injection for large audit trails.
+
+---
+
+## Standalone Queries
+
+The `sql/standalone/` directory contains copy-paste-ready versions of selected queries.
+These files are designed to run directly in SQL*Plus or SQL Developer without any tool
+setup, bundle directory, or spool configuration.
+
+<!-- markdownlint-disable MD013 MD060 -->
+| File | Description |
+|------|-------------|
+| `sql/standalone/blind-spot-pdb.sql` | Blind-spot report for a single container (PDB or Non-CDB) |
+| `sql/standalone/blind-spot-cdb.sql` | Blind-spot report across all open PDBs in a CDB |
+<!-- markdownlint-enable -->
+
+See [sql/standalone/README.md](standalone/README.md) for usage details and required privileges.

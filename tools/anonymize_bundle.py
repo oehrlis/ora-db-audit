@@ -90,7 +90,8 @@ ORACLE_SYSTEM_SCHEMAS = _ORACLE_USERS | {
 # Fixed priority order for pseudonym assignment when a value appears in
 # multiple PSEUDO categories. First category in this list wins, the value
 # is reused as-is for subsequent categories (cross-category dedup).
-CATEGORY_ORDER = ("HOST", "DBUSER", "OSUSER", "CLIENT", "SCHEMA", "OBJECT")
+CATEGORY_ORDER = ("HOST", "DBUSER", "OSUSER", "CLIENT", "SCHEMA", "OBJECT",
+                  "PDB")
 
 # Type hints valid in a "# schema:" line. Anything else triggers a warning
 # (we keep the column unchanged to avoid data loss).

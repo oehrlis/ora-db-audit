@@ -390,6 +390,14 @@ def is_whitelisted(value, category, customer_prefix, extra_whitelist):
         if upper == customer_prefix or upper.startswith(customer_prefix + "_"):
             return True
 
+    # Container names: the Oracle-fixed containers carry no customer
+    # information and are needed to read a CDB-scoped report at all.
+    if category == "PDB":
+        if upper in ("CDB$ROOT", "PDB$SEED"):
+            return True
+        if upper.startswith("CON_"):
+            return True
+
     if category in ("HOST", "IP"):
         if lower in FQDN_WHITELIST:
             return True

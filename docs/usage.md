@@ -183,6 +183,60 @@ The prompt file includes all relevant audit data and analysis instructions. No A
 
 ---
 
+---
+
+## UC-9: Blind-Spot Report - Who Is Not Audited?
+
+The blind-spot report answers the question "which database users have no customer-defined
+audit policy covering their activity?" It is the most direct way to identify gaps in audit
+coverage before a compliance review or security audit.
+
+### What it answers
+
+For every database user, the report assigns a `coverage_status`:
+
+<!-- markdownlint-disable MD013 MD060 -->
+| coverage_status | Meaning |
+|-----------------|---------|
+| `COVERED_DIRECT` | User is named explicitly in at least one enabled customer policy |
+| `COVERED_VIA_ROLE` | User holds a role that is referenced by an enabled policy (transitively resolved) |
+| `COVERED_ALL_USERS` | An unrestricted policy covers all users in the container |
+| `EXCLUDED_EXCEPT` | User is excluded via an EXCEPT clause - a deliberate exemption, not an accidental gap |
+| `BLIND_SPOT` | No enabled customer policy covers this user |
+<!-- markdownlint-enable -->
+
+Only customer-controlled policies (`oracle_supplied = 'NO'`) count toward `coverage_status`.
+Oracle-supplied coverage (e.g. `ORA_SECURECONFIG`) is always present and would mark every user
+as covered, making the report meaningless. Oracle-supplied coverage is reported separately in the
+`ora_supplied_cover` column: a user flagged `BLIND_SPOT` with `ora_supplied_cover = YES` is still
+caught by Oracle baseline policies, but no customer policy audits that user's activity.
+
+### When to use 23 vs 24
+
+<!-- markdownlint-disable MD013 MD060 -->
+| Query | When to use |
+|-------|-------------|
+| `23-blind-spot-pdb.sql` | Single PDB, Non-CDB, or CDB$ROOT (reports only that container) |
+| `24-blind-spot-cdb.sql` | CDB-wide view - run from CDB$ROOT to cover all open PDBs in one pass |
+<!-- markdownlint-enable -->
+
+### Non-CDB and PDB caveats
+
+- `24-blind-spot-cdb.sql` uses `CONTAINERS()` to fan queries across containers. On a Non-CDB,
+  the query fails gracefully (the error is written to `_sqlplus.log`; use `23` instead).
+- When `24` is run from inside a PDB (not CDB$ROOT), `CONTAINERS()` degrades to that one container
+  only - this is expected and verified behaviour.
+- `CONTAINERS()` only returns **OPEN** containers. A PDB in `MOUNTED` state is silently absent from
+  the result. Cross-check with `CDB_PDBS` or `V$PDBS` before declaring all PDBs clean.
+- For a true Non-CDB, always use `23-blind-spot-pdb.sql`.
+
+### Running standalone (no tool setup)
+
+The `sql/standalone/` directory contains copy-paste-ready versions that write no spool file and
+require no bundle directory. See [sql/standalone/README.md](../sql/standalone/README.md).
+
+---
+
 ## Detailed Use-Case Documentation
 
 For in-depth workflows, see:

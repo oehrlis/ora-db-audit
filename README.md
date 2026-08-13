@@ -46,7 +46,7 @@ git clone https://github.com/oehrlis/ora-db-audit.git
 cd ora-db-audit
 
 # Option B - release tarball
-tar xzf ora-db-audit-1.4.0.tar.gz && cd ora-db-audit-1.4.0
+tar xzf ora-db-audit-1.9.0.tar.gz && cd ora-db-audit-1.9.0
 ```
 
 ```bash
@@ -64,12 +64,72 @@ Full CLI reference, patterns, and advanced examples: [docs/usage.md](docs/usage.
 
 ---
 
+## Quick Start: Blind-Spot Report
+
+Answers one question: **which database users are actually audited, and which are not.**
+
+Every enabled Unified Audit policy is cross-checked against the catalog views, evaluating
+all three Oracle entity assignment forms - `BY USER`, `BY USERS WITH GRANTED ROLES`
+(resolved transitively, including roles granted to `PUBLIC`), and `EXCEPT`. A user covered
+through a role is not a blind spot. A user in an `EXCEPT` clause is reported separately as
+a deliberate exemption, not as a gap.
+
+### Run it standalone (no tool setup)
+
+The fastest path - copy the file into SQL\*Plus or SQL Developer and run it. No install,
+no Python, no spool file, no bundle.
+
+```bash
+# one container (PDB, or a Non-CDB)
+sqlplus / as sysdba @sql/standalone/blind-spot-pdb.sql
+
+# all open containers of a CDB, run from CDB$ROOT
+sqlplus / as sysdba @sql/standalone/blind-spot-cdb.sql
+```
+
+Required privileges: `SYSDBA`, or any account with `SELECT ANY DICTIONARY` /
+`SELECT_CATALOG_ROLE`.
+
+### Run it as part of the tool
+
+Queries `23-blind-spot-pdb.sql` and `24-blind-spot-cdb.sql` run automatically with every
+collection and feed report section 7.4:
+
+```bash
+./bin/ora-db-audit.sh --days 30 --pdb MYPDB --report
+```
+
+### Reading the result
+
+<!-- markdownlint-disable MD013 -->
+| `coverage_status` | Meaning |
+| --- | --- |
+| `COVERED_DIRECT` | Named explicitly in at least one enabled policy |
+| `COVERED_VIA_ROLE` | Covered through a granted role - **not** a blind spot |
+| `COVERED_ALL_USERS` | Covered by an unrestricted policy |
+| `EXCLUDED_EXCEPT` | Not covered, and the only reason is an `EXCEPT` clause - a deliberate exemption |
+| `BLIND_SPOT` | No customer-controlled policy audits this user |
+<!-- markdownlint-enable -->
+
+`coverage_status` counts customer-controlled policies only. Oracle ships
+`ORA_SECURECONFIG` enabled `BY ALL USERS` on virtually every database - counting it would
+mark every user as covered and make the report meaningless. Oracle-supplied coverage is
+still reported, in the `ora_supplied_cover` column.
+
+**PDB vs CDB:** Oracle provides no `CDB_AUDIT_UNIFIED_*` views - the Unified Audit catalog
+views are always container-local. The CDB variant therefore uses the `CONTAINERS()` clause,
+which covers **open** containers only; a `MOUNTED` PDB is silently absent. The two queries
+are deliberately kept separate: they rest on different base information, and the CDB variant
+becomes unreadable on a database with many PDBs.
+
+---
+
 ## How It Works
 
 `./bin/ora-db-audit.sh` is the single entry point:
 
 1. Connects to the target database via `sqlplus`
-2. Runs 20 SQL analysis queries (`sql/00-setup` through `sql/19-offpath`)
+2. Runs 25 SQL analysis queries (`sql/00-setup` through `sql/24-blind-spot-cdb`)
 3. Writes results to CSV files and packages them into a `.tar.gz` bundle
 4. Optionally: anonymises (`--anonymize`), renders report (`--report`),
    adds AI findings (`--ai`), converts to HTML (`--to-html`),

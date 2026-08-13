@@ -492,6 +492,35 @@ MESSAGES: dict[str, dict[str, str]] = {
         "label.covered_direct": "P1 (Direkt)",
         "label.covered_role": "P2 (Via Rolle)",
 
+        # --- F7: Blind-Spot report (23/24) ---
+        "section.07_4_blind_spot": "7.4 Blind-Spot-Analyse (Audit-Abdeckung)",
+        "metric.blind_spots": "Benutzer ohne Audit-Abdeckung (Blind Spots)",
+        "blind_spot.intro": (
+            "Prueft fuer jeden Datenbankbenutzer, ob mindestens eine aktive "
+            "Customer-Policy mit Non-Logon-Aktionen greift. Bewertet alle drei "
+            "Oracle-Zuweisungsformen: BY USER (direkt), BY GRANTED ROLE "
+            "(transitiv inkl. PUBLIC) und EXCEPT USER. Oracle-supplied Policies "
+            "(z.B. ORA_SECURECONFIG) werden separat ausgewiesen, zaehlen aber "
+            "nicht zur Kundenkonfiguration. Status BLIND_SPOT = kein "
+            "Kundenpolicy-Schutz; EXCLUDED_EXCEPT = bewusste Ausnahme."
+        ),
+        "blind_spot.none": "_Keine Blind Spots gefunden - alle Benutzer durch mindestens eine Customer-Policy abgedeckt._",
+        "blind_spot.found": "**{n} Benutzer** ohne Abdeckung durch eine Customer-Policy (BLIND_SPOT):",
+        "blind_spot.csv_missing": "_(23_blind_spot_pdb.csv / 24_blind_spot_cdb.csv nicht im Bundle)_",
+        "blind_spot.except_note": (
+            "**EXCLUDED_EXCEPT** - bewusste Ausnahme, keine Abdeckungsluecke: "
+            "Diese Benutzer sind explizit aus einer ansonsten universellen Policy ausgeklammert."
+        ),
+        "blind_spot.source_pdb": "Quelle: `23_blind_spot_pdb.csv`",
+        "blind_spot.source_cdb": "Quelle: `24_blind_spot_cdb.csv`",
+        "label.coverage_status": "Coverage-Status",
+        "label.count": "Anzahl",
+        "label.pdb_name": "PDB",
+        "label.oracle_maintained": "Oracle-Maintained",
+        "label.account_status": "Account-Status",
+        "label.ora_supplied_cover": "Oracle-Supplied Cover",
+        "label.excepted_policies": "Ausgenommene Policies",
+
         # --- F6a: Policy DDL section (custom only) ---
         "section.11_policy_ddl": "11. Policy-Definitionen (Custom)",
         "policy_ddl.section_intro": (
@@ -1020,6 +1049,35 @@ MESSAGES: dict[str, dict[str, str]] = {
         "label.principal_type": "Type",
         "label.covered_direct": "P1 (Direct)",
         "label.covered_role": "P2 (Via Role)",
+
+        # --- F7: Blind-Spot report (23/24) ---
+        "section.07_4_blind_spot": "7.4 Blind-Spot Analysis (Audit Coverage)",
+        "metric.blind_spots": "Users without audit coverage (blind spots)",
+        "blind_spot.intro": (
+            "Checks whether each database user is covered by at least one active "
+            "customer-controlled policy with non-logon actions. Evaluates all three "
+            "Oracle assignment forms: BY USER (direct), BY GRANTED ROLE "
+            "(transitive, including PUBLIC), and EXCEPT USER. Oracle-supplied policies "
+            "(e.g. ORA_SECURECONFIG) are reported separately but do not count toward "
+            "customer coverage. BLIND_SPOT = no customer policy protection; "
+            "EXCLUDED_EXCEPT = deliberate exemption, not a gap."
+        ),
+        "blind_spot.none": "_No blind spots found - all users are covered by at least one customer policy._",
+        "blind_spot.found": "**{n} user(s)** not covered by any customer audit policy (BLIND_SPOT):",
+        "blind_spot.csv_missing": "_(23_blind_spot_pdb.csv / 24_blind_spot_cdb.csv not in bundle)_",
+        "blind_spot.except_note": (
+            "**EXCLUDED_EXCEPT** - deliberate exemption, not a coverage gap: "
+            "these users are explicitly excepted from an otherwise universal policy."
+        ),
+        "blind_spot.source_pdb": "Source: `23_blind_spot_pdb.csv`",
+        "blind_spot.source_cdb": "Source: `24_blind_spot_cdb.csv`",
+        "label.coverage_status": "Coverage Status",
+        "label.count": "Count",
+        "label.pdb_name": "PDB",
+        "label.oracle_maintained": "Oracle-Maintained",
+        "label.account_status": "Account Status",
+        "label.ora_supplied_cover": "Oracle-Supplied Cover",
+        "label.excepted_policies": "Excepted Policies",
 
         # --- F6a: Policy DDL section (custom only) ---
         "section.11_policy_ddl": "11. Policy Definitions (Custom)",
