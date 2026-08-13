@@ -7,6 +7,58 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-08-13
+
+### Added
+
+- **`sql/23-blind-spot-pdb.sql`** - blind-spot report, PDB scope (`dba_*` views, current
+  container). Cross-checks every database user against the entity assignment of all
+  enabled Unified Audit policies and answers "who is audited and who is not". Evaluates
+  all three Oracle assignment forms: `BY USER` (direct and `ALL USERS`),
+  `BY USERS WITH GRANTED ROLES` (resolved transitively via `CONNECT BY NOCYCLE`,
+  including roles granted to `PUBLIC`) and `EXCEPT`. Result column `coverage_status`:
+  `COVERED_DIRECT`, `COVERED_VIA_ROLE`, `COVERED_ALL_USERS`, `EXCLUDED_EXCEPT`,
+  `BLIND_SPOT`. A user covered through a role is not reported as a blind spot; a user in
+  an `EXCEPT` clause is reported as a deliberate exemption, not as a gap.
+- **`sql/24-blind-spot-cdb.sql`** - same coverage model, CDB scope, all open containers
+  in one pass with `con_id` / `pdb_name` as leading columns. Oracle provides no
+  `CDB_AUDIT_UNIFIED_POLICIES` / `CDB_AUDIT_UNIFIED_ENABLED_POLICIES` - the Unified Audit
+  catalog views exist without a `DBA_`/`CDB_` prefix and are always container-local. The
+  CDB-wide view is therefore built with the `CONTAINERS()` clause, joined back to
+  `CDB_USERS` / `CDB_ROLE_PRIVS` / `CDB_PDBS` on `CON_ID`.
+  The two queries are deliberately kept separate rather than unified: different base
+  information, and the CDB variant becomes unreadable on a database with many PDBs.
+- **`sql/standalone/blind-spot-pdb.sql`** and **`sql/standalone/blind-spot-cdb.sql`** -
+  standalone copy-paste versions for SQL\*Plus and SQL Developer. No tool setup, no
+  substitution variables, no spool file; readable column formatting instead of CSV markup.
+- **`sql/standalone/README.md`** - how to run the standalone queries and required privileges.
+- **Report section 7.4 "Blind Spot Report"** (`tools/audit_report.py`): summary counts per
+  `coverage_status`, detail table of `BLIND_SPOT` rows, and a separately labelled
+  `EXCLUDED_EXCEPT` table. Prefers `24_blind_spot_cdb.csv`, falls back to
+  `23_blind_spot_pdb.csv`. New `metric.blind_spots` row in the summary metrics table.
+  All strings added in DE and EN.
+- **Blind-spot quick start in `README.md`** with the `coverage_status` reference table
+  and the PDB-vs-CDB rationale.
+
+### Changed
+
+- **`tools/anonymize_bundle.py`**: new `PDB` pseudonym category in `CATEGORY_ORDER`, so
+  container names in the CDB-scoped output are pseudonymised (`PDB_001`) instead of
+  triggering an `unknown schema type` warning and leaking through unchanged.
+- **`tools/anonymize_audit_log.py`**: whitelist `CDB$ROOT`, `PDB$SEED` and `CON_*` in the
+  new `PDB` category - these carry no customer information and are required to read a
+  CDB-scoped report.
+- **`bin/ora-db-audit.sh`**: queries 23 and 24 wired into the `QUERIES` array (25 queries).
+
+### Notes
+
+- Non-CDB caveat: `CONTAINERS()` requires a CDB. Query 24 was verified from `CDB$ROOT`
+  (all containers) and from within a PDB (degrades cleanly to that one container). It was
+  **not** verified against a true Non-CDB - use query 23 there. Query 24 captures the
+  `V$DATABASE.CDB` flag into a `# cdb:` comment line so the CSV is self-documenting.
+- `CONTAINERS()` returns OPEN containers only. A PDB in `MOUNTED` state is silently
+  absent - cross-check `CDB_PDBS` / `V$PDBS` before declaring a PDB clean.
+
 ## [1.8.1] - 2026-07-08
 
 ### Fixed

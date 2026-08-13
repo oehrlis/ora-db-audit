@@ -191,13 +191,15 @@ dist: ## Build ora-db-audit-<VERSION>.tar.gz + .tar.gz.b64 for deployment
 	@mkdir -p "$(DIST_DIR)"
 	@stage="$$(mktemp -d -t ora_db_audit.XXXXXX)/$(DIST_PACK_NAME)"; \
 	mkdir -p "$$stage/$(BIN_DIR)" "$$stage/$(TOOLS_DIR)" "$$stage/$(SQL_DIR)" \
-	         "$$stage/$(DOCS_DIR)/use-cases"; \
+	         "$$stage/$(SQL_DIR)/standalone" "$$stage/$(DOCS_DIR)/use-cases"; \
 	cp "$(BIN_DIR)/ora-db-audit.sh"            "$$stage/$(BIN_DIR)/"; \
 	chmod +x "$$stage/$(BIN_DIR)/ora-db-audit.sh"; \
 	printf '#!/usr/bin/env bash\nexec "$$(cd "$$(dirname "$${BASH_SOURCE[0]}")" && pwd)/bin/ora-db-audit.sh" "$$@"\n' \
 		> "$$stage/ora-db-audit"; \
 	chmod +x "$$stage/ora-db-audit"; \
 	cp $(SQL_DIR)/*.sql                        "$$stage/$(SQL_DIR)/"; \
+	cp $(SQL_DIR)/standalone/*.sql             "$$stage/$(SQL_DIR)/standalone/"; \
+	cp $(SQL_DIR)/standalone/*.md              "$$stage/$(SQL_DIR)/standalone/" 2>/dev/null || true; \
 	cp $(TOOLS_DIR)/*.py                       "$$stage/$(TOOLS_DIR)/"; \
 	chmod 0644 "$$stage/$(TOOLS_DIR)/"*.py; \
 	cp $(DOCS_DIR)/*.md                        "$$stage/$(DOCS_DIR)/" 2>/dev/null || true; \
@@ -224,7 +226,7 @@ dist-verify: ## Verify the built distribution tarball and .b64
 	fi
 	@echo "tarball: $(DIST_PACK_TARBALL)"
 	@tar -tzf "$(DIST_PACK_TARBALL)" | sort
-	@for f in bin/ora-db-audit.sh ora-db-audit tools/audit_report.py tools/anonymize_bundle.py tools/export_siem.py README.md CHANGELOG.md; do \
+	@for f in bin/ora-db-audit.sh ora-db-audit tools/audit_report.py tools/anonymize_bundle.py tools/export_siem.py README.md CHANGELOG.md sql/23-blind-spot-pdb.sql sql/24-blind-spot-cdb.sql sql/standalone/blind-spot-pdb.sql sql/standalone/blind-spot-cdb.sql; do \
 		if ! tar -tzf "$(DIST_PACK_TARBALL)" | grep -q "$(DIST_PACK_NAME)/$$f$$"; then \
 			echo "ERROR: $$f missing from tarball" >&2; \
 			exit 1; \

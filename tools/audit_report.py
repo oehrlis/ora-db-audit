@@ -503,6 +503,8 @@ QUERY_FILES = {
     "20": "20_fp_role_grantees",
     "21": "21_uncovered_users",
     "22": "22_crit_pkg_executions",
+    "23": "23_blind_spot_pdb",
+    "24": "24_blind_spot_cdb",
 }
 
 
@@ -1557,6 +1559,15 @@ def render_executive_summary(bundle, classifier, top_n):
             if first_allus != "YES":
                 uncovered_count = len(rows21)
 
+    # Blind-spot count from 24_blind_spot_cdb.csv, else 23_blind_spot_pdb.csv
+    blind_spot_count = 0
+    _fd_bs = files.get("24") or files.get("23")
+    if _fd_bs:
+        _idx_bs_status = _col_index(_fd_bs, "coverage_status")
+        for _r in _fd_bs.get("rows", []):
+            if _row_get(_r, _idx_bs_status).strip().upper() == "BLIND_SPOT":
+                blind_spot_count += 1
+
     out += section_header(3, t("section.metrics", lang=LANG))
     metrics_rows = [
         [t("metric.pol_events", lang=LANG), fmt_int(pol_events)],
@@ -1568,6 +1579,7 @@ def render_executive_summary(bundle, classifier, top_n):
         [t("metric.storage_partitions", lang=LANG),
          fmt_int(len(files.get("02", {}).get("rows", [])))],
         [t("metric.uncovered_users", lang=LANG), fmt_int(uncovered_count)],
+        [t("metric.blind_spots", lang=LANG), fmt_int(blind_spot_count)],
         [t("metric.ai_findings", lang=LANG), _AI_STATUS_SENTINEL],
     ]
     out += render_table(
@@ -2143,6 +2155,10 @@ def render_section_07_security_signals(files, classifier, top_n):
         out += t("note.offpath_skipped", lang=LANG) + "\n\n"
         sec73, _count = render_section_07_3_uncovered(files.get("21"), top_n)
         out += sec73
+        sec74, _bs_count = render_section_07_4_blind_spot(
+            files.get("23"), files.get("24"), top_n
+        )
+        out += sec74
         return out
 
     # --- 7.2.1 Scenario A: Application Context ---
@@ -2260,6 +2276,12 @@ def render_section_07_security_signals(files, classifier, top_n):
     # --- 7.3 Uncovered Users ---
     sec73, _count = render_section_07_3_uncovered(files.get("21"), top_n)
     out += sec73
+
+    # --- 7.4 Blind-Spot Report ---
+    sec74, _bs_count = render_section_07_4_blind_spot(
+        files.get("23"), files.get("24"), top_n
+    )
+    out += sec74
     return out
 
 
@@ -2312,6 +2334,126 @@ def render_section_07_3_uncovered(file_data, top_n):
     out += t("uncovered.depth_note", lang=LANG) + "\n\n"
     out += t("uncovered.source", lang=LANG) + "\n\n"
     return out, len(rows)
+
+
+def render_section_07_4_blind_spot(file_data_pdb, file_data_cdb, top_n):
+    """Section 7.4: blind-spot report (23_blind_spot_pdb / 24_blind_spot_cdb).
+
+    Prefers the CDB file when both are present; falls back to the PDB file.
+    Shows a summary count table by coverage_status and detail rows for
+    BLIND_SPOT (potential gaps) and EXCLUDED_EXCEPT (deliberate exemptions).
+    COVERED_* rows are included in summary counts only.
+    """
+    out = section_header(3, t("section.07_4_blind_spot", lang=LANG))
+
+    # Choose data source: CDB preferred
+    file_data = file_data_cdb if file_data_cdb is not None else file_data_pdb
+    if file_data is None:
+        out += t("blind_spot.csv_missing", lang=LANG) + "\n\n"
+        return out, 0
+
+    out += t("blind_spot.intro", lang=LANG) + "\n\n"
+
+    rows = file_data.get("rows", [])
+    is_cdb = file_data_cdb is not None
+
+    idx_status = _col_index(file_data, "coverage_status")
+    idx_prin = _col_index(file_data, "principal")
+    idx_om = _col_index(file_data, "oracle_maintained")
+    idx_acct = _col_index(file_data, "account_status")
+    idx_paths = _col_index(file_data, "cover_paths")
+    idx_pol_cnt = _col_index(file_data, "policy_count")
+    idx_ora = _col_index(file_data, "ora_supplied_cover")
+    idx_exc_pol = _col_index(file_data, "excepted_policies")
+    # CDB-only columns
+    idx_pdb = _col_index(file_data, "pdb_name") if is_cdb else -1
+
+    # --- Summary count table ---
+    status_order = [
+        "BLIND_SPOT",
+        "EXCLUDED_EXCEPT",
+        "COVERED_ALL_USERS",
+        "COVERED_VIA_ROLE",
+        "COVERED_DIRECT",
+    ]
+    counts: dict[str, int] = {s: 0 for s in status_order}
+    for row in rows:
+        st = _row_get(row, idx_status).strip().upper()
+        if st in counts:
+            counts[st] += 1
+
+    summary_rows = [
+        [st.replace("_", " ").title(), fmt_int(counts[st])]
+        for st in status_order
+    ]
+    out += render_table(
+        [t("label.coverage_status", lang=LANG), t("label.count", lang=LANG)],
+        summary_rows,
+    )
+    out += "\n"
+
+    blind_spot_count = counts["BLIND_SPOT"]
+    if blind_spot_count == 0:
+        out += t("blind_spot.none", lang=LANG) + "\n\n"
+    else:
+        out += t("blind_spot.found", lang=LANG, n=blind_spot_count) + "\n\n"
+        bs_rows = []
+        for row in rows:
+            if _row_get(row, idx_status).strip().upper() != "BLIND_SPOT":
+                continue
+            entry = [_row_get(row, idx_prin)]
+            if is_cdb and idx_pdb >= 0:
+                entry = [_row_get(row, idx_pdb)] + entry
+            entry += [
+                _row_get(row, idx_om) if idx_om >= 0 else "-",
+                _row_get(row, idx_acct) if idx_acct >= 0 else "-",
+                _row_get(row, idx_ora) if idx_ora >= 0 else "-",
+            ]
+            bs_rows.append(entry)
+
+        display_rows = bs_rows[:top_n] if top_n else bs_rows
+        headers = []
+        if is_cdb:
+            headers.append(t("label.pdb_name", lang=LANG))
+        headers += [
+            t("label.principal", lang=LANG),
+            t("label.oracle_maintained", lang=LANG),
+            t("label.account_status", lang=LANG),
+            t("label.ora_supplied_cover", lang=LANG),
+        ]
+        out += render_table(headers, display_rows)
+        out += "\n"
+
+    # --- EXCLUDED_EXCEPT detail ---
+    exc_count = counts["EXCLUDED_EXCEPT"]
+    if exc_count > 0:
+        out += t("blind_spot.except_note", lang=LANG) + "\n\n"
+        exc_rows = []
+        for row in rows:
+            if _row_get(row, idx_status).strip().upper() != "EXCLUDED_EXCEPT":
+                continue
+            entry = [_row_get(row, idx_prin)]
+            if is_cdb and idx_pdb >= 0:
+                entry = [_row_get(row, idx_pdb)] + entry
+            entry.append(
+                _row_get(row, idx_exc_pol) if idx_exc_pol >= 0 else "-"
+            )
+            exc_rows.append(entry)
+
+        exc_display = exc_rows[:top_n] if top_n else exc_rows
+        exc_headers = []
+        if is_cdb:
+            exc_headers.append(t("label.pdb_name", lang=LANG))
+        exc_headers += [
+            t("label.principal", lang=LANG),
+            t("label.excepted_policies", lang=LANG),
+        ]
+        out += render_table(exc_headers, exc_display)
+        out += "\n"
+
+    src_key = "blind_spot.source_cdb" if is_cdb else "blind_spot.source_pdb"
+    out += t(src_key, lang=LANG) + "\n\n"
+    return out, blind_spot_count
 
 
 def render_section_11_policy_ddl(policy_ddl_map, top_n=None):

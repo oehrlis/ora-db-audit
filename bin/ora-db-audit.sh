@@ -122,6 +122,8 @@ QUERIES=(
     "20-fp-role-grantees.sql"
     "21-uncovered-users.sql"
     "22-crit-pkg-executions.sql"
+    "23-blind-spot-pdb.sql"
+    "24-blind-spot-cdb.sql"
 )
 
 # ------------------------------------------------------------------------------
