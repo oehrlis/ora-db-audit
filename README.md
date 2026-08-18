@@ -46,15 +46,18 @@ git clone https://github.com/oehrlis/ora-db-audit.git
 cd ora-db-audit
 
 # Option B - release tarball
-tar xzf ora-db-audit-1.9.0.tar.gz && cd ora-db-audit-1.9.0
+tar xzf ora-db-audit-1.9.1.tar.gz && cd ora-db-audit-1.9.1
 ```
 
 ```bash
+# 0. Verify all runtime dependencies
+./bin/ora-db-audit.sh --check-requirements
+
 # 1. Collect only (no Python needed)
 . oraenv && ./bin/ora-db-audit.sh --days 30 --pdb MYPDB
 
-# 2. Collect + anonymise + render Markdown report
-./bin/ora-db-audit.sh --days 30 --pdb MYPDB --anonymize --report
+# 2. Collect + anonymise + render Markdown + HTML report
+./bin/ora-db-audit.sh --days 30 --pdb MYPDB --anonymize --report --to-html
 
 # 3. Offline: generate report from an existing bundle
 ./bin/ora-db-audit.sh --from-bundle bundle.tar.gz --report
@@ -162,7 +165,7 @@ ora-db-audit/
 ├── docs/         - documentation (installation, usage, compliance, roadmap)
 │   └── use-cases/ - detailed use-case deep-dives
 ├── scripts/      - build and release helpers (bump_version.sh)
-├── sql/          - 20 SQL analysis queries (00-setup to 19-offpath)
+├── sql/          - 25 SQL analysis queries (00-setup to 24-blind-spot-cdb)
 ├── templates/    - customer handover template, collection quick reference
 ├── tests/        - bats shell tests, pytest, fixture bundle
 ├── tools/        - Python helpers (report, anonymize, SIEM export, HTML)
