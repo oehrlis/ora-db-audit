@@ -19,7 +19,7 @@ for the `ora-db-audit` toolkit.
 
 Python is not required for data collection. It is needed only for post-processing steps.
 
-**Minimum version:** Python 3.10 or later
+**Minimum version:** Python 3.6 or later
 
 **Auto-detection order** (first match wins):
 
@@ -53,8 +53,8 @@ pip install -r requirements.txt
 ### Option B - Release Tarball (Recommended for Production Deployment)
 
 ```bash
-tar xzf ora-db-audit-1.4.0.tar.gz
-cd ora-db-audit-1.4.0
+tar xzf ora-db-audit-1.9.1.tar.gz
+cd ora-db-audit-1.9.1
 pip install -r requirements.txt
 ```
 
@@ -139,7 +139,15 @@ Run a dry-run to validate the connect string and SQL paths without touching the 
 ./bin/ora-db-audit.sh --dry-run --days 7 --pdb MYPDB
 ```
 
-Verify Python packages:
+Verify all runtime dependencies in one step:
+
+```bash
+./bin/ora-db-audit.sh --check-requirements
+```
+
+Output shows OK / WARN / FAIL per item (Python version, stdlib modules, tool scripts, SQL
+files, sqlplus, anthropic, pandoc). WARN is non-fatal; FAIL means a required dependency
+is missing. For manual checks:
 
 ```bash
 python3 -c "import markdown; print('markdown OK')"

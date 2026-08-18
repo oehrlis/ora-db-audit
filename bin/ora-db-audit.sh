@@ -224,6 +224,8 @@ Options:
                        OUTPUT: path for the generated file.
   --dry-run            Print actions, do not execute
   --yes,-y             Overwrite existing output without prompting
+  --check-requirements Verify Python, tools, SQL files, sqlplus, and optional
+                       dependencies. Prints OK/WARN/FAIL per item and exits.
   --version,-V         Print version and exit
   --help               Show this help
 
@@ -284,6 +286,7 @@ parse_args() {
             --export-siem)  EXPORT_SIEM_FORMAT="$2"; EXPORT_SIEM_OUTPUT="$3"; shift 3 ;;
             --dry-run)      DRY_RUN=1; shift ;;
             --yes|-y)       ASSUME_YES=1; shift ;;
+            --check-requirements) check_requirements; exit $? ;;
             --version|-V)   echo "${SCRIPT_VERSION}"; exit 0 ;;
             --help|-h)      usage ;;
             *)              err "unknown option: $1"; exit 2 ;;
@@ -457,6 +460,108 @@ resolve_tools_dir() {
     err "  - export AUDIT_PACK_TOOLS=/path/to/tools"
     err "  - run from a self-contained pack (make dist)"
     return 1
+}
+
+# ------------------------------------------------------------------------------
+# check_requirements - verify all runtime dependencies and print a summary
+# ------------------------------------------------------------------------------
+check_requirements() {
+    local ok=0 warn=0 fail=0
+    local python_bin python_ver tools_dir
+
+    printf "%-40s %s\n" "Requirement" "Status"
+    printf "%-40s %s\n" "----------------------------------------" "-------"
+
+    # Python interpreter
+    if python_bin="$(resolve_python 2>/dev/null)"; then
+        python_ver="$("${python_bin}" --version 2>&1)"
+        printf "%-40s %s\n" "Python interpreter" "OK  (${python_ver}, ${python_bin})"
+        (( ok++ )) || true
+    else
+        printf "%-40s %s\n" "Python interpreter" "FAIL  (need python3 >= 3.6 in PATH or ORACLE_HOME)"
+        (( fail++ )) || true
+        python_bin=""
+    fi
+
+    # Python stdlib modules
+    local stdlib_mods="csv json re sys argparse pathlib"
+    for mod in ${stdlib_mods}; do
+        if [[ -n "${python_bin}" ]] && "${python_bin}" -c "import ${mod}" 2>/dev/null; then
+            printf "%-40s %s\n" "  python: ${mod}" "OK"
+            (( ok++ )) || true
+        else
+            printf "%-40s %s\n" "  python: ${mod}" "FAIL  (stdlib missing - unexpected)"
+            (( fail++ )) || true
+        fi
+    done
+
+    # Optional: anthropic package (needed for --ai)
+    if [[ -n "${python_bin}" ]] && "${python_bin}" -c "import anthropic" 2>/dev/null; then
+        printf "%-40s %s\n" "  python: anthropic" "OK  (--ai available)"
+        (( ok++ )) || true
+    else
+        printf "%-40s %s\n" "  python: anthropic" "WARN  (optional; needed for --ai)"
+        (( warn++ )) || true
+    fi
+
+    # tools/*.py files
+    if tools_dir="$(resolve_tools_dir 2>/dev/null)"; then
+        local py_tools="anonymize_bundle.py audit_report.py audit_report_messages.py"
+        for t in ${py_tools}; do
+            if [[ -f "${tools_dir}/${t}" ]]; then
+                printf "%-40s %s\n" "  tool: ${t}" "OK  (${tools_dir})"
+                (( ok++ )) || true
+            else
+                printf "%-40s %s\n" "  tool: ${t}" "FAIL  (not found in ${tools_dir})"
+                (( fail++ )) || true
+            fi
+        done
+    else
+        printf "%-40s %s\n" "tools/ directory" "FAIL  (not found; set --tools-dir)"
+        (( fail++ )) || true
+    fi
+
+    # SQL query files
+    local sql_ok=0 sql_fail=0
+    for q in "${QUERIES[@]}"; do
+        if [[ -f "${SQL_DIR}/${q}" ]]; then
+            (( sql_ok++ )) || true
+        else
+            (( sql_fail++ )) || true
+        fi
+    done
+    if [[ "${sql_fail}" -eq 0 ]]; then
+        printf "%-40s %s\n" "SQL query files (${#QUERIES[@]})" "OK  (${SQL_DIR})"
+        (( ok++ )) || true
+    else
+        printf "%-40s %s\n" "SQL query files" "FAIL  (${sql_fail}/${#QUERIES[@]} missing in ${SQL_DIR})"
+        (( fail++ )) || true
+    fi
+
+    # sqlplus
+    if command -v sqlplus >/dev/null 2>&1; then
+        local sp_ver
+        sp_ver="$(sqlplus -V 2>/dev/null | head -1)"
+        printf "%-40s %s\n" "sqlplus" "OK  (${sp_ver})"
+        (( ok++ )) || true
+    else
+        printf "%-40s %s\n" "sqlplus" "WARN  (not in PATH; not needed for --from-bundle)"
+        (( warn++ )) || true
+    fi
+
+    # pandoc (optional, for --to-html)
+    if command -v pandoc >/dev/null 2>&1; then
+        printf "%-40s %s\n" "pandoc" "OK  ($(pandoc --version 2>/dev/null | head -1))"
+        (( ok++ )) || true
+    else
+        printf "%-40s %s\n" "pandoc" "WARN  (optional; fallback html converter used)"
+        (( warn++ )) || true
+    fi
+
+    printf "%-40s %s\n" "----------------------------------------" "-------"
+    printf "%-40s %s\n" "Summary" "OK: ${ok}  WARN: ${warn}  FAIL: ${fail}"
+
+    [[ "${fail}" -eq 0 ]]
 }
 
 # ------------------------------------------------------------------------------

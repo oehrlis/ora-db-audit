@@ -63,6 +63,7 @@ import re
 import sys
 from collections import defaultdict
 from pathlib import Path
+from typing import Dict, List, Set, Tuple
 
 # Re-use the bundle parser from the anonymiser - same '# schema:' format,
 # identical preamble / CSV handling. Keeping both tools in sync avoids
@@ -96,7 +97,7 @@ LANG = DEFAULT_LANGUAGE
 # AI prompts are language-keyed. Keys match SUPPORTED_LANGUAGES ("de", "en").
 # Updating the rules doc (docs/ai-analysis-rules.md) and both prompt versions
 # together keeps them in sync.
-AI_SYSTEM_PROMPTS: dict[str, str] = {
+AI_SYSTEM_PROMPTS: Dict[str, str] = {
     "de": (
         "Du bist ein Oracle Security Architect mit Expertise in Oracle "
         "Unified Auditing (Pure Mode) auf 19c und 26ai. Analysiere "
@@ -139,7 +140,7 @@ AI_SYSTEM_PROMPTS: dict[str, str] = {
     ),
 }
 
-AI_USER_PROMPT_TEMPLATES: dict[str, str] = {
+AI_USER_PROMPT_TEMPLATES: Dict[str, str] = {
     "de": """\
 Analysiere den folgenden Oracle Unified Audit-Report.
 
@@ -1089,7 +1090,7 @@ def _unique_policy_count(inv_data):
     rows = inv_data.get("rows", [])
     idx_pol = _col_index(inv_data, "policy_name")
     idx_ora = _col_index(inv_data, "oracle_supplied")
-    seen: dict[str, bool] = {}  # policy_name -> is_oracle_supplied
+    seen: Dict[str, bool] = {}  # policy_name -> is_oracle_supplied
     for r in rows:
         pol = _row_get(r, idx_pol)
         if not pol or pol in seen:
@@ -1100,7 +1101,7 @@ def _unique_policy_count(inv_data):
     return len(seen), len(seen) - oracle_cnt, oracle_cnt
 
 
-def _parse_policy_names(s: str) -> list[str]:
+def _parse_policy_names(s: str) -> List[str]:
     """Extract policy names from a custom_policies / oracle_policies cell value.
 
     Handles the SQL output formats:
@@ -1179,15 +1180,15 @@ def _ghost_event_policies(vol_data, inv_data):
         return []
     idx_inv_pol = _col_index(inv_data, "policy_name")
     idx_inv_opt = _col_index(inv_data, "enabled_option")
-    enabled: set[str] = set()
+    enabled: Set[str] = set()
     for r in inv_data.get("rows", []):
         opt = _row_get(r, idx_inv_opt).strip().strip("'\"")
         if opt:
             enabled.add(_row_get(r, idx_inv_pol).strip().strip("'\""))
     idx_vol_pol = _col_index(vol_data, "policy_name")
     idx_vol_evt = _col_index(vol_data, "events")
-    ghost: list[tuple[str, int]] = []
-    seen: set[str] = set()
+    ghost: List[Tuple[str, int]] = []
+    seen: Set[str] = set()
     for r in vol_data.get("rows", []):
         pol = _row_get(r, idx_vol_pol).strip().strip("'\"")
         if not pol or pol in seen or pol in _ALWAYS_ACTIVE_POLICIES:
@@ -2376,7 +2377,7 @@ def render_section_07_4_blind_spot(file_data_pdb, file_data_cdb, top_n):
         "COVERED_VIA_ROLE",
         "COVERED_DIRECT",
     ]
-    counts: dict[str, int] = {s: 0 for s in status_order}
+    counts: Dict[str, int] = {s: 0 for s in status_order}
     for row in rows:
         st = _row_get(row, idx_status).strip().upper()
         if st in counts:
@@ -2691,7 +2692,7 @@ def render_section_09_cis_coverage(file_data, inv_data=None):
         out += t("cis.detail_intro", lang=LANG) + "\n\n"
 
         # Build policy -> set of CIS controls mapping from 17 data
-        policy_to_cis: dict[str, list[str]] = {}
+        policy_to_cis: Dict[str, List[str]] = {}
         for r in rows:
             ctrl = _row_get(r, idx_control)
             for col_idx in (idx_custom, idx_oracle):

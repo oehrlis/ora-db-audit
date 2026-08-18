@@ -7,6 +7,25 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-08-17
+
+### Fixed
+
+- **`tools/audit_report_messages.py`** - remove `from __future__ import annotations`
+  (SyntaxError on Python 3.6) and replace `dict[str, ...]`/`list[str]` built-in
+  generic annotations with `typing.Dict`/`typing.List` for Python 3.6 compatibility.
+- **`tools/audit_report.py`** - replace all built-in generic type annotations
+  (`dict[...]`, `list[...]`, `set[...]`, `tuple[...]`) with `typing` equivalents
+  (`Dict`, `List`, `Set`, `Tuple`). Fixes `TypeError` on Python < 3.9 when
+  these annotations are evaluated at runtime.
+
+### Added
+
+- **`bin/ora-db-audit.sh --check-requirements`** - new flag that verifies Python
+  interpreter (>= 3.6), stdlib modules, tool scripts, SQL query files, sqlplus,
+  anthropic package (optional), and pandoc (optional). Prints OK/WARN/FAIL per item
+  and exits non-zero if any required dependency is missing.
+
 ## [1.9.0] - 2026-08-13
 
 ### Added

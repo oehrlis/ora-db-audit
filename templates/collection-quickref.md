@@ -3,7 +3,7 @@
 <!-- markdownlint-disable MD013 MD060 -->
 | Field | Value |
 |-------|-------|
-| Tool version | `1.4.0` |
+| Tool version | `1.9.1` |
 | Engagement | `<ENGAGEMENT-ID>` |
 | Contact (analyst) | `<NAME> <EMAIL>` |
 | Date | `<YYYY-MM-DD>` |
@@ -15,8 +15,17 @@
 
 - [ ] `sqlplus` available: run `. oraenv` to source the Oracle environment
 - [ ] Connect user has `AUDIT_VIEWER` role (or `SYSDBA`)
-- [ ] Python 3 available: `python3 --version` (only needed if asked to run `--anonymize` or `--report`)
+- [ ] Python 3.6 or later available: `python3 --version` (only needed for `--anonymize` / `--report`)
 - [ ] Output directory exists with write access and at least 200 MB free space
+
+Verify all requirements in one step after unpacking:
+
+```bash
+bash bin/ora-db-audit.sh --check-requirements
+```
+
+A `FAIL` on Python or a tool script means `--anonymize` / `--report` will not work - contact
+your analyst. A `WARN` on `anthropic` or `pandoc` is harmless unless `--ai` or `--to-html` is needed.
 
 ---
 
@@ -24,8 +33,8 @@
 
 ```bash
 # Option A: unpack the tarball provided by your analyst
-tar xzf ora-db-audit-1.4.0.tar.gz
-cd ora-db-audit-1.4.0
+tar xzf ora-db-audit-1.9.1.tar.gz
+cd ora-db-audit-1.9.1
 
 # Option B: clone from GitHub
 git clone https://github.com/oehrlis/ora-db-audit.git
@@ -41,21 +50,27 @@ Replace `<PDB>` with your PDB name (or omit `--pdb` for Non-CDB / CDB-wide):
 ```bash
 . oraenv    # source Oracle environment (sets ORACLE_SID, ORACLE_HOME, PATH)
 
-./bin/ora-db-audit.sh \
+bash bin/ora-db-audit.sh \
     --days 30 \
     --pdb <PDB> \
     --anonymize \
+    --report \
+    --to-html \
+    --lang de \
     --output ./audit_output
 ```
 
 For SYSDBA-less connect (dedicated user):
 
 ```bash
-./bin/ora-db-audit.sh \
+bash bin/ora-db-audit.sh \
     --days 30 \
     --pdb <PDB> \
     --connect "audit_analyst/<password>@<TNS>" \
     --anonymize \
+    --report \
+    --to-html \
+    --lang de \
     --output ./audit_output
 ```
 
@@ -85,6 +100,7 @@ Keep the raw `.tar.gz` and `.mapping.json` on the database host.
 | `ORA-01017: invalid username/password` | Check connect string or wallet |
 | `missing or empty output: NN_query.csv` | Check `_sqlplus.log` - probably missing privileges |
 | `python not found` | Run `. oraenv` to set `ORACLE_HOME`; or contact analyst |
+| `SyntaxError: future feature annotations` | Python version too old (< 3.6); use `--check-requirements` to diagnose |
 | Bundle > 100 MB | Re-run with `--top-n 50 --days 14` |
 <!-- markdownlint-enable -->
 

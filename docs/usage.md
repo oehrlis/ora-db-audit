@@ -47,7 +47,7 @@ Produces three artefacts:
 
 ## UC-3: Collect, Anonymise, and Render Report Locally
 
-Full on-host workflow including Markdown report generation. Requires Python 3.10+.
+Full on-host workflow including Markdown report generation. Requires Python 3.6+.
 
 ```bash
 ./bin/ora-db-audit.sh \

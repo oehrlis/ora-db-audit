@@ -41,9 +41,7 @@ Usage:
     intro = t("report.intro", dbsid="ORCLCDB", days=30)
 """
 
-from __future__ import annotations
-
-from typing import Any
+from typing import Any, Dict, List
 
 
 SUPPORTED_LANGUAGES = ("de", "en")
@@ -52,7 +50,7 @@ SUPPORTED_LANGUAGES = ("de", "en")
 DEFAULT_LANGUAGE = "de"
 
 
-MESSAGES: dict[str, dict[str, str]] = {
+MESSAGES: Dict[str, Dict[str, str]] = {
     "de": {
         # --- Report header / page title ---
         "report.page_title": "Audit-Trail Analyse - {dbsid} / {pdb}",
@@ -1193,7 +1191,7 @@ def t(key: str, lang: str = DEFAULT_LANGUAGE, **kwargs: Any) -> str:
     return value
 
 
-def validate_catalog(lang: str = DEFAULT_LANGUAGE) -> list[str]:
+def validate_catalog(lang: str = DEFAULT_LANGUAGE) -> List[str]:
     """Return a list of message keys that are missing in `lang` compared to
     DEFAULT_LANGUAGE. Used by tests + CI to detect translation drift once
     a second language is added.
