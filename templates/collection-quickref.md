@@ -24,6 +24,13 @@ Verify all requirements in one step after unpacking:
 bash bin/ora-db-audit.sh --check-requirements
 ```
 
+If `python3` in PATH is too old or missing, specify the interpreter explicitly:
+
+```bash
+bash bin/ora-db-audit.sh --python /opt/oracle/product/26ai/dbhomeFree/python/bin/python \
+    --check-requirements
+```
+
 A `FAIL` on Python or a tool script means `--anonymize` / `--report` will not work - contact
 your analyst. A `WARN` on `anthropic` or `pandoc` is harmless unless `--ai` or `--to-html` is needed.
 
@@ -101,6 +108,7 @@ Keep the raw `.tar.gz` and `.mapping.json` on the database host.
 | `missing or empty output: NN_query.csv` | Check `_sqlplus.log` - probably missing privileges |
 | `python not found` | Run `. oraenv` to set `ORACLE_HOME`; or contact analyst |
 | `SyntaxError: future feature annotations` | Python version too old (< 3.6); use `--check-requirements` to diagnose |
+| `python not found` / wrong version | Use `--python /path/to/python3` to override; verify with `--check-requirements` |
 | Bundle > 100 MB | Re-run with `--top-n 50 --days 14` |
 <!-- markdownlint-enable -->
 

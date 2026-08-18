@@ -7,6 +7,25 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.9.2] - 2026-08-18
+
+### Added
+
+- **`bin/ora-db-audit.sh --python PATH`** - explicit Python interpreter flag.
+  Overrides auto-detection for all Python steps (`--anonymize`, `--report`,
+  `--to-html`, `--ai`, `--export-siem`). Useful when the system `python3` is
+  too old or absent, for example on Oracle DB 19c hosts or when targeting the
+  Oracle 26ai bundled Python (`$ORACLE_HOME/python/bin/python`).
+
+### Changed
+
+- **Python auto-detection order** revised: `--python` explicit > `python3` in
+  PATH > `python` in PATH > `$ORACLE_HOME/python/bin/python`. Previously
+  `$ORACLE_HOME/python` was tried first, which could pick up a Python 2.x
+  interpreter on older 19c hosts before the system `python3`.
+- **`--check-requirements`** now shows the specific failure reason when
+  `--python` points to a non-existent or non-executable path.
+
 ## [1.9.1] - 2026-08-17
 
 ### Fixed
