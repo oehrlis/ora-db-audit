@@ -85,6 +85,7 @@ AI_MODEL="claude-sonnet-4-6"
 AI_OP_PATH=""
 EXPORT_SIEM_FORMAT=""
 EXPORT_SIEM_OUTPUT=""
+PYTHON_BIN=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Repo root = one level up (bin/ -> repo).
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -224,6 +225,12 @@ Options:
                        OUTPUT: path for the generated file.
   --dry-run            Print actions, do not execute
   --yes,-y             Overwrite existing output without prompting
+  --python PATH        Explicit Python interpreter to use for all Python steps
+                       (anonymize, report, html, ai, siem). Overrides PATH
+                       lookup and ORACLE_HOME detection.
+                       Default search order: python3 in PATH -> python in PATH
+                         -> $ORACLE_HOME/python/bin/python
+                       Example: --python /opt/oracle/product/26ai/dbhomeFree/python/bin/python
   --check-requirements Verify Python, tools, SQL files, sqlplus, and optional
                        dependencies. Prints OK/WARN/FAIL per item and exits.
   --version,-V         Print version and exit
@@ -286,6 +293,7 @@ parse_args() {
             --export-siem)  EXPORT_SIEM_FORMAT="$2"; EXPORT_SIEM_OUTPUT="$3"; shift 3 ;;
             --dry-run)      DRY_RUN=1; shift ;;
             --yes|-y)       ASSUME_YES=1; shift ;;
+            --python)           PYTHON_BIN="$2"; shift 2 ;;
             --check-requirements) check_requirements; exit $? ;;
             --version|-V)   echo "${SCRIPT_VERSION}"; exit 0 ;;
             --help|-h)      usage ;;
@@ -473,12 +481,20 @@ check_requirements() {
     printf "%-40s %s\n" "----------------------------------------" "-------"
 
     # Python interpreter
+    local py_fail_reason="python3 >= 3.6 not found in PATH or ORACLE_HOME"
+    if [[ -n "${PYTHON_BIN:-}" ]]; then
+        if [[ ! -x "${PYTHON_BIN}" ]]; then
+            py_fail_reason="--python '${PYTHON_BIN}' not found or not executable"
+        else
+            py_fail_reason="--python '${PYTHON_BIN}' found but Python 3.6+ check failed"
+        fi
+    fi
     if python_bin="$(resolve_python 2>/dev/null)"; then
         python_ver="$("${python_bin}" --version 2>&1)"
         printf "%-40s %s\n" "Python interpreter" "OK  (${python_ver}, ${python_bin})"
         (( ok++ )) || true
     else
-        printf "%-40s %s\n" "Python interpreter" "FAIL  (need python3 >= 3.6 in PATH or ORACLE_HOME)"
+        printf "%-40s %s\n" "Python interpreter" "FAIL  (${py_fail_reason})"
         (( fail++ )) || true
         python_bin=""
     fi
@@ -565,19 +581,33 @@ check_requirements() {
 }
 
 # ------------------------------------------------------------------------------
-# resolve_python - pick a Python 3 interpreter, preferring $ORACLE_HOME/python
+# resolve_python - pick a Python 3.6+ interpreter
+#
+# Resolution order:
+#   1. --python PATH (PYTHON_BIN global, set by parse_args)
+#   2. python3 in PATH
+#   3. python  in PATH
+#   4. $ORACLE_HOME/python/bin/python (last resort: may be Oracle-bundled 3.x)
 # ------------------------------------------------------------------------------
 resolve_python() {
     local candidate
-    if [[ -n "${ORACLE_HOME:-}" && -x "${ORACLE_HOME}/python/bin/python" ]]; then
-        candidate="${ORACLE_HOME}/python/bin/python"
+
+    if [[ -n "${PYTHON_BIN:-}" ]]; then
+        candidate="${PYTHON_BIN}"
+        if [[ ! -x "${candidate}" ]]; then
+            err "--python: '${candidate}' not found or not executable"
+            return 1
+        fi
     elif command -v python3 >/dev/null 2>&1; then
         candidate="$(command -v python3)"
     elif command -v python >/dev/null 2>&1; then
         candidate="$(command -v python)"
+    elif [[ -n "${ORACLE_HOME:-}" && -x "${ORACLE_HOME}/python/bin/python" ]]; then
+        candidate="${ORACLE_HOME}/python/bin/python"
     else
         return 1
     fi
+
     # Require Python 3.6+
     if ! "${candidate}" -c "import sys; sys.exit(0 if sys.version_info >= (3,6) else 1)" 2>/dev/null; then
         local ver
