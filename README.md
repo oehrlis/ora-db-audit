@@ -23,7 +23,8 @@ identifiers, and produces DBA-friendly Markdown reports.
 Unified Auditing Pure Mode.
 
 **No Python required for data collection.** Python is needed only for
-`--anonymize`, `--report`, `--ai`, and `--export-siem`.
+`--anonymize`, `--report`, `--ai`, and `--export-siem`. Use `--python PATH`
+to override the auto-detected interpreter (system `python3` → `python` → `$ORACLE_HOME/python`).
 
 ### Key Capabilities
 
@@ -50,7 +51,7 @@ tar xzf ora-db-audit-1.9.1.tar.gz && cd ora-db-audit-1.9.1
 ```
 
 ```bash
-# 0. Verify all runtime dependencies
+# 0. Verify all runtime dependencies (add --python PATH if system python3 is wrong)
 ./bin/ora-db-audit.sh --check-requirements
 
 # 1. Collect only (no Python needed)

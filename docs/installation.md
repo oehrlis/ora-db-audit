@@ -23,9 +23,18 @@ Python is not required for data collection. It is needed only for post-processin
 
 **Auto-detection order** (first match wins):
 
-1. `$ORACLE_HOME/python/bin/python`
+1. `--python PATH` explicit flag
 2. `python3` in PATH
 3. `python` in PATH
+4. `$ORACLE_HOME/python/bin/python` (last resort)
+
+Use `--python` when the system `python3` is too old or you need to target
+a specific interpreter, for example the Oracle 26ai bundled Python:
+
+```bash
+./bin/ora-db-audit.sh --python /opt/oracle/product/26ai/dbhomeFree/python/bin/python \
+    --check-requirements
+```
 
 **Package requirements by feature:**
 
