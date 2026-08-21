@@ -7,6 +7,15 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.9.4] - 2026-08-21
+
+### Changed
+
+- **`tools/audit_report.py`, `tools/audit_report_messages.py`** - replace all
+  ASCII-escaped German umlauts (`ae`, `oe`, `ue`, `fuer`, etc.) with real Unicode
+  characters (ä, ö, ü, für, ...) in all German report-output strings and AI prompt
+  templates. Swiss German convention maintained: `ss` instead of `ß` unchanged.
+
 ## [1.9.3] - 2026-08-21
 
 ### Fixed

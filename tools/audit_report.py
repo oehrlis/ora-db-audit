@@ -103,20 +103,20 @@ AI_SYSTEM_PROMPTS: Dict[str, str] = {
         "Unified Auditing (Pure Mode) auf 19c und 26ai. Analysiere "
         "Audit-Reports nach den unten verbindlichen Pure-Mode-Regeln. "
         "Strikte Trennung: Findings zu Traditional / Mixed-Mode-Artefakten "
-        "sind ausdruecklich KEINE gueltigen Findings - der Tool-Scope ist "
-        "Pure Mode. Bewerte die im Report generierten Tuning-Vorschlaege "
-        "(Abschnitt 8.1) als Bedingungs-Ausdruecke, die manuell via "
+        "sind ausdrücklich KEINE gültigen Findings - der Tool-Scope ist "
+        "Pure Mode. Bewerte die im Report generierten Tuning-Vorschläge "
+        "(Abschnitt 8.1) als Bedingungs-Ausdrücke, die manuell via "
         "DROP + CREATE AUDIT POLICY anzuwenden sind. "
         "Bekannte Oracle-Engine-Verhaltensweisen produzieren systematisch "
         "Artefakte im Audit Trail: BY GRANTED ROLE wird bei fehlgeschlagener "
         "Authentifizierung nicht ausgewertet; USERENV.IP_ADDRESS ist NULL "
-        "fuer alle fehlgeschlagenen LOGONs (auch remote TCP); Custom-Context "
+        "für alle fehlgeschlagenen LOGONs (auch remote TCP); Custom-Context "
         "IS NULL Arme in WHEN-Bedingungen matchen alle failed LOGONs - "
-        "dies gilt fuer beide V2-Context-Attribute IS_APP_ACCESS und "
+        "dies gilt für beide V2-Context-Attribute IS_APP_ACCESS und "
         "IS_KNOWN_CLIENT gleichermassen (beide NULL bei failed LOGON). "
-        "Diese Regeln IMMER pruefen bevor Event-Mengen als Security-Evidenz "
+        "Diese Regeln IMMER prüfen bevor Event-Mengen als Security-Evidenz "
         "gewertet werden. Antworte auf Deutsch; "
-        "Oracle-Objekt-Namen, SQL und Code-Bloecke bleiben Englisch."
+        "Oracle-Objekt-Namen, SQL und Code-Blöcke bleiben Englisch."
     ),
     "en": (
         "You are an Oracle Security Architect with expertise in Oracle "
@@ -144,11 +144,11 @@ AI_USER_PROMPT_TEMPLATES: Dict[str, str] = {
     "de": """\
 Analysiere den folgenden Oracle Unified Audit-Report.
 
-## Audit-Modus pruefen (zuerst!)
+## Audit-Modus prüfen (zuerst!)
 
 Im Report-Header steht `audit_mode: <wert>`. Vor jeder weiteren Analyse:
 
-- `audit_mode = mixed` -> Tool-Scope ueberschritten. Gib EIN Finding aus:
+- `audit_mode = mixed` -> Tool-Scope überschritten. Gib EIN Finding aus:
   HIGH-Severity "Mixed-Mode-Kontamination", Empfehlung "Migration nach
   Pure Mode" (siehe `/oracle-audit` skill Mixed-to-Pure Section).
   KEINE weiteren Pure-Mode-Findings produzieren.
@@ -160,7 +160,7 @@ Im Report-Header steht `audit_mode: <wert>`. Vor jeder weiteren Analyse:
 
 - Audit-Modus laut Report: siehe `audit_mode` Metadata oben
 - Policy-Namensraum: {customer_prefix}_* (Custom), ORA_* nur als Referenz
-- Hostnamen / Benutzernamen koennen anonymisiert sein (HOST_NNN, DBUSER_NNN, ...)
+- Hostnamen / Benutzernamen können anonymisiert sein (HOST_NNN, DBUSER_NNN, ...)
 - Audit-Kontext-Variable (z.B. zur Off-Path-Klassifizierung): typisch
   `<CUSTOMER>_AUDIT_CTX` - falls nicht konfiguriert, fehlt Applikationskontext
 
@@ -168,8 +168,8 @@ Im Report-Header steht `audit_mode: <wert>`. Vor jeder weiteren Analyse:
 
 ### Out of scope (NICHT als Finding melden)
 
-Findings, die folgende Legacy-Artefakte zitieren, sind ungueltig und
-muessen UNTERDRUECKT werden:
+Findings, die folgende Legacy-Artefakte zitieren, sind ungültig und
+müssen UNTERDRÜCKT werden:
 
 - `audit_trail` Init-Parameter (Legacy; in Pure Mode ohne Effekt -
   auch der Wert `DB` ist KEIN Finding)
@@ -183,27 +183,27 @@ muessen UNTERDRUECKT werden:
   `ALTER TABLE MODIFY DEFAULT ATTRIBUTES TABLESPACE` - keine
   Misconfiguration)
 
-### Gueltige Findings (Pure Mode)
+### Gültige Findings (Pure Mode)
 
-Diese Finding-Klassen sind erwuenscht:
+Diese Finding-Klassen sind erwünscht:
 
 - DBMS_AUDIT_MGMT.CLEAN_AUDIT_TRAIL Job: konfiguriert?
 - LAST_ARCHIVE_TIMESTAMP gesetzt vor Cleanup?
 - AUD$UNIFIED Default-Tablespace ist SYSAUX (Misconfiguration)
-- Policy-Coverage-Luecken (z.B. CIS-Pflicht-Bereiche ohne enabled policy)
+- Policy-Coverage-Lücken (z.B. CIS-Pflicht-Bereiche ohne enabled policy)
 - ORA_*-Policies (Oracle-supplied) aktiv obwohl Custom-Policies dieselben
   Events besser zugeschnitten abdecken
 - Failed-Login-Muster (ORA-01017 Spitzen, Brute-Force-Verdacht,
   fehlkonfigurierter Job mit altem Passwort)
-- Privilegierte Aktivitaet (SYS, SYSDBA, AUDIT_ADMIN, SYSBACKUP, ...)
+- Privilegierte Aktivität (SYS, SYSDBA, AUDIT_ADMIN, SYSBACKUP, ...)
 - Off-Path-Hosts (nicht in App/Infra/DBA-Pattern klassifiziert)
 - Mixed-Mode-Kontamination (AUD$ mit aktuellen Zeilen trotz Pure)
 - Mandatory binary `*.aud` files: ungesteuertes Wachstum / keine Rotation
 
-### Tuning-Vorschlaege (Abschnitt 8.1)
+### Tuning-Vorschläge (Abschnitt 8.1)
 
-Die im Report gelisteten WHEN-Klausel-Vorschlaege sind Bedingungs-
-Ausdruecke. Sie sind manuell anzuwenden via:
+Die im Report gelisteten WHEN-Klausel-Vorschläge sind Bedingungs-
+Ausdrücke. Sie sind manuell anzuwenden via:
 
 ```sql
 DROP AUDIT POLICY <name>;
@@ -213,36 +213,36 @@ CREATE AUDIT POLICY <name> ... WHEN '(<bestehend>) AND (<vorschlag>)' ...;
 Bewerte jeden Vorschlag:
 
 - Compliance-Risiko: Darf laut Site-Policy supprimiert werden?
-- Praezision: Kombination User+Programm ist enger als nur User - bevorzugen
-- Falls KEIN Vorschlag sicher anwendbar: alternativen Ansatz begruenden
+- Präzision: Kombination User+Programm ist enger als nur User - bevorzugen
+- Falls KEIN Vorschlag sicher anwendbar: alternativen Ansatz begründen
   (Audit-Context, Whitelist, separate Suppression-Policy)
 
 ## Oracle-Engine-Verhalten: Bekannte False-Positive-Quellen
 
 Diese Regeln beschreiben Oracle-Verhaltensweisen die systematisch Artefakte
-in der Audit-Trail erzeugen. MUSS geprueft werden bevor Event-Mengen als
+in der Audit-Trail erzeugen. MUSS geprüft werden bevor Event-Mengen als
 Security-Evidenz gewertet werden. Details: `docs/false-positive-patterns.md`.
 
 **FP-001 (BY_GRANTED_ROLE_FAILED_LOGON):** Oracle wertet `BY GRANTED ROLE`
-NICHT aus fuer unauthentifizierte Sessions. Jeder gescheiterte LOGON-Versuch
-(ORA-01017, ORA-01045) erscheint unter einer BY GRANTED ROLE Policy unabhaengig
-davon ob der User die Rolle tatsaechlich hat. Regel: Wenn ALLE Events eines
+NICHT aus für unauthentifizierte Sessions. Jeder gescheiterte LOGON-Versuch
+(ORA-01017, ORA-01045) erscheint unter einer BY GRANTED ROLE Policy unabhängig
+davon ob der User die Rolle tatsächlich hat. Regel: Wenn ALLE Events eines
 Users unter einer BY GRANTED ROLE Policy fehlgeschlagene LOGONs sind,
 Rollenmitgliedschaft via `dba_role_privs` verifizieren bevor Schlussfolgerungen
 gezogen werden. Tag: `[FP-SUSPECT: FP-001]`.
 
-**FP-002 (IP_ADDRESS_NULL_FAILED_LOGON):** `USERENV.IP_ADDRESS` ist NULL fuer
+**FP-002 (IP_ADDRESS_NULL_FAILED_LOGON):** `USERENV.IP_ADDRESS` ist NULL für
 ALLE fehlgeschlagenen Auth-Events, auch remote TCP. Eine WHEN-Bedingung mit
-`IP_ADDRESS IS NULL` feuert daher auch fuer jeden fehlgeschlagenen Remote-LOGON.
+`IP_ADDRESS IS NULL` feuert daher auch für jeden fehlgeschlagenen Remote-LOGON.
 Hohe Event-Zahlen unter einer solchen Policy bedeuten NICHT zwingend direkten
 Datenbankzugriff (Bequeath). Tag: `[FP-SUSPECT: FP-002]`.
 
 **FP-003 (APP_CONTEXT_NULL_FAILED_LOGON):** Custom Application Contexts (nicht
-USERENV, gesetzt via Logon-Trigger) werden NIEMALS fuer fehlgeschlagene LOGONs
+USERENV, gesetzt via Logon-Trigger) werden NIEMALS für fehlgeschlagene LOGONs
 populiert. WHEN-Bedingungen mit `OR ctx IS NULL` (defensiver Arm) matchen
-dadurch alle fehlgeschlagenen LOGONs als Nebeneffekt. Dies gilt fuer BEIDE
+dadurch alle fehlgeschlagenen LOGONs als Nebeneffekt. Dies gilt für BEIDE
 V2-Context-Attribute: `IS_APP_ACCESS` und `IS_KNOWN_CLIENT` - beide sind NULL
-bei jedem gescheiterten LOGON (Trigger laeuft nicht). Tag: `[FP-SUSPECT: FP-003]`.
+bei jedem gescheiterten LOGON (Trigger läuft nicht). Tag: `[FP-SUSPECT: FP-003]`.
 
 **FP-005 (ISDBA_SESSION_EXCLUDED):** `ODB_LOC_APP_OFFPATH_V2` schliesst
 SYSDBA-Verbindungen (`ISDBA = TRUE`) explizit via WHEN-Klausel aus. DML-Events
@@ -252,7 +252,7 @@ wird stattdessen via `ODB_LOC_PRIV_DBA_ALL_V2` erfasst. Tag: `[FP-SUSPECT: FP-00
 
 **FP-004 (POLICY_NOT_ENABLED):** Eine Policy die via `CREATE AUDIT POLICY`
 angelegt aber nie aktiviert wurde erzeugt keinerlei operative Audit-Records.
-Jede Referenz auf eine solche Policy beschreibt eine Konfigurationsluecke,
+Jede Referenz auf eine solche Policy beschreibt eine Konfigurationslücke,
 kein Security-Event. Tag: `[FP-SUSPECT: FP-004]`.
 
 {fp_context}
@@ -264,9 +264,9 @@ kein Security-Event. Tag: `[FP-SUSPECT: FP-004]`.
 ## Ausgabe
 
 Falls `audit_mode = mixed` oder `unsupported`: nur das Einzel-Finding
-gemaess "Audit-Modus pruefen" - keine Tabelle, keine A/B/C-Sektionen.
+gemäss "Audit-Modus prüfen" - keine Tabelle, keine A/B/C-Sektionen.
 
-Sonst Findings-Tabelle (Uebersicht):
+Sonst Findings-Tabelle (Übersicht):
 
 | # | Finding | Abschnitt | Risiko | Massnahme |
 |---|---------|-----------|--------|-----------|
@@ -280,9 +280,9 @@ Risikobewertung HIGH / MEDIUM / LOW / INFO:
 - Echte Security-Events vs. erwartetes Betriebsverhalten
 - Failed Logins (ORA-01017): Brute-Force, Konfig-Fehler, automatisierter Job?
 - Off-Path-Hosts: echte Bedrohung oder fehlende App-Kontext-Konfiguration?
-- Ungewoehnliche User + Host + Programm-Kombinationen
+- Ungewöhnliche User + Host + Programm-Kombinationen
 
-### B - Konfigurationsluecken (Pure-Mode-CIS, nicht Legacy)
+### B - Konfigurationslücken (Pure-Mode-CIS, nicht Legacy)
 
 Beziehe dich AUSSCHLIESSLICH auf Pure-Mode-Konfiguration (siehe Out-of-Scope
 Liste oben). Insbesondere KEINE Findings zu `audit_trail`,
@@ -291,10 +291,10 @@ AUDIT-Empfehlungen.
 
 ### C - Tuning-Empfehlungen qualifizieren
 
-Pro Kandidat aus Abschnitt 8.1: empfohlene Variante + Begruendung
+Pro Kandidat aus Abschnitt 8.1: empfohlene Variante + Begründung
 ODER alternativer Ansatz wenn keine sicher anwendbar ist.
 
-Pro Finding (Nummer aus Tabelle): ein Absatz mit Begruendung und ggf.
+Pro Finding (Nummer aus Tabelle): ein Absatz mit Begründung und ggf.
 konkretem Unified-SQL oder Konfigurations-Schritt.
 """,
     "en": """\
@@ -804,10 +804,10 @@ def render_fp_context_for_ai(candidates, lang="de"):
         header = (
             "## False-Positive-Voranalyse\n\n"
             "Die folgenden Kandidaten wurden programmatisch erkannt. "
-            "Pro Eintrag: als False Positive bestaetigen (`[FP-SUSPECT: <id>]`) "
-            "oder Begruendung liefern warum es trotzdem echt ist.\n\n"
+            "Pro Eintrag: als False Positive bestätigen (`[FP-SUSPECT: <id>]`) "
+            "oder Begründung liefern warum es trotzdem echt ist.\n\n"
         )
-        cols = ["Pattern", "Policy", "User", "Ereignisse", "Begruendung"]
+        cols = ["Pattern", "Policy", "User", "Ereignisse", "Begründung"]
 
     rows = []
     for c in candidates:
@@ -848,11 +848,11 @@ def render_fp_section(candidates, lang="de"):
         )
         cols = ["#", "Pattern", "Title", "Policy", "User", "Events"]
     else:
-        out = "\n## 12. Verdaechtige False Positives\n\n"
+        out = "\n## 12. Verdächtige False Positives\n\n"
         out += (
             "> Programmatisch erkannt basierend auf bekannten Oracle Unified Audit "
-            "Engine-Verhaltensweisen. Verify-SQL ausfuehren vor dem Eskalieren. "
-            "Siehe `docs/false-positive-patterns.md` fuer Erklaerungen und Policy-Fixes.\n\n"
+            "Engine-Verhaltensweisen. Verify-SQL ausführen vor dem Eskalieren. "
+            "Siehe `docs/false-positive-patterns.md` für Erklärungen und Policy-Fixes.\n\n"
         )
         cols = ["#", "Pattern", "Titel", "Policy", "User", "Ereignisse"]
 
