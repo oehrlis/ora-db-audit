@@ -7,11 +7,6 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
-### Changed
-
-- **`.claude/aitk.toml`** - add `oracle` profile; update `initialized_at` timestamp
-  after re-running `aitk init`.
-
 ## [1.9.4] - 2026-08-21
 
 ### Changed
@@ -20,6 +15,12 @@ This project adheres to Semantic Versioning.
   ASCII-escaped German umlauts (`ae`, `oe`, `ue`, `fuer`, etc.) with real Unicode
   characters (ä, ö, ü, für, ...) in all German report-output strings and AI prompt
   templates. Swiss German convention maintained: `ss` instead of `ß` unchanged.
+- **`.gitignore`** - replace four individual `.claude/skills/<name>` entries with
+  a single `.claude/skills/` glob; remove six previously tracked skill symlinks
+  from the index (`markdown-doc`, `oracle-auth`, `oracle-datasafe`, `oracle-security`,
+  `oracle-tde`, `simplify`). All skills under `.claude/skills/` are managed by
+  `aitk` and are not part of this repository.
+- **`.claude/aitk.toml`** - add `oracle` profile; update `initialized_at` timestamp.
 
 ## [1.9.3] - 2026-08-21
 
