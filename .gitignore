@@ -50,15 +50,12 @@ docs/history/
 # them in the OSS repo. See docs/compliance-mapping.md for source URLs.
 references/
 
-# AI toolkit symlinks - managed by init-repo.sh, not committed
+# AI toolkit symlinks - managed by aitk/init-repo.sh, not committed
 .claude/commands/idea-capture.md
 .claude/commands/idea-sparring.md
 .claude/commands/repo-review.md
 .claude/commands/security-check.md
 .claude/commands/update-docs.md
 .claude/rules/
-.claude/skills/bash-header
-.claude/skills/markdown-lint
-.claude/skills/makefile
-.claude/skills/oracle-audit
+.claude/skills/
 .github/copilot-instructions.md
