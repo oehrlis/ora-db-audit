@@ -596,7 +596,8 @@ WHERE  NTIMESTAMP# > SYSTIMESTAMP - INTERVAL '7' DAY;
 | `TRUE`             | `NONE`        | > 0                | **PURE-CONTAMINATED** - rows in AUD$ are stale (no legacy writes possible). FYI only. |
 | `TRUE`             | `DB`/`OS`/`XML` | 0                | **PURE-INTENT** - legacy param still set but no recent legacy activity. Apply Pure rules; warn that param should be set to `NONE` on next bounce. |
 | `TRUE`             | `DB`/`OS`/`XML` | > 0              | **MIXED** - this tool's Pure-Mode rules DO NOT apply. The report must call out the contamination as a HIGH finding and recommend migrating off Mixed Mode (see `/oracle-audit` skill, Mixed-to-Pure section). |
-| `FALSE`            | any           | any                | **NOT SUPPORTED** - this tool requires Unified Auditing. Refuse to run.     |
+| `FALSE`            | `DB`/`OS`/`XML` | any              | **MIXED** - Pure Mode off, Traditional Auditing active. Same HIGH finding as `TRUE`/`DB,OS,XML`/`> 0` above; no further analysis. |
+| `FALSE`            | `NONE`        | 0                  | **NOT SUPPORTED** - Pure Mode off and no Traditional Auditing active. No audit mechanism identifiable by this tool. |
 
 ### 6.3 Reporter behaviour
 

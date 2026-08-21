@@ -7,6 +7,20 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.9.3] - 2026-08-21
+
+### Fixed
+
+- **`sql/01-config.sql` audit-mode classification** - `V$OPTION 'Unified Auditing'
+  = FALSE` means Pure Mode is off, not that Unified Auditing is unavailable. When
+  `pure_mode = FALSE` but `audit_trail != NONE` or recent `AUD$` rows exist, the
+  instance is in Mixed Mode and was incorrectly classified as `unsupported`. Fixed
+  CASE logic: `uopt = FALSE` with active Traditional Auditing (`audit_trail != NONE`
+  or `recent_aud_legacy_rows > 0`) now maps to `mixed`; only `uopt = FALSE` with
+  `audit_trail = NONE` and no legacy rows maps to `unsupported`.
+- **`docs/ai-analysis-rules.md` Section 6.2** - classification table updated to
+  reflect the two-row `FALSE` case (MIXED vs NOT SUPPORTED) matching the SQL fix.
+
 ## [1.9.2] - 2026-08-18
 
 ### Added

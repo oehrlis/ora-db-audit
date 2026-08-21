@@ -4,8 +4,8 @@
 -- -----------------------------------------------------------------------------
 -- Name......: 01-config.sql
 -- Author....: Stefan Oehrli (oes) stefan.oehrli@oradba.ch
--- Date......: 2026.05.12
--- Revision..: 0.3.0
+-- Date......: 2026.08.21
+-- Revision..: 0.3.1
 -- Purpose...: Audit configuration snapshot with audit-mode classification.
 --             Captures DBMS_AUDIT_MGMT config params, audit-related init params,
 --             instance metadata, and unified_audit_* parameters. Classifies the
@@ -80,7 +80,6 @@ COLUMN x_audit_mode  NEW_VALUE AUDIT_MODE  NOPRINT
 -- TO_NUMBER(NULLIF(...,'NULL')) converts the literal 'NULL' to SQL NULL safely.
 SELECT
     CASE
-        WHEN opt.uopt != 'TRUE'  THEN 'unsupported'
         WHEN opt.uopt  = 'TRUE'
          AND atr.aval  = 'NONE'
          AND NVL(TO_NUMBER(NULLIF('&AUD_LEGACY_ROWS','NULL')), 0) = 0  THEN 'pure'
@@ -90,7 +89,11 @@ SELECT
         WHEN opt.uopt  = 'TRUE'
          AND atr.aval != 'NONE'
          AND NVL(TO_NUMBER(NULLIF('&AUD_LEGACY_ROWS','NULL')), 0) = 0  THEN 'pure-intent'
-        ELSE 'mixed'
+        WHEN opt.uopt  = 'TRUE'                                         THEN 'mixed'
+        WHEN opt.uopt != 'TRUE'
+         AND (   atr.aval != 'NONE'
+              OR NVL(TO_NUMBER(NULLIF('&AUD_LEGACY_ROWS','NULL')), 0) > 0)  THEN 'mixed'
+        ELSE 'unsupported'
     END AS x_audit_mode
 FROM
     (SELECT NVL(MAX(UPPER(value)), 'FALSE') AS uopt
