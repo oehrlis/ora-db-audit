@@ -229,7 +229,7 @@ Options:
                        (anonymize, report, html, ai, siem). Overrides PATH
                        lookup and ORACLE_HOME detection.
                        Default search order: python3 in PATH -> python in PATH
-                         -> $ORACLE_HOME/python/bin/python
+                         -> \$ORACLE_HOME/python/bin/python
                        Example: --python /opt/oracle/product/26ai/dbhomeFree/python/bin/python
   --check-requirements Verify Python, tools, SQL files, sqlplus, and optional
                        dependencies. Prints OK/WARN/FAIL per item and exits.

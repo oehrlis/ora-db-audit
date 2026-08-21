@@ -9,6 +9,14 @@ This project adheres to Semantic Versioning.
 
 ## [1.9.4] - 2026-08-21
 
+### Fixed
+
+- **`bin/ora-db-audit.sh` `--help` / `-h` exits non-zero in CI** - `$ORACLE_HOME`
+  inside the `usage()` heredoc was expanded by bash. Under `set -u`, this caused
+  an "unbound variable" abort whenever `ORACLE_HOME` is not set (CI runners, minimal
+  environments). Fixed by escaping: `\$ORACLE_HOME` so the literal variable name is
+  printed in help text without expansion.
+
 ### Changed
 
 - **`tools/audit_report.py`, `tools/audit_report_messages.py`** - replace all
