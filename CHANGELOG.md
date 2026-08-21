@@ -7,6 +7,11 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- **`.claude/aitk.toml`** - add `oracle` profile; update `initialized_at` timestamp
+  after re-running `aitk init`.
+
 ## [1.9.4] - 2026-08-21
 
 ### Changed

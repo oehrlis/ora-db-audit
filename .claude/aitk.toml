@@ -1,7 +1,8 @@
 schema = 1
 profiles = [
     "base",
+    "oracle",
 ]
 link_mode = "symlink"
-initialized_at = "2026-07-29T11:41:27Z"
+initialized_at = "2026-07-31T06:18:28Z"
 aitk_version = "2.0.0"
