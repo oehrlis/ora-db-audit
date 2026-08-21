@@ -100,12 +100,12 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "section.07_2a_ctx": "7.2.1 Application Context (Szenario A)",
         "section.07_2b_pattern": "7.2.2 Pattern-basierte Klassifizierung (Szenario B)",
         "section.08_tuning": "8. Tuning-Empfehlungen",
-        "section.08_1_when_clauses": "8.1 WHEN-Klausel-Vorschlaege",
+        "section.08_1_when_clauses": "8.1 WHEN-Klausel-Vorschläge",
         "section.09_cis_coverage": "9. CIS Benchmark 5.1-5.5 - Policy-Abdeckung",
         "section.10_audit_roles": "10. Audit-Rollen - Mitglieder und Risiko-Flags",
         "section.appendix": "Anhang",
         "section.appendix_manifest": "Manifest",
-        "section.appendix_full_data": "Vollstaendige Daten - {name}",
+        "section.appendix_full_data": "Vollständige Daten - {name}",
 
         # --- Table column labels ---
         "label.metric": "Metrik",
@@ -147,24 +147,24 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "audit_mode.pure_intent": "Pure Mode (Legacy-Parameter gesetzt, ohne Effekt)",
         "audit_mode.pure_contaminated": "Pure Mode (alte AUD$-Daten vorhanden, kein Schreibverkehr)",
         "audit_mode.mixed": "Mixed Mode (Bericht ausserhalb des Scopes)",
-        "audit_mode.unsupported": "Unified Auditing nicht aktiv (nicht unterstuetzt)",
+        "audit_mode.unsupported": "Unified Auditing nicht aktiv (nicht unterstützt)",
 
         # --- Section 1 - mode blockquotes ---
         "mode.mixed_note": (
             "> **Mixed Mode erkannt** - dieser Bericht-Scope ist Pure Mode. "
             "Findings unterhalb sind unter dieser Annahme zu lesen; eine "
-            "vollstaendige Analyse erfordert vorher die Migration auf "
+            "vollständige Analyse erfordert vorher die Migration auf "
             "Pure Mode (siehe /oracle-audit skill, Mixed-to-Pure)."
         ),
         "mode.pure_contaminated_note": (
-            "> **Pure Mode mit Alt-Daten** - keine neuen Legacy-Schreibvorgaenge, "
-            "aber `SYS.AUD$` enthaelt noch alte Zeilen. Optional purgen mit "
+            "> **Pure Mode mit Alt-Daten** - keine neuen Legacy-Schreibvorgänge, "
+            "aber `SYS.AUD$` enthält noch alte Zeilen. Optional purgen mit "
             "`DBMS_AUDIT_MGMT.CLEAN_AUDIT_TRAIL(AUDIT_TRAIL_AUD_STD,...)`."
         ),
         "mode.pure_intent_note": (
             "> **Pure Mode, Legacy-Parameter gesetzt** - `audit_trail` Wert "
             "ist nicht `NONE`, hat in Pure Mode aber keine Wirkung. "
-            "Empfehlung: beim naechsten Bounce `audit_trail = NONE` setzen."
+            "Empfehlung: beim nächsten Bounce `audit_trail = NONE` setzen."
         ),
         "mode.unsupported_note": (
             "> **Unified Auditing nicht aktiv** - dieser Tool-Scope ist nicht "
@@ -172,13 +172,13 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         ),
         "mode.unknown_note": (
             "> _(audit_mode-Metadata fehlt - 01-config.sql wurde "
-            "moeglicherweise vor Phase C generiert. Pure-Mode-Annahmen "
-            "gelten implizit; legacy-Parameter-Findings bitte selbst pruefen.)_"
+            "möglicherweise vor Phase C generiert. Pure-Mode-Annahmen "
+            "gelten implizit; legacy-Parameter-Findings bitte selbst prüfen.)_"
         ),
         "mode.aud_recent_rows": (
-            "> **Hinweis:** `SYS.AUD$` enthaelt {n} Zeilen aus "
-            "den letzten 7 Tagen - aktive Mixed-Mode-Schreibvorgaenge? "
-            "Quelle pruefen (Traditional-AUDIT-Statements aktiv?)."
+            "> **Hinweis:** `SYS.AUD$` enthält {n} Zeilen aus "
+            "den letzten 7 Tagen - aktive Mixed-Mode-Schreibvorgänge? "
+            "Quelle prüfen (Traditional-AUDIT-Statements aktiv?)."
         ),
         "mode.legacy_params_footer": (
             "_Parameter mit `_(legacy)_` Markierung sind Mixed-Mode-Artefakte. "
@@ -201,7 +201,7 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         ),
         "storage.verdict_transient_older": (
             "Default-Tablespace ist `{tbs_default}` (korrekt), aber "
-            "aeltere Partitionen liegen noch in: "
+            "ältere Partitionen liegen noch in: "
             "`{tbs_older}`. Optional: pro Partition "
             "`ALTER TABLE AUDSYS.AUD$UNIFIED MOVE PARTITION <name> "
             "TABLESPACE {tbs_default};` - keine Pflicht (kein Finding)."
@@ -209,23 +209,23 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "storage.verdict_transient_current": (
             "Default-Tablespace wurde auf `{tbs_default}` umgestellt, "
             "aktuelle Partition liegt aber noch in `{tbs_current}`. "
-            "Naechste Range-Partition wird in `{tbs_default}` angelegt "
+            "Nächste Range-Partition wird in `{tbs_default}` angelegt "
             "(Auto-Partitionierung). Kein Finding."
         ),
         "storage.verdict_empty": (
             "AUD$UNIFIED hat noch keine Partition - das erste Event "
             "erzeugt eine Partition in `{tbs_default}`. Kein Finding."
         ),
-        "storage.row_default": "Default fuer neue Partitionen",
+        "storage.row_default": "Default für neue Partitionen",
         "storage.row_current": "Aktuelle Partition",
-        "storage.row_older": "Aeltere Partitionen",
+        "storage.row_older": "Ältere Partitionen",
         "storage.none": "_(keine)_",
         "storage.partitions_summary": (
             "Partitionen: {n} - Gesamt {rows} Zeilen / {mb} MB."
         ),
         "storage.verdict_unknown": (
             "> _(Tablespace-Metadata fehlt - 02-storage.sql wurde "
-            "moeglicherweise vor Phase C generiert. Manuelle Pruefung "
+            "möglicherweise vor Phase C generiert. Manuelle Prüfung "
             "der Tablespace-Zuordnung erforderlich.)_"
         ),
         "storage.trail_mgmt": "**Trail-Management (Purge)**",
@@ -234,11 +234,11 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "storage.part_interval_row": "Partitions-Intervall",
         "storage.purge_warn_no_job": (
             "> ⚠️ **Kein Purge-Job konfiguriert** - "
-            "`AUD$UNIFIED` waechst unbegrenzt."
+            "`AUD$UNIFIED` wächst unbegrenzt."
         ),
         "storage.purge_warn_no_ts": (
             "> ⚠️ **Kein `LAST_ARCHIVE_TIMESTAMP` gesetzt** - "
-            "der Purge-Job loescht keine Zeilen."
+            "der Purge-Job löscht keine Zeilen."
         ),
         "vol.ghost_events_note": (
             "> ℹ️ **Historische Events aus inaktiven Policies ({n}):** "
@@ -255,8 +255,8 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         ),
         "policy.ora_count": "- Oracle-supplied (`ORA_*`): {n}",
         "policy.cust_count": "- Kunden-/Custom-Policies: {n}",
-        "policy.see_appendix": "_Vollstaendige Aktionsliste verfuegbar mit `--include-appendix`._",
-        "section.03_detail": "3.1 Policy-Inventar - Vollstaendige Aktionsliste",
+        "policy.see_appendix": "_Vollständige Aktionsliste verfügbar mit `--include-appendix`._",
+        "section.03_detail": "3.1 Policy-Inventar - Vollständige Aktionsliste",
         "section.09_detail": "9.1 Abdeckende Policies - Detail",
         "label.ora": "ORA",
         "label.policy_option": "Option",
@@ -273,7 +273,7 @@ MESSAGES: Dict[str, Dict[str, str]] = {
 
         # --- Section 6 - privileged activity ---
         "section.06_intro": (
-            "Aktivitaet privilegierter User (SYS, SYSTEM, Customer-DBA-Accounts). "
+            "Aktivität privilegierter User (SYS, SYSTEM, Customer-DBA-Accounts). "
             "V2: umfasst auch BY GRANTED ROLE Ziele (z.B. C##ODB_ROLE_DBA-Holder) - "
             "diese werden dynamisch aus `AUDIT_UNIFIED_ENABLED_POLICIES` abgeleitet."
         ),
@@ -328,57 +328,57 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "cis.partial_count": (
             "> **{n} CIS-Anforderung(en) nur teilweise abgedeckt** "
             "(PARTIAL). Abdeckung besteht, aber mit WHEN-Bedingung oder "
-            "eingeschraenktem User-Scope."
+            "eingeschränktem User-Scope."
         ),
         "cis.warn_count": (
             "> **{n} CIS-Policy/ies vorhanden aber deaktiviert** "
             "(WARN). Policies existieren, sind aber nicht aktiv."
         ),
-        "cis.all_pass": "> Alle CIS 5.1-5.5 Anforderungen vollstaendig abgedeckt (PASS).",
+        "cis.all_pass": "> Alle CIS 5.1-5.5 Anforderungen vollständig abgedeckt (PASS).",
         "cis.coverage_note": (
             "_Abdeckung wird durch Aktions-Vergleich ermittelt (nicht durch Policy-Namen). "
-            "PARTIAL = Policy mit WHEN-Bedingung oder eingeschraenktem User-Scope. "
+            "PARTIAL = Policy mit WHEN-Bedingung oder eingeschränktem User-Scope. "
             "Oracle-supplied Policies werden informativ gezeigt, beeinflussen das Verdict nicht._"
         ),
         "cis.source": "Quelle: `17_cis_coverage.csv`",
 
         # --- Section 10 - audit roles ---
         "roles.review_count": (
-            "> **{n} Eintrag/Eintraege mit erhoehtem Risiko** "
-            "(WARN/REVIEW) - manuelle Pruefung der Grantees empfohlen."
+            "> **{n} Eintrag/Eintraege mit erhöhtem Risiko** "
+            "(WARN/REVIEW) - manuelle Prüfung der Grantees empfohlen."
         ),
         "roles.source": "Quelle: `18_audit_roles.csv`",
 
         # --- Source / data-origin notes ---
         "note.source_01": "Quelle: `01-config.csv` (DBMS_AUDIT_MGMT, init-Parameter, Instanz)",
         "note.source_02": "Quelle: `02-storage.csv` (AUD$UNIFIED Partitionen, Tablespace-Zuordnung)",
-        "note.no_data": "_(keine Daten verfuegbar)_",
+        "note.no_data": "_(keine Daten verfügbar)_",
         "note.ai_generated": "> Automatisch generierte Analyse - Findings sind zu verifizieren.",
         "note.policy_ddl_unavailable": (
-            "_(Policy-DDL nicht verfuegbar - `sql/16-policy-ddl.csv` fehlt im Bundle "
-            "oder ohne `AUDIT_ADMIN`-Privileg generiert. Vorschlag uebersprungen.)_"
+            "_(Policy-DDL nicht verfügbar - `sql/16-policy-ddl.csv` fehlt im Bundle "
+            "oder ohne `AUDIT_ADMIN`-Privileg generiert. Vorschlag übersprungen.)_"
         ),
         "note.tuning_disclaimer": (
             "> **Hinweis:** Templates sind als Diskussionsgrundlage gedacht. "
             "WHEN-Klauseln sind policy-spezifisch - vor dem Einsatz manuell "
-            "review-en und gegen Compliance-Anforderungen pruefen."
+            "review-en und gegen Compliance-Anforderungen prüfen."
         ),
         "note.csv_missing": "_({fname} nicht im Bundle)_",
         "note.offpath_skipped": (
-            "_(Off-Path-Analyse uebersprungen - 12_distinct_hosts fehlt)_"
+            "_(Off-Path-Analyse übersprungen - 12_distinct_hosts fehlt)_"
         ),
         "note.hosts_unclassifiable": (
             "_(Hosts nicht klassifizierbar - 12_distinct_hosts fehlt)_"
         ),
         "note.csv_missing_cis": (
             "> _(17_cis_coverage.csv fehlt im Bundle - "
-            "SQL/17-cis-coverage.sql wurde nicht ausgefuehrt oder ist "
+            "SQL/17-cis-coverage.sql wurde nicht ausgeführt oder ist "
             "nicht in diesem Bundle enthalten.)_"
         ),
         "note.cis_no_data": "> _(Keine CIS-Coverage-Daten vorhanden.)_",
         "note.csv_missing_roles": (
             "> _(18_audit_roles.csv fehlt im Bundle - "
-            "SQL/18-audit-roles.sql wurde nicht ausgefuehrt oder ist "
+            "SQL/18-audit-roles.sql wurde nicht ausgeführt oder ist "
             "nicht in diesem Bundle enthalten.)_"
         ),
         "note.roles_no_data": "> _(Keine Audit-Rollen-Daten vorhanden.)_",
@@ -387,8 +387,8 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "tuning.intro": (
             "Top Noise-Kandidaten (High-Volume Kombinationen aus Policy / User / "
             "Action / Programm). Pro Kandidat folgt die aktuelle Policy-DDL plus "
-            "vorgeschlagene WHEN-Klausel-Erweiterungen. Vorschlaege sind "
-            "Bedingungs-Ausdruecke - die Anwendung erfolgt manuell via "
+            "vorgeschlagene WHEN-Klausel-Erweiterungen. Vorschläge sind "
+            "Bedingungs-Ausdrücke - die Anwendung erfolgt manuell via "
             "`DROP AUDIT POLICY ...; CREATE AUDIT POLICY ... WHEN '...';` "
             "(per ai-analysis-rules.md Section 4)."
         ),
@@ -403,7 +403,7 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "tuning.suppress_user": "Benutzer {user} in {policy} ausschliessen",
         "tuning.suppress_program": "Programm {program} in {policy} ausschliessen",
         "tuning.suppress_combo": "Kombination {user}/{program} in {policy} ausschliessen",
-        "tuning.no_template": "Kein automatisches Template ableitbar fuer {policy}",
+        "tuning.no_template": "Kein automatisches Template ableitbar für {policy}",
         "tuning.apply_instructions": "Anwendung (manuell)",
         "tuning.apply_template": (
             "Erweitere die WHEN-Klausel von `{policy}` um den oben gezeigten Ausdruck. "
@@ -417,12 +417,12 @@ MESSAGES: Dict[str, Dict[str, str]] = {
             "Filtere Events vom Benutzer `{user}` aus. Anwendbar "
             "wenn `{user}` ein deterministischer Service-Account "
             "ist und seine Aktionen aus dem Audit-Scope ausgeschlossen "
-            "werden duerfen (Compliance-Pruefung erforderlich)."
+            "werden dürfen (Compliance-Prüfung erforderlich)."
         ),
         "tuning.rationale_program": (
             "Filtere Events vom Client-Programm `{program}` aus. "
             "Sinnvoll bei automatisierten Monitoring- oder "
-            "Backup-Tools mit hohem Aktivitaets-Volumen."
+            "Backup-Tools mit hohem Aktivitäts-Volumen."
         ),
         "tuning.rationale_combo": (
             "Engste Suppression: nur die exakte Kombination "
@@ -480,8 +480,8 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         ),
         "uncovered.depth_note": (
             "_Hinweis: Indirekte Rollen-Ketten (Rolle -> Rolle -> User) "
-            "werden nicht traversiert. Fuer vollstaendige Pruefung "
-            "`SESSION_ROLES` im Kontext des jeweiligen Users pruefen._"
+            "werden nicht traversiert. Für vollständige Prüfung "
+            "`SESSION_ROLES` im Kontext des jeweiligen Users prüfen._"
         ),
         "uncovered.source": "Quelle: `21_uncovered_users.csv`",
         "uncovered.csv_missing": "_(21_uncovered_users.csv nicht im Bundle)_",
@@ -494,7 +494,7 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "section.07_4_blind_spot": "7.4 Blind-Spot-Analyse (Audit-Abdeckung)",
         "metric.blind_spots": "Benutzer ohne Audit-Abdeckung (Blind Spots)",
         "blind_spot.intro": (
-            "Prueft fuer jeden Datenbankbenutzer, ob mindestens eine aktive "
+            "Prüft für jeden Datenbankbenutzer, ob mindestens eine aktive "
             "Customer-Policy mit Non-Logon-Aktionen greift. Bewertet alle drei "
             "Oracle-Zuweisungsformen: BY USER (direkt), BY GRANTED ROLE "
             "(transitiv inkl. PUBLIC) und EXCEPT USER. Oracle-supplied Policies "
@@ -506,7 +506,7 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "blind_spot.found": "**{n} Benutzer** ohne Abdeckung durch eine Customer-Policy (BLIND_SPOT):",
         "blind_spot.csv_missing": "_(23_blind_spot_pdb.csv / 24_blind_spot_cdb.csv nicht im Bundle)_",
         "blind_spot.except_note": (
-            "**EXCLUDED_EXCEPT** - bewusste Ausnahme, keine Abdeckungsluecke: "
+            "**EXCLUDED_EXCEPT** - bewusste Ausnahme, keine Abdeckungslücke: "
             "Diese Benutzer sind explizit aus einer ansonsten universellen Policy ausgeklammert."
         ),
         "blind_spot.source_pdb": "Quelle: `23_blind_spot_pdb.csv`",
@@ -524,10 +524,10 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "policy_ddl.section_intro": (
             "DDL-Definitionen aller Custom Audit-Policies aus "
             "`DBMS_METADATA.GET_DDL`. Oracle-supplied Policies werden ausgeblendet. "
-            "Dient als Referenz fuer Policy-Analyse und Anpassungsvorschlaege."
+            "Dient als Referenz für Policy-Analyse und Anpassungsvorschläge."
         ),
         "policy_ddl.none": (
-            "_Keine Custom Policy-DDL verfuegbar - "
+            "_Keine Custom Policy-DDL verfügbar - "
             "`16_policy_ddl.csv` fehlt oder wurde ohne `AUDIT_ADMIN`-Privileg erzeugt._"
         ),
         "policy_ddl.source": "Quelle: `16_policy_ddl.csv` (DBMS_METADATA.GET_DDL)",
@@ -537,7 +537,7 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         # G-05: Adhoc-Policy-Detection (Section 3)
         "policy.adhoc_warn": (
             "> ⚠️ **ACTIONS-ALL-Policy aktiv: {policies}** - "
-            "Diese Policy(s) sind fuer alle Aktionen aktiviert (keine Einschraenkung). "
+            "Diese Policy(s) sind für alle Aktionen aktiviert (keine Einschränkung). "
             "Typischer Einsatz: Incident-Analyse. Nach Abschluss der Untersuchung "
             "deaktivieren (`NOAUDIT POLICY <name>`) um Trail-Volumen zu begrenzen."
         ),
@@ -553,10 +553,10 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         # G-08: 26ai DDL actions note (Section 9)
         "cis.26ai_ddl_note": (
             "> ℹ️ **Oracle 26ai-spezifische DDL-Actions:** `ODB_LOC_DDL_ALL_V2` "
-            "enthaelt Aktionen die nur auf Oracle 26ai existieren: "
+            "enthält Aktionen die nur auf Oracle 26ai existieren: "
             "`MLE MODULE`, `MLE ENV`, `DOMAIN`, `PROPERTY GRAPH`. "
-            "Auf Oracle 19c werden diese beim Deployment uebersprungen "
-            "(ORA-46351). CIS 5.1 Abdeckung gilt unabhaengig von der "
+            "Auf Oracle 19c werden diese beim Deployment übersprungen "
+            "(ORA-46351). CIS 5.1 Abdeckung gilt unabhängig von der "
             "installierten DB-Version."
         ),
 
@@ -567,22 +567,22 @@ MESSAGES: Dict[str, Dict[str, str]] = {
             "Records in `UNIFIED_AUDIT_TRAIL` unter dieser Policy sind "
             "per Definition Off-Path (WHEN-Bedingung feuerte = Context-Flag FALSE/NULL). "
             "Szenario A (Application Context, 7.2.1) zeigt Policy-getaggte Events. "
-            "Szenario B (Pattern-basiert, 7.2.2) ist ein unabhaengiger, "
-            "kontextfreier Fallback - beide Sichten sind komplementaer."
+            "Szenario B (Pattern-basiert, 7.2.2) ist ein unabhängiger, "
+            "kontextfreier Fallback - beide Sichten sind komplementär."
         ),
 
         # G-04 + G-10: Section 6 subsections
-        "section.06_1_priv": "6.1 Privilegierte User-Aktivitaet",
+        "section.06_1_priv": "6.1 Privilegierte User-Aktivität",
         "section.06_2_crit_pkg": "6.2 Kritische Packages - CIS 5.1.3 (ODB_LOC_CRIT_PKG_V2)",
-        "section.06_3_dev": "6.3 Developer-Aktivitaet (BY-USER Policy-Bindungen)",
+        "section.06_3_dev": "6.3 Developer-Aktivität (BY-USER Policy-Bindungen)",
         "section.06_2_intro": (
             "EXECUTE-Events auf die 19 CIS Benchmark 5.1.3 kritischen SYS-Packages "
             "(Scope: `ODB_LOC_CRIT_PKG_V2`). Zeigt wer welches sicherheitskritische "
-            "Package wann und von wo ausgefuehrt hat."
+            "Package wann und von wo ausgeführt hat."
         ),
         "section.06_3_intro": (
             "Custom Audit-Policies mit BY-USER Bindung (kein SYS/SYSTEM/Standard-Account). "
-            "Zeigt ob eine Developer-Audit-Policy (`ODB_LOC_DEV_ALL_V2` oder aequivalent) "
+            "Zeigt ob eine Developer-Audit-Policy (`ODB_LOC_DEV_ALL_V2` oder äquivalent) "
             "aktiv und korrekt gebunden ist."
         ),
         "pkg.no_events": (
@@ -590,21 +590,21 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         ),
         "pkg.policy_missing_note": (
             "> ℹ️ **Hinweis:** Keine aktive Policy mit `CRIT_PKG` im Namen gefunden. "
-            "Events kommen moeglicherweise nur von `ORA$MANDATORY` (DBMS_FGA, "
+            "Events kommen möglicherweise nur von `ORA$MANDATORY` (DBMS_FGA, "
             "DBMS_AUDIT_MGMT). `ODB_LOC_CRIT_PKG_V2` deployen und aktivieren "
-            "fuer vollstaendige CIS 5.1.3 Abdeckung."
+            "für vollständige CIS 5.1.3 Abdeckung."
         ),
         "dev.policies_found": (
-            "**{n} BY-USER Policy-Bindung(en)** fuer nicht-Standard-Accounts aktiv:"
+            "**{n} BY-USER Policy-Bindung(en)** für nicht-Standard-Accounts aktiv:"
         ),
         "dev.hint": (
             "_Hinweis: Developer-Audit-Events erscheinen in Abschnitt 4 "
             "(Policy-Volumen) unter der jeweiligen Policy. "
             "Kein separater Developer-Bericht in diesem Tool - "
-            "fuer detaillierte Auswertung `05_policy_user_action.csv` filtern._"
+            "für detaillierte Auswertung `05_policy_user_action.csv` filtern._"
         ),
         "dev.none_found": (
-            "_Keine BY-USER Policy-Bindungen fuer nicht-Standard-Accounts. "
+            "_Keine BY-USER Policy-Bindungen für nicht-Standard-Accounts. "
             "Entweder kein Developer-Audit konfiguriert oder "
             "Developer-Accounts entsprechen Standard-Account-Mustern._"
         ),
