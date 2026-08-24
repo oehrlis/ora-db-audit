@@ -1,1 +1,0 @@
-../../../ai-toolkit/claude/agents/templates/framework-review/review-security.md

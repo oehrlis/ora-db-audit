@@ -1,1 +1,0 @@
-../../../ai-toolkit/claude/commands/evolve.md
