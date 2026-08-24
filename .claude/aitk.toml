@@ -4,5 +4,5 @@ profiles = [
     "oracle",
 ]
 link_mode = "symlink"
-initialized_at = "2026-07-31T06:18:28Z"
-aitk_version = "2.0.0"
+initialized_at = "2026-08-24T14:35:47Z"
+aitk_version = "3.2.0"

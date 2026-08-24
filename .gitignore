@@ -59,3 +59,7 @@ references/
 .claude/rules/
 .claude/skills/
 .github/copilot-instructions.md
+# aitk-managed - do not commit (deployed from ai-toolkit)
+# A project-own file under these paths needs an explicit `git add -f`.
+.claude/commands/
+.claude/agents/
