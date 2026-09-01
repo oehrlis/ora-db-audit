@@ -16,8 +16,19 @@ setup() {
     if [[ ! -d "${SAMPLE_BUNDLE_DIR}" ]]; then
         skip "sample_bundle/ fixture directory not found at ${FIXTURES}/"
     fi
-    # Generate the tarball from the committed fixture directory if absent.
-    if [[ ! -f "${SAMPLE_TAR}" ]]; then
+    # Generate the tarball from the committed fixture directory when it is
+    # absent OR stale. Regenerating only when absent means a developer with an
+    # old tarball silently tests an old fixture: new CSVs are added to
+    # sample_bundle/, the suite still passes, and the sections that consume
+    # them are never exercised. The tarball is gitignored, so CI always builds
+    # it fresh and only local runs are affected - which is exactly the case
+    # nobody notices.
+    local newer=""
+    if [[ -f "${SAMPLE_TAR}" ]]; then
+        newer="$(find "${SAMPLE_BUNDLE_DIR}" -newer "${SAMPLE_TAR}" -print -quit)"
+    fi
+    if [[ ! -f "${SAMPLE_TAR}" || -n "${newer}" ]]; then
+        rm -f "${SAMPLE_TAR}"
         (cd "${FIXTURES}" && tar czf sample_bundle.tar.gz sample_bundle/) || {
             skip "failed to create sample_bundle.tar.gz from fixture"
         }
@@ -87,4 +98,14 @@ teardown() {
     local report="${bundle_dir}/audit_report.md"
     [ -f "${report}" ]
     grep -q "^#" "${report}"
+    # Pin the two sections that consume the blind-spot and policy-effectiveness
+    # fixtures. Assert on rendered CONTENT, not on the headers: both sections
+    # print their header plus a "not in bundle" note when the CSV is missing,
+    # so a header check passes even when the fixture never reaches the report.
+    grep -q "^### 7.4 " "${report}"
+    grep -q "^### 7.5 " "${report}"
+    # Scorecard row - only rendered when 23_blind_spot_pdb.csv was parsed.
+    grep -q "Blind Spots handlungsrelevant" "${report}"
+    # Verdict from 25_policy_effectiveness.csv - only present with findings.
+    grep -q "ENTITY_MISSING" "${report}"
 }

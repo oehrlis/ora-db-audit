@@ -119,6 +119,20 @@ roll-up, plus the reverse view: policies that reach nobody.
   overflowed a 22-character column.
 - **`sql/standalone/*.sql` missing blank lines** between output blocks when
   block C took its "no blind spots" path.
+- **`tests/bats/test-from-bundle.bats` stale-fixture trap** - the sample
+  tarball was rebuilt only when absent, so a developer with an old tarball
+  silently tested an old fixture: new CSVs land in `sample_bundle/`, the suite
+  still passes, and the sections consuming them are never exercised. It is now
+  rebuilt when any fixture file is newer. The tarball is gitignored, so CI
+  always built it fresh and only local runs were affected - exactly the case
+  nobody notices.
+- **`tests/bats/test-from-bundle.bats` toothless assertion** - the report test
+  only checked that the file starts with a heading. It now asserts rendered
+  content from the blind-spot and policy-effectiveness fixtures. Checking the
+  section _headers_ would not have worked: both sections print their header
+  plus a "not in bundle" note when the CSV is missing, so a header check
+  passes even when the fixture never reaches the report (verified by removing
+  the fixtures and confirming the test fails).
 - **`sql/standalone/README.md`, `docs/usage.md`, `sql/README.md`** - close
   `markdownlint-disable` blocks with `restore` instead of `enable`. `enable`
   reactivates rules with **default** parameters, dropping `line_length: 120`
