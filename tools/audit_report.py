@@ -506,6 +506,8 @@ QUERY_FILES = {
     "22": "22_crit_pkg_executions",
     "23": "23_blind_spot_pdb",
     "24": "24_blind_spot_cdb",
+    "25": "25_policy_effectiveness",
+    "26": "26_policy_effectiveness_cdb",
 }
 
 
@@ -1560,14 +1562,20 @@ def render_executive_summary(bundle, classifier, top_n):
             if first_allus != "YES":
                 uncovered_count = len(rows21)
 
-    # Blind-spot count from 24_blind_spot_cdb.csv, else 23_blind_spot_pdb.csv
+    # Blind-spot count from 24_blind_spot_cdb.csv, else 23_blind_spot_pdb.csv.
+    # The raw count is dominated by locked and Oracle-maintained accounts, so
+    # the actionable subset is carried alongside it - a bare "40" in the
+    # executive summary reads as 40 problems when 4 need a decision.
     blind_spot_count = 0
+    blind_spot_actionable = 0
     _fd_bs = files.get("24") or files.get("23")
     if _fd_bs:
-        _idx_bs_status = _col_index(_fd_bs, "coverage_status")
         for _r in _fd_bs.get("rows", []):
-            if _row_get(_r, _idx_bs_status).strip().upper() == "BLIND_SPOT":
+            _cls, _login, _act, _status = _bs_classify(_fd_bs, _r)
+            if _status == "BLIND_SPOT":
                 blind_spot_count += 1
+            if _act == "Y":
+                blind_spot_actionable += 1
 
     out += section_header(3, t("section.metrics", lang=LANG))
     metrics_rows = [
@@ -1580,7 +1588,10 @@ def render_executive_summary(bundle, classifier, top_n):
         [t("metric.storage_partitions", lang=LANG),
          fmt_int(len(files.get("02", {}).get("rows", [])))],
         [t("metric.uncovered_users", lang=LANG), fmt_int(uncovered_count)],
-        [t("metric.blind_spots", lang=LANG), fmt_int(blind_spot_count)],
+        [t("metric.blind_spots", lang=LANG),
+         t("metric.blind_spots_value", lang=LANG,
+           total=fmt_int(blind_spot_count),
+           actionable=fmt_int(blind_spot_actionable))],
         [t("metric.ai_findings", lang=LANG), _AI_STATUS_SENTINEL],
     ]
     out += render_table(
@@ -2156,10 +2167,14 @@ def render_section_07_security_signals(files, classifier, top_n):
         out += t("note.offpath_skipped", lang=LANG) + "\n\n"
         sec73, _count = render_section_07_3_uncovered(files.get("21"), top_n)
         out += sec73
-        sec74, _bs_count = render_section_07_4_blind_spot(
+        sec74, _bs_count, _bs_action = render_section_07_4_blind_spot(
             files.get("23"), files.get("24"), top_n
         )
         out += sec74
+        sec75, _pe_count = render_section_07_5_policy_effectiveness(
+            files.get("25"), files.get("26"), top_n
+        )
+        out += sec75
         return out
 
     # --- 7.2.1 Scenario A: Application Context ---
@@ -2279,10 +2294,14 @@ def render_section_07_security_signals(files, classifier, top_n):
     out += sec73
 
     # --- 7.4 Blind-Spot Report ---
-    sec74, _bs_count = render_section_07_4_blind_spot(
+    sec74, _bs_count, _bs_action = render_section_07_4_blind_spot(
         files.get("23"), files.get("24"), top_n
     )
     out += sec74
+    sec75, _pe_count = render_section_07_5_policy_effectiveness(
+        files.get("25"), files.get("26"), top_n
+    )
+    out += sec75
     return out
 
 
@@ -2337,13 +2356,69 @@ def render_section_07_3_uncovered(file_data, top_n):
     return out, len(rows)
 
 
-def render_section_07_4_blind_spot(file_data_pdb, file_data_cdb, top_n):
-    """Section 7.4: blind-spot report (23_blind_spot_pdb / 24_blind_spot_cdb).
+# Coverage classes used by the blind-spot roll-up. Kept in this order so
+# the matrix always lists the customer side first - that is where findings
+# live; the Oracle-maintained side is context.
+_BS_STATUS_ORDER = [
+    "COVERED_DIRECT",
+    "COVERED_VIA_ROLE",
+    "COVERED_ALL_USERS",
+    "EXCLUDED_EXCEPT",
+    "BLIND_SPOT",
+]
 
-    Prefers the CDB file when both are present; falls back to the PDB file.
-    Shows a summary count table by coverage_status and detail rows for
-    BLIND_SPOT (potential gaps) and EXCLUDED_EXCEPT (deliberate exemptions).
-    COVERED_* rows are included in summary counts only.
+
+def _bs_classify(file_data, row):
+    """Return (account_class, login_enabled, actionable, status) for one
+    blind-spot row.
+
+    sql/23 and sql/24 emit account_class / login_enabled / actionable as
+    real columns since v0.2.0 of those queries. Bundles collected before
+    that do not have them, so the same rules are re-derived here from
+    oracle_maintained + account_status. Both paths must stay identical to
+    the SQL - see the header comment in sql/23-blind-spot-pdb.sql.
+    """
+    status = _row_get(row, _col_index(file_data, "coverage_status")).strip().upper()
+    om = _row_get(row, _col_index(file_data, "oracle_maintained")).strip().upper()
+    acct = _row_get(row, _col_index(file_data, "account_status")).strip().upper()
+
+    idx_cls = _col_index(file_data, "account_class")
+    if idx_cls >= 0:
+        cls = _row_get(row, idx_cls).strip().upper()
+    else:
+        cls = "ORACLE" if om == "Y" else "CUSTOMER"
+
+    idx_le = _col_index(file_data, "login_enabled")
+    if idx_le >= 0:
+        login = _row_get(row, idx_le).strip().upper()
+    else:
+        login = "N" if "LOCKED" in acct else "Y"
+
+    idx_act = _col_index(file_data, "actionable")
+    if idx_act >= 0:
+        act = _row_get(row, idx_act).strip().upper()
+    else:
+        act = "Y" if (status == "BLIND_SPOT" and cls == "CUSTOMER"
+                      and login == "Y") else "N"
+
+    return cls, login, act, status
+
+
+def render_section_07_4_blind_spot(file_data_pdb, file_data_cdb, top_n):
+    """Section 7.4: blind-spot roll-up (23_blind_spot_pdb / 24_blind_spot_cdb).
+
+    Deliberately NOT a row-per-user listing. A database with a few hundred
+    accounts produces a few hundred rows, of which typically a handful
+    matter; the rest are locked or Oracle-maintained accounts covered by
+    ORA_SECURECONFIG. The layout mirrors sql/standalone/blind-spot-*.sql
+    one-for-one so the report and an ad-hoc SQL*Plus run agree:
+
+      A  scorecard        - the verdict
+      F  container matrix - CDB only, one line per open container
+      B  coverage matrix  - account class x login state x coverage status
+      C  blind spots      - only the accounts that need a decision
+
+    Returns (markdown, blind_spot_count, actionable_count).
     """
     out = section_header(3, t("section.07_4_blind_spot", lang=LANG))
 
@@ -2351,62 +2426,175 @@ def render_section_07_4_blind_spot(file_data_pdb, file_data_cdb, top_n):
     file_data = file_data_cdb if file_data_cdb is not None else file_data_pdb
     if file_data is None:
         out += t("blind_spot.csv_missing", lang=LANG) + "\n\n"
-        return out, 0
+        return out, 0, 0
 
     out += t("blind_spot.intro", lang=LANG) + "\n\n"
 
     rows = file_data.get("rows", [])
     is_cdb = file_data_cdb is not None
 
-    idx_status = _col_index(file_data, "coverage_status")
     idx_prin = _col_index(file_data, "principal")
-    idx_om = _col_index(file_data, "oracle_maintained")
     idx_acct = _col_index(file_data, "account_status")
-    idx_paths = _col_index(file_data, "cover_paths")
-    idx_pol_cnt = _col_index(file_data, "policy_count")
     idx_ora = _col_index(file_data, "ora_supplied_cover")
     idx_exc_pol = _col_index(file_data, "excepted_policies")
-    # CDB-only columns
     idx_pdb = _col_index(file_data, "pdb_name") if is_cdb else -1
+    idx_con = _col_index(file_data, "con_id") if is_cdb else -1
 
-    # --- Summary count table ---
-    status_order = [
-        "BLIND_SPOT",
-        "EXCLUDED_EXCEPT",
-        "COVERED_ALL_USERS",
-        "COVERED_VIA_ROLE",
-        "COVERED_DIRECT",
-    ]
-    counts: Dict[str, int] = {s: 0 for s in status_order}
+    # --- single pass: classify and accumulate -------------------------------
+    # matrix[(class, login)][status] -> count
+    matrix: Dict[Tuple[str, str], Dict[str, int]] = {}
+    # containers[(con_id, pdb_name)] -> counters
+    containers: Dict[Tuple[str, str], Dict[str, int]] = {}
+    classified = []
+
+    total = 0
+    cust = 0
+    cust_cov = 0
+    ora_cnt = 0
+    except_cnt = 0
+    blind_cnt = 0
+    action_cnt = 0
+
     for row in rows:
-        st = _row_get(row, idx_status).strip().upper()
-        if st in counts:
-            counts[st] += 1
+        cls, login, act, status = _bs_classify(file_data, row)
+        classified.append((row, cls, login, act, status))
+        total += 1
 
-    summary_rows = [
-        [st.replace("_", " ").title(), fmt_int(counts[st])]
-        for st in status_order
-    ]
+        cell = matrix.setdefault((cls, login),
+                                 {s: 0 for s in _BS_STATUS_ORDER})
+        if status in cell:
+            cell[status] += 1
+
+        if cls == "CUSTOMER":
+            cust += 1
+            if status.startswith("COVERED"):
+                cust_cov += 1
+        else:
+            ora_cnt += 1
+
+        if status == "EXCLUDED_EXCEPT":
+            except_cnt += 1
+        elif status == "BLIND_SPOT":
+            blind_cnt += 1
+        if act == "Y":
+            action_cnt += 1
+
+        if is_cdb:
+            ckey = (_row_get(row, idx_con).strip(),
+                    _row_get(row, idx_pdb).strip())
+            cc = containers.setdefault(
+                ckey, {"users": 0, "covered": 0, "except": 0,
+                       "blind": 0, "actionable": 0})
+            cc["users"] += 1
+            if status.startswith("COVERED"):
+                cc["covered"] += 1
+            elif status == "EXCLUDED_EXCEPT":
+                cc["except"] += 1
+            else:
+                cc["blind"] += 1
+            if act == "Y":
+                cc["actionable"] += 1
+
+    pct = "n/a" if cust == 0 else f"{round(cust_cov * 100 / cust)}%"
+
+    # --- A: scorecard ------------------------------------------------------
     out += render_table(
-        [t("label.coverage_status", lang=LANG), t("label.count", lang=LANG)],
-        summary_rows,
+        [t("label.metric", lang=LANG), t("label.value", lang=LANG)],
+        [
+            [t("blind_spot.sc_users", lang=LANG), fmt_int(total)],
+            [t("blind_spot.sc_customer", lang=LANG), fmt_int(cust)],
+            [t("blind_spot.sc_oracle", lang=LANG), fmt_int(ora_cnt)],
+            [t("blind_spot.sc_covered", lang=LANG),
+             f"{fmt_int(cust_cov)} / {fmt_int(cust)} ({pct})"],
+            [t("blind_spot.sc_except", lang=LANG), fmt_int(except_cnt)],
+            [t("blind_spot.sc_blind", lang=LANG), fmt_int(blind_cnt)],
+            [t("blind_spot.sc_actionable", lang=LANG), fmt_int(action_cnt)],
+        ],
     )
     out += "\n"
 
-    blind_spot_count = counts["BLIND_SPOT"]
-    if blind_spot_count == 0:
-        out += t("blind_spot.none", lang=LANG) + "\n\n"
-    else:
-        out += t("blind_spot.found", lang=LANG, n=blind_spot_count) + "\n\n"
-        bs_rows = []
-        for row in rows:
-            if _row_get(row, idx_status).strip().upper() != "BLIND_SPOT":
+    # --- F: container matrix (CDB only) ------------------------------------
+    if is_cdb and containers:
+        out += t("blind_spot.container_intro", lang=LANG) + "\n\n"
+        crows = []
+        for (con_id, pdb_name) in sorted(
+                containers, key=lambda k: _to_int(k[0], 0)):
+            cc = containers[(con_id, pdb_name)]
+            crows.append([
+                con_id,
+                pdb_name,
+                fmt_int(cc["users"]),
+                fmt_int(cc["covered"]),
+                fmt_int(cc["except"]),
+                fmt_int(cc["blind"]),
+                fmt_int(cc["actionable"]),
+            ])
+        out += render_table(
+            [
+                "CON_ID",
+                t("label.pdb_name", lang=LANG),
+                t("label.count", lang=LANG),
+                t("blind_spot.col_covered", lang=LANG),
+                t("blind_spot.col_except", lang=LANG),
+                t("blind_spot.col_blind", lang=LANG),
+                t("blind_spot.col_actionable", lang=LANG),
+            ],
+            crows,
+        )
+        out += "\n" + t("blind_spot.container_note", lang=LANG) + "\n\n"
+
+    # --- B: coverage matrix ------------------------------------------------
+    out += t("blind_spot.matrix_intro", lang=LANG) + "\n\n"
+    mrows = []
+    for cls in ("CUSTOMER", "ORACLE"):
+        for login in ("Y", "N"):
+            cell = matrix.get((cls, login))
+            if not cell:
                 continue
-            entry = [_row_get(row, idx_prin)]
+            row_total = sum(cell.values())
+            mrows.append([
+                t(f"blind_spot.class_{cls.lower()}", lang=LANG),
+                t("blind_spot.login_yes" if login == "Y"
+                  else "blind_spot.login_no", lang=LANG),
+                fmt_int(row_total),
+                fmt_int(cell["COVERED_DIRECT"]),
+                fmt_int(cell["COVERED_VIA_ROLE"]),
+                fmt_int(cell["COVERED_ALL_USERS"]),
+                fmt_int(cell["EXCLUDED_EXCEPT"]),
+                fmt_int(cell["BLIND_SPOT"]),
+            ])
+    out += render_table(
+        [
+            t("blind_spot.col_class", lang=LANG),
+            t("blind_spot.col_login", lang=LANG),
+            t("label.count", lang=LANG),
+            "DIRECT",
+            "ROLE",
+            "ALL_USERS",
+            t("blind_spot.col_except", lang=LANG),
+            t("blind_spot.col_blind", lang=LANG),
+        ],
+        mrows,
+    )
+    out += "\n" + t("blind_spot.matrix_note", lang=LANG) + "\n\n"
+
+    # --- C: blind spots that need a decision ------------------------------
+    if blind_cnt == 0:
+        out += t("blind_spot.none", lang=LANG) + "\n\n"
+    elif action_cnt == 0:
+        out += t("blind_spot.none_actionable", lang=LANG,
+                 n=blind_cnt) + "\n\n"
+    else:
+        out += t("blind_spot.found", lang=LANG, n=action_cnt) + "\n\n"
+        bs_rows = []
+        for (row, cls, login, act, status) in classified:
+            if act != "Y":
+                continue
+            entry = []
             if is_cdb and idx_pdb >= 0:
-                entry = [_row_get(row, idx_pdb)] + entry
+                entry.append(_row_get(row, idx_pdb))
             entry += [
-                _row_get(row, idx_om) if idx_om >= 0 else "-",
+                _row_get(row, idx_prin),
                 _row_get(row, idx_acct) if idx_acct >= 0 else "-",
                 _row_get(row, idx_ora) if idx_ora >= 0 else "-",
             ]
@@ -2418,43 +2606,284 @@ def render_section_07_4_blind_spot(file_data_pdb, file_data_cdb, top_n):
             headers.append(t("label.pdb_name", lang=LANG))
         headers += [
             t("label.principal", lang=LANG),
-            t("label.oracle_maintained", lang=LANG),
             t("label.account_status", lang=LANG),
             t("label.ora_supplied_cover", lang=LANG),
         ]
         out += render_table(headers, display_rows)
         out += "\n"
 
-    # --- EXCLUDED_EXCEPT detail ---
-    exc_count = counts["EXCLUDED_EXCEPT"]
-    if exc_count > 0:
-        out += t("blind_spot.except_note", lang=LANG) + "\n\n"
-        exc_rows = []
-        for row in rows:
-            if _row_get(row, idx_status).strip().upper() != "EXCLUDED_EXCEPT":
-                continue
-            entry = [_row_get(row, idx_prin)]
-            if is_cdb and idx_pdb >= 0:
-                entry = [_row_get(row, idx_pdb)] + entry
-            entry.append(
-                _row_get(row, idx_exc_pol) if idx_exc_pol >= 0 else "-"
-            )
-            exc_rows.append(entry)
+        # A filter that holds rows back silently is a defect: name the count
+        # and the switch that reveals them.
+        if len(bs_rows) > len(display_rows):
+            out += t("blind_spot.truncated", lang=LANG,
+                     n=len(bs_rows) - len(display_rows),
+                     shown=len(display_rows)) + "\n\n"
 
-        exc_display = exc_rows[:top_n] if top_n else exc_rows
-        exc_headers = []
-        if is_cdb:
-            exc_headers.append(t("label.pdb_name", lang=LANG))
-        exc_headers += [
-            t("label.principal", lang=LANG),
-            t("label.excepted_policies", lang=LANG),
-        ]
-        out += render_table(exc_headers, exc_display)
+        # --- D: collapse the actionable subset by name pattern ------------
+        group_entries = []
+        for (row, cls, login, act, status) in classified:
+            if act != "Y":
+                continue
+            group_entries.append((
+                _row_get(row, idx_prin),
+                _row_get(row, idx_pdb) if (is_cdb and idx_pdb >= 0) else None,
+            ))
+        out += render_blind_spot_groups(
+            group_entries,
+            all_names=[_row_get(r, idx_prin) for r in rows],
+        )
+
+    # Blind spots that exist but were not listed because they are locked or
+    # Oracle-maintained. Always stated, never implied.
+    rest = blind_cnt - action_cnt
+    if rest > 0:
+        out += t("blind_spot.rest_note", lang=LANG, n=rest) + "\n\n"
+
+    # --- EXCLUDED_EXCEPT: grouped by policy, not one row per user ----------
+    if except_cnt > 0:
+        out += t("blind_spot.except_note", lang=LANG, n=except_cnt) + "\n\n"
+        by_policy: Dict[str, List[str]] = {}
+        for (row, cls, login, act, status) in classified:
+            if status != "EXCLUDED_EXCEPT":
+                continue
+            pols = (_row_get(row, idx_exc_pol) if idx_exc_pol >= 0 else "-")
+            prin = _row_get(row, idx_prin)
+            for pol in [x.strip() for x in pols.split(",") if x.strip()]:
+                by_policy.setdefault(pol, []).append(prin)
+
+        exc_rows = []
+        for pol in sorted(by_policy):
+            members = sorted(set(by_policy[pol]))
+            shown = ", ".join(members[:8])
+            if len(members) > 8:
+                shown += t("blind_spot.and_more", lang=LANG,
+                           n=len(members) - 8)
+            exc_rows.append([pol, fmt_int(len(members)), shown])
+        out += render_table(
+            [
+                t("label.policy", lang=LANG),
+                t("label.count", lang=LANG),
+                t("label.principal", lang=LANG),
+            ],
+            exc_rows,
+        )
         out += "\n"
 
     src_key = "blind_spot.source_cdb" if is_cdb else "blind_spot.source_pdb"
     out += t(src_key, lang=LANG) + "\n\n"
-    return out, blind_spot_count
+    return out, blind_cnt, action_cnt
+
+
+# tools/anonymize_bundle.py replaces a principal with its own token format,
+# "<CATEGORY>_<NNN>" (see the `f"{category}_{idx:03d}"` mapping there), so a
+# pseudonymised principal is literally DBUSER_001. Matching that exact format
+# is a direct signal from the anonymiser rather than a heuristic - there is no
+# ratio or sample-size threshold to get wrong.
+_PSEUDO_PRINCIPAL_RE = re.compile(r"^DBUSER_[0-9]{3,}$")
+
+
+def _looks_pseudonymised(names):
+    """True when any principal carries the anonymiser's own pseudonym token.
+
+    A single hit is enough. Name-pattern grouping over pseudonyms is not
+    merely useless but actively wrong - every DBUSER_nnn collapses into one
+    catch-all DBUSER_* group - and a bogus group needs only `grp_min` members
+    to appear. A ratio test fails here: Oracle-maintained schemas are
+    whitelisted by the anonymiser and keep their real names, so pseudonyms
+    are a minority of the rows even in a fully anonymised bundle.
+
+    False positives (a real account named DBUSER_001) only cost the grouping
+    block, which then explains itself - the safe direction.
+    """
+    for n in names:
+        if n and _PSEUDO_PRINCIPAL_RE.match(n.strip().upper()):
+            return True
+    return False
+
+
+def _name_pattern(name):
+    """Collapse a principal to a name pattern - mirror of name_pattern() in
+    sql/standalone/blind-spot-*.sql. Strips a trailing number
+    (ISC_DEV_01 -> ISC_DEV_*). Returns None when the name should stay
+    ungrouped, so a conservative pattern never hides a single finding inside
+    a group.
+    """
+    stem = re.sub(r"[0-9]+$", "", name.strip())
+    if stem == name.strip() or len(stem) < 4:
+        return None
+    return stem + "*"
+
+
+def render_blind_spot_groups(entries, grp_min=3, all_names=None):
+    """Block D: collapse actionable blind spots by name pattern.
+
+    `entries` is a list of (principal, container_or_None). Returns Markdown,
+    or "" when there is nothing worth grouping. Patterns below `grp_min` are
+    folded back into the ungrouped count so the numbers still add up.
+
+    `all_names` is every principal in the source file, used only for the
+    pseudonymisation check. It must not be the actionable subset: that subset
+    is often smaller than the sample the check needs, while a bogus catch-all
+    group needs only `grp_min` members to appear. Detecting on the subset
+    therefore fails exactly when it matters.
+    """
+    if not entries or grp_min <= 0:
+        return ""
+
+    names = list(all_names) if all_names else [e[0] for e in entries]
+    if _looks_pseudonymised(names):
+        # Say so rather than printing a meaningless single group.
+        return t("blind_spot.groups_pseudonymised", lang=LANG) + "\n\n"
+
+    groups: Dict[str, Dict[str, object]] = {}
+    ungrouped = 0
+    for principal, container in entries:
+        pat = _name_pattern(principal)
+        if pat is None:
+            ungrouped += 1
+            continue
+        g = groups.setdefault(
+            pat, {"n": 0, "example": principal, "containers": set()})
+        g["n"] = int(g["n"]) + 1
+        if container:
+            g["containers"].add(container)
+
+    real = {k: v for k, v in groups.items() if int(v["n"]) >= grp_min}
+    ungrouped += sum(int(v["n"]) for k, v in groups.items() if k not in real)
+    if not real:
+        return ""
+
+    has_containers = any(v["containers"] for v in real.values())
+    rows = []
+    for pat in sorted(real):
+        g = real[pat]
+        row = [pat, fmt_int(g["n"])]
+        if has_containers:
+            row.append(fmt_int(len(g["containers"])))
+        row.append(str(g["example"]))
+        rows.append(row)
+    if ungrouped:
+        row = [t("blind_spot.ungrouped", lang=LANG), fmt_int(ungrouped)]
+        if has_containers:
+            row.append("-")
+        row.append("-")
+        rows.append(row)
+
+    headers = [t("blind_spot.col_pattern", lang=LANG),
+               t("blind_spot.col_members", lang=LANG)]
+    if has_containers:
+        headers.append(t("blind_spot.col_pdbs", lang=LANG))
+    headers.append(t("blind_spot.col_example", lang=LANG))
+
+    out = t("blind_spot.groups_intro", lang=LANG, n=grp_min) + "\n\n"
+    out += render_table(headers, rows)
+    out += "\n" + t("blind_spot.groups_note", lang=LANG) + "\n\n"
+    return out
+
+
+# Verdicts from sql/25 / sql/26 that mean "this enablement reaches nobody".
+_PE_FINDINGS = ("ENTITY_MISSING", "ROLE_NO_GRANTEES", "NO_USERS")
+
+
+def render_section_07_5_policy_effectiveness(fd_pdb, fd_cdb, top_n,
+                                             customer_only=True):
+    """Section 7.5: policy effectiveness (25_policy_effectiveness /
+    26_policy_effectiveness_cdb).
+
+    The reverse view of 7.4. Section 7.4 walks users and reports the ones
+    nobody covers; this one walks policy enablements and reports the ones
+    that reach nobody. A policy naming a dropped user, or a role without
+    grantees, is correct-looking in AUDIT_UNIFIED_ENABLED_POLICIES and audits
+    nothing - 7.4 cannot surface that, because a policy contributing no
+    coverage is indistinguishable from a policy that was never meant to.
+
+    Returns (markdown, finding_count).
+    """
+    out = section_header(3, t("section.07_5_policy_eff", lang=LANG))
+
+    file_data = fd_cdb if fd_cdb is not None else fd_pdb
+    if file_data is None:
+        out += t("policy_eff.csv_missing", lang=LANG) + "\n\n"
+        return out, 0
+
+    is_cdb = fd_cdb is not None
+    out += t("policy_eff.intro", lang=LANG) + "\n\n"
+
+    idx_pol = _col_index(file_data, "policy_name")
+    idx_ora = _col_index(file_data, "oracle_supplied")
+    idx_opt = _col_index(file_data, "enabled_option")
+    idx_ent = _col_index(file_data, "entity_name")
+    idx_typ = _col_index(file_data, "entity_type")
+    idx_usr = _col_index(file_data, "users_covered")
+    idx_ver = _col_index(file_data, "verdict")
+    idx_pdb = _col_index(file_data, "pdb_name") if is_cdb else -1
+
+    counts: Dict[str, int] = {}
+    findings = []
+    total = 0
+    for row in file_data.get("rows", []):
+        ora = _row_get(row, idx_ora).strip().upper()
+        if customer_only and ora == "YES":
+            continue
+        total += 1
+        verdict = _row_get(row, idx_ver).strip().upper()
+        counts[verdict] = counts.get(verdict, 0) + 1
+        if verdict in _PE_FINDINGS:
+            entry = []
+            if is_cdb and idx_pdb >= 0:
+                entry.append(_row_get(row, idx_pdb))
+            entry += [
+                _row_get(row, idx_pol),
+                _row_get(row, idx_opt),
+                _row_get(row, idx_ent),
+                _row_get(row, idx_typ),
+                _row_get(row, idx_ver),
+            ]
+            findings.append(entry)
+
+    # Verdict summary - small by construction, policies are two-digit.
+    order = ["ENTITY_MISSING", "ROLE_NO_GRANTEES", "NO_USERS",
+             "EXCLUSION_DEAD", "EXCLUSION", "ALL_USERS", "OK"]
+    srows = [[v.replace("_", " ").title(), fmt_int(counts[v])]
+             for v in order if counts.get(v)]
+    for v in sorted(k for k in counts if k not in order):
+        srows.append([v.replace("_", " ").title(), fmt_int(counts[v])])
+    out += render_table(
+        [t("policy_eff.col_verdict", lang=LANG), t("label.count", lang=LANG)],
+        srows,
+    )
+    out += "\n"
+
+    if not findings:
+        out += t("policy_eff.none", lang=LANG, n=total) + "\n\n"
+    else:
+        out += t("policy_eff.found", lang=LANG,
+                 n=len(findings), total=total) + "\n\n"
+        display = findings[:top_n] if top_n else findings
+        headers = []
+        if is_cdb:
+            headers.append(t("label.pdb_name", lang=LANG))
+        headers += [
+            t("label.policy", lang=LANG),
+            t("policy_eff.col_option", lang=LANG),
+            t("policy_eff.col_entity", lang=LANG),
+            t("policy_eff.col_entity_type", lang=LANG),
+            t("policy_eff.col_verdict", lang=LANG),
+        ]
+        out += render_table(headers, display)
+        out += "\n"
+        if len(findings) > len(display):
+            out += t("policy_eff.truncated", lang=LANG,
+                     n=len(findings) - len(display)) + "\n\n"
+        out += t("policy_eff.verdict_legend", lang=LANG) + "\n\n"
+
+    if counts.get("EXCLUSION_DEAD"):
+        out += t("policy_eff.exclusion_dead_note", lang=LANG,
+                 n=counts["EXCLUSION_DEAD"]) + "\n\n"
+
+    src = "policy_eff.source_cdb" if is_cdb else "policy_eff.source_pdb"
+    out += t(src, lang=LANG) + "\n\n"
+    return out, len(findings)
 
 
 def render_section_11_policy_ddl(policy_ddl_map, top_n=None):

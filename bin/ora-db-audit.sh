@@ -125,6 +125,8 @@ QUERIES=(
     "22-crit-pkg-executions.sql"
     "23-blind-spot-pdb.sql"
     "24-blind-spot-cdb.sql"
+    "25-policy-effectiveness.sql"
+    "26-policy-effectiveness-cdb.sql"
 )
 
 # ------------------------------------------------------------------------------

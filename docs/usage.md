@@ -203,7 +203,7 @@ For every database user, the report assigns a `coverage_status`:
 | `COVERED_ALL_USERS` | An unrestricted policy covers all users in the container |
 | `EXCLUDED_EXCEPT` | User is excluded via an EXCEPT clause - a deliberate exemption, not an accidental gap |
 | `BLIND_SPOT` | No enabled customer policy covers this user |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 Only customer-controlled policies (`oracle_supplied = 'NO'`) count toward `coverage_status`.
 Oracle-supplied coverage (e.g. `ORA_SECURECONFIG`) is always present and would mark every user
@@ -218,7 +218,7 @@ caught by Oracle baseline policies, but no customer policy audits that user's ac
 |-------|-------------|
 | `23-blind-spot-pdb.sql` | Single PDB, Non-CDB, or CDB$ROOT (reports only that container) |
 | `24-blind-spot-cdb.sql` | CDB-wide view - run from CDB$ROOT to cover all open PDBs in one pass |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ### Non-CDB and PDB caveats
 
@@ -230,10 +230,117 @@ caught by Oracle baseline policies, but no customer policy audits that user's ac
   the result. Cross-check with `CDB_PDBS` or `V$PDBS` before declaring all PDBs clean.
 - For a true Non-CDB, always use `23-blind-spot-pdb.sql`.
 
+### Derived columns: which gaps actually matter
+
+`coverage_status` alone over-reports. On a typical database most `BLIND_SPOT` rows are
+locked legacy accounts or Oracle-shipped schemas - neither is exploitable by logging in.
+Queries `23` and `24` therefore emit three derived columns so the triage rule lives in
+exactly one place:
+
+<!-- markdownlint-disable MD013 MD060 -->
+| Column | Values | Rule |
+|--------|--------|------|
+| `account_class` | `CUSTOMER`, `ORACLE` | `ORACLE` when `oracle_maintained = 'Y'` |
+| `login_enabled` | `Y`, `N` | `N` when `account_status` contains `LOCKED` |
+| `actionable` | `Y`, `N` | `Y` when `coverage_status = BLIND_SPOT` **and** `account_class = CUSTOMER` **and** `login_enabled = Y` |
+<!-- markdownlint-restore -->
+
+`actionable = Y` is the finding. Everything else is context. To triage a bundle by hand:
+
+```bash
+awk -F'|' 'NR>8 && $NF=="Y"' 23_blind_spot_pdb.csv
+```
+
+Bundles collected before these columns existed are still handled: `tools/audit_report.py`
+re-derives the same rules from `oracle_maintained` and `account_status`.
+
 ### Running standalone (no tool setup)
 
-The `sql/standalone/` directory contains copy-paste-ready versions that write no spool file and
-require no bundle directory. See [sql/standalone/README.md](../sql/standalone/README.md).
+The `sql/standalone/` directory contains copy-paste-ready **summaries** - a scorecard, a
+coverage matrix, a per-container matrix (CDB) and only the actionable blind spots. They
+write no spool file and require no bundle directory.
+
+Use the numbered queries for collection and the standalone scripts for reading:
+
+<!-- markdownlint-disable MD013 MD060 -->
+| Need | Use |
+|------|-----|
+| Feed the reporting pipeline / hand a bundle over | `sql/23`, `sql/24` (CSV, one row per user) |
+| Answer "are we audited?" in a live session | `sql/standalone/blind-spot-pdb.sql`, `blind-spot-cdb.sql` |
+<!-- markdownlint-restore -->
+
+Both produce identical figures - they share the coverage model and the derived columns.
+Section 7.4 of the generated report uses the same layout, so a screen run and a delivered
+report cannot disagree.
+
+See [sql/standalone/README.md](../sql/standalone/README.md) for the report controls
+(`bs_scope`, `bs_max_rows`, `grp_min`) and example output.
+
+### Grouping: how many findings is that really
+
+Numbered accounts (`ISC_DEV_01` .. `ISC_DEV_40`) are one blind-spot row each but only one
+decision. The standalone scripts and report section 7.4 collapse the actionable subset by
+name pattern, folding anything below `grp_min` back into an `(ungrouped)` count so the
+numbers still add up.
+
+The pattern rule only strips a **trailing** run of digits and requires a stem of at least
+4 characters. Grouping needs real account names, so it is effectively standalone-only: on
+an anonymised bundle every principal is `DBUSER_nnn` and all patterns are gone.
+`tools/audit_report.py` detects that and reports that grouping was skipped rather than
+printing a single meaningless catch-all group.
+
+---
+
+## UC-10: Policy Effectiveness - Which Policy Reaches Nobody?
+
+UC-9 asks "who is unaudited". This is the reverse question, and the user-side view
+**structurally cannot** answer it: a policy naming a dropped user, or a role without
+grantees, contributes no coverage - which is indistinguishable from a policy that was
+never meant to cover those users. It is enabled, it looks correct in
+`AUDIT_UNIFIED_ENABLED_POLICIES`, and it audits nothing.
+
+<!-- markdownlint-disable MD013 MD060 -->
+| Query | When to use |
+|-------|-------------|
+| `25-policy-effectiveness.sql` | Single PDB, Non-CDB, or CDB$ROOT (that container only) |
+| `26-policy-effectiveness-cdb.sql` | CDB-wide - run from CDB$ROOT to cover all open PDBs |
+<!-- markdownlint-restore -->
+
+Standalone: block E of `sql/standalone/blind-spot-pdb.sql` / `blind-spot-cdb.sql`.
+Report: section 7.5.
+
+### Verdicts
+
+<!-- markdownlint-disable MD013 MD060 -->
+| Verdict | Meaning | Finding? |
+|---------|---------|----------|
+| `ENTITY_MISSING` | the named user or role does not exist - dropped, renamed, typo | **yes** |
+| `ROLE_NO_GRANTEES` | the role exists, but no account holds it (transitively, PUBLIC included) | **yes** |
+| `NO_USERS` | resolves, but reaches no account | **yes** |
+| `EXCLUSION_DEAD` | an `EXCEPT` clause naming a non-existent user - drift marker, no gap | no |
+| `EXCLUSION` | an `EXCEPT` clause, entity exists | no |
+| `ALL_USERS` | unrestricted enablement | no |
+| `OK` | resolves and reaches at least one account | no |
+<!-- markdownlint-restore -->
+
+### Grain
+
+One row per **policy x enablement form x entity** - the grain Oracle itself uses in
+`AUDIT_UNIFIED_ENABLED_POLICIES`. A single policy routinely has several rows: enabling one
+policy `BY GRANTED ROLE <role>` and additionally `BY USER SYS` is the recommended pattern
+for privileged-activity policies. "The scope of a policy" is therefore not a single value
+and must not be squashed into one column.
+
+### Scope differences to UC-9
+
+- Queries 25/26 deliberately do **not** filter out logon-only policies. Whether an
+  enablement resolves is independent of which actions the policy audits, and a dead LOGON
+  policy is just as broken as a dead DDL policy.
+- Oracle-supplied policies are collected and flagged via `oracle_supplied`, but report
+  section 7.5 excludes them by default - same rationale as section 7.4.
+- In a CDB, watch for the same policy being healthy in one container and dead in the next.
+  A common policy enabled `BY GRANTED ROLE` whose role has grantees in only some PDBs is
+  the usual root cause.
 
 ---
 

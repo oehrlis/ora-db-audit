@@ -498,17 +498,158 @@ MESSAGES: Dict[str, Dict[str, str]] = {
             "Customer-Policy mit Non-Logon-Aktionen greift. Bewertet alle drei "
             "Oracle-Zuweisungsformen: BY USER (direkt), BY GRANTED ROLE "
             "(transitiv inkl. PUBLIC) und EXCEPT USER. Oracle-supplied Policies "
-            "(z.B. ORA_SECURECONFIG) werden separat ausgewiesen, zaehlen aber "
+            "(z.B. ORA_SECURECONFIG) werden separat ausgewiesen, zählen aber "
             "nicht zur Kundenkonfiguration. Status BLIND_SPOT = kein "
             "Kundenpolicy-Schutz; EXCLUDED_EXCEPT = bewusste Ausnahme."
         ),
         "blind_spot.none": "_Keine Blind Spots gefunden - alle Benutzer durch mindestens eine Customer-Policy abgedeckt._",
-        "blind_spot.found": "**{n} Benutzer** ohne Abdeckung durch eine Customer-Policy (BLIND_SPOT):",
+        "blind_spot.found": (
+            "**{n} handlungsrelevante(r) Blind Spot(s)** - Customer-Accounts "
+            "ohne Customer-Policy, die sich noch anmelden können:"
+        ),
         "blind_spot.csv_missing": "_(23_blind_spot_pdb.csv / 24_blind_spot_cdb.csv nicht im Bundle)_",
         "blind_spot.except_note": (
-            "**EXCLUDED_EXCEPT** - bewusste Ausnahme, keine Abdeckungslücke: "
-            "Diese Benutzer sind explizit aus einer ansonsten universellen Policy ausgeklammert."
+            "**EXCLUDED_EXCEPT** - {n} bewusste Ausnahme(n), keine "
+            "Abdeckungslücke. Gruppiert nach Policy, aus der ausgeklammert wird:"
         ),
+        "metric.blind_spots_value": "{total} (davon handlungsrelevant: {actionable})",
+        "blind_spot.sc_users": "Benutzer (Zeilen) analysiert",
+        "blind_spot.sc_customer": "davon Customer-Accounts",
+        "blind_spot.sc_oracle": "davon Oracle-Maintained",
+        "blind_spot.sc_covered": "Customer-Accounts mit Customer-Policy",
+        "blind_spot.sc_except": "Bewusste Ausnahmen (EXCLUDED_EXCEPT)",
+        "blind_spot.sc_blind": "Blind Spots (total)",
+        "blind_spot.sc_actionable": "Blind Spots handlungsrelevant",
+        "blind_spot.container_intro": (
+            "**Container-Matrix** - eine Zeile pro offenem Container. "
+            "`ACTIONABLE` = Blind Spots auf Customer-Accounts, die sich noch "
+            "anmelden können. Ein Container mit vielen Blind Spots und ohne "
+            "aktive Customer-Policy ist der eigentliche Befund, nicht die "
+            "einzelnen Benutzer."
+        ),
+        "blind_spot.container_note": (
+            "_Hinweis: `CONTAINERS()` liefert nur **offene** Container. Eine "
+            "PDB im Status `MOUNTED` fehlt in dieser Matrix - ihre Abwesenheit "
+            "bedeutet nicht \"sauber\". Gegenprüfung: "
+            "`SELECT con_id, name, open_mode FROM v$pdbs;`_"
+        ),
+        "blind_spot.matrix_intro": (
+            "**Abdeckungsmatrix** - Accountklasse x Anmeldefähigkeit x "
+            "Coverage-Status. Da immer der beste Coverage-Pfad gewinnt, sind "
+            "die Spalten disjunkt und summieren sich zur Zeilenanzahl."
+        ),
+        "blind_spot.matrix_note": (
+            "_`LOGIN` = kann sich dieser Account noch anmelden "
+            "(`account_status` enthält kein `LOCKED`). Ein Blind Spot auf "
+            "einem gesperrten Account ist Housekeeping, kein Risiko._"
+        ),
+        "blind_spot.class_customer": "Customer",
+        "blind_spot.class_oracle": "Oracle",
+        "blind_spot.login_yes": "ja",
+        "blind_spot.login_no": "nein",
+        "blind_spot.col_class": "Klasse",
+        "blind_spot.col_login": "Login",
+        "blind_spot.col_covered": "Abgedeckt",
+        "blind_spot.col_except": "Except",
+        "blind_spot.col_blind": "Blind",
+        "blind_spot.col_actionable": "Handlungsrelevant",
+        "blind_spot.none_actionable": (
+            "_{n} Blind Spot(s) vorhanden, aber keiner davon handlungsrelevant "
+            "- alle betreffen gesperrte oder Oracle-Maintained Accounts._"
+        ),
+        "blind_spot.truncated": (
+            "_{shown} Zeile(n) angezeigt; **{n} weitere wurden durch "
+            "`--top-n` unterdrückt.** Vollständige Liste: "
+            "`23_blind_spot_pdb.csv` / `24_blind_spot_cdb.csv` im Bundle, "
+            "Spalte `actionable = Y`._"
+        ),
+        "blind_spot.rest_note": (
+            "_Zusätzlich existieren **{n} weitere Blind Spot(s)**, die hier "
+            "nicht aufgelistet sind: gesperrte und/oder Oracle-Maintained "
+            "Accounts. Sie sind Housekeeping, kein akutes Risiko - "
+            "nachzulesen in der CSV mit `coverage_status = BLIND_SPOT` und "
+            "`actionable = N`._"
+        ),
+        "blind_spot.and_more": " (+{n} weitere)",
+        # --- Block D: name-pattern grouping ---
+        "blind_spot.groups_intro": (
+            "**Gruppierung nach Namensmuster** (nur handlungsrelevante Blind "
+            "Spots, ab {n} Mitgliedern). Eine Gruppe ist ein Befund mit einer "
+            "Massnahme - eine Policy für das Muster oder eine Entscheidung, "
+            "es auszunehmen. Die Mitglieder stehen einzeln in der Tabelle "
+            "oben."
+        ),
+        "blind_spot.groups_note": (
+            "_Die Mustererkennung ist bewusst konservativ: nur eine "
+            "abschliessende Ziffernfolge wird zu `*` zusammengefasst, und nur "
+            "ab einem Stamm von 4 Zeichen. Alles andere bleibt ungruppiert - "
+            "ein zu grobes Muster würde einen Einzelbefund in einer Gruppe "
+            "verstecken._"
+        ),
+        "blind_spot.groups_pseudonymised": (
+            "_Gruppierung nach Namensmuster übersprungen: die Principals in "
+            "diesem Bundle sind pseudonymisiert (`DBUSER_nnn`). Namensmuster "
+            "wie `ISC_DEV_*` existieren dort nicht mehr - jeder Principal "
+            "würde in eine einzige Sammelgruppe fallen. Für die Gruppierung "
+            "`sql/standalone/blind-spot-pdb.sql` bzw. `blind-spot-cdb.sql` "
+            "direkt auf dem Datenbanksystem ausführen, wo die echten Namen "
+            "vorliegen._"
+        ),
+        "blind_spot.ungrouped": "(ungruppiert)",
+        "blind_spot.col_pattern": "Muster",
+        "blind_spot.col_members": "Mitglieder",
+        "blind_spot.col_pdbs": "PDBs",
+        "blind_spot.col_example": "Beispiel",
+
+        # --- F8: Policy effectiveness (25/26) ---
+        "section.07_5_policy_eff": "7.5 Policy-Wirksamkeit (greift die Policy überhaupt?)",
+        "policy_eff.intro": (
+            "Die Umkehrsicht zu 7.4. Abschnitt 7.4 geht die Benutzer durch und "
+            "meldet die nicht abgedeckten; hier werden die Policy-Aktivierungen "
+            "durchgegangen und die gemeldet, die **niemanden erreichen**. Eine "
+            "Policy auf einen gelöschten Benutzer oder auf eine Rolle ohne "
+            "Grantees sieht in `AUDIT_UNIFIED_ENABLED_POLICIES` korrekt aus und "
+            "auditiert nichts. Abschnitt 7.4 kann das nicht zeigen: eine Policy, "
+            "die keine Abdeckung beisteuert, ist dort nicht von einer Policy zu "
+            "unterscheiden, die es nie sollte. Eine Zeile pro Policy x "
+            "Aktivierungsform x Entity - eine Policy hat regelmässig mehrere, "
+            "etwa `BY GRANTED ROLE` plus zusätzlich `BY USER SYS`."
+        ),
+        "policy_eff.none": (
+            "_Alle {n} Aktivierungszeile(n) der Customer-Policies lösen auf und "
+            "erreichen mindestens ein Konto - keine tote Policy._"
+        ),
+        "policy_eff.found": (
+            "**{n} von {total} Aktivierungszeile(n) erreichen niemanden.** "
+            "Diese Policies sind aktiv, sehen korrekt konfiguriert aus und "
+            "auditieren nichts:"
+        ),
+        "policy_eff.verdict_legend": (
+            "_`ENTITY_MISSING` - der benannte Benutzer oder die Rolle existiert "
+            "nicht (gelöscht, umbenannt, Tippfehler). `ROLE_NO_GRANTEES` - die "
+            "Rolle existiert, aber kein Konto hält sie (transitiv, PUBLIC "
+            "eingerechnet). `NO_USERS` - löst auf, erreicht aber kein Konto._"
+        ),
+        "policy_eff.exclusion_dead_note": (
+            "_Zusätzlich {n} `EXCLUSION_DEAD`: eine `EXCEPT`-Klausel nennt einen "
+            "nicht existierenden Benutzer. Keine Abdeckungslücke, aber ein "
+            "Hinweis, dass die Policy von der Realität abgedriftet ist._"
+        ),
+        "policy_eff.truncated": (
+            "_**{n} weitere Zeile(n) wurden durch `--top-n` unterdrückt.** "
+            "Vollständige Liste: `25_policy_effectiveness.csv` / "
+            "`26_policy_effectiveness_cdb.csv` im Bundle._"
+        ),
+        "policy_eff.csv_missing": (
+            "_(25_policy_effectiveness.csv / 26_policy_effectiveness_cdb.csv "
+            "nicht im Bundle - Sammlung mit einer älteren Tool-Version erstellt.)_"
+        ),
+        "policy_eff.col_verdict": "Befund",
+        "policy_eff.col_option": "Aktivierungsform",
+        "policy_eff.col_entity": "Entity",
+        "policy_eff.col_entity_type": "Typ",
+        "policy_eff.source_pdb": "Quelle: `25_policy_effectiveness.csv`",
+        "policy_eff.source_cdb": "Quelle: `26_policy_effectiveness_cdb.csv`",
         "blind_spot.source_pdb": "Quelle: `23_blind_spot_pdb.csv`",
         "blind_spot.source_cdb": "Quelle: `24_blind_spot_cdb.csv`",
         "label.coverage_status": "Coverage-Status",
@@ -1061,12 +1202,146 @@ MESSAGES: Dict[str, Dict[str, str]] = {
             "EXCLUDED_EXCEPT = deliberate exemption, not a gap."
         ),
         "blind_spot.none": "_No blind spots found - all users are covered by at least one customer policy._",
-        "blind_spot.found": "**{n} user(s)** not covered by any customer audit policy (BLIND_SPOT):",
+        "blind_spot.found": (
+            "**{n} actionable blind spot(s)** - customer accounts with no "
+            "customer policy that can still log in:"
+        ),
         "blind_spot.csv_missing": "_(23_blind_spot_pdb.csv / 24_blind_spot_cdb.csv not in bundle)_",
         "blind_spot.except_note": (
-            "**EXCLUDED_EXCEPT** - deliberate exemption, not a coverage gap: "
-            "these users are explicitly excepted from an otherwise universal policy."
+            "**EXCLUDED_EXCEPT** - {n} deliberate exemption(s), not a coverage "
+            "gap. Grouped by the policy they are excepted from:"
         ),
+        "metric.blind_spots_value": "{total} (actionable: {actionable})",
+        "blind_spot.sc_users": "Users (rows) analysed",
+        "blind_spot.sc_customer": "of which customer accounts",
+        "blind_spot.sc_oracle": "of which oracle-maintained",
+        "blind_spot.sc_covered": "Customer accounts with a customer policy",
+        "blind_spot.sc_except": "Deliberate exemptions (EXCLUDED_EXCEPT)",
+        "blind_spot.sc_blind": "Blind spots (total)",
+        "blind_spot.sc_actionable": "Blind spots actionable",
+        "blind_spot.container_intro": (
+            "**Container matrix** - one line per open container. "
+            "`ACTIONABLE` = blind spots on customer accounts that can still "
+            "log in. A container with many blind spots and no enabled "
+            "customer policy is the finding itself, not the individual users."
+        ),
+        "blind_spot.container_note": (
+            "_Note: `CONTAINERS()` returns **open** containers only. A PDB in "
+            "`MOUNTED` state is absent from this matrix - its absence does not "
+            "mean \"clean\". Cross-check with "
+            "`SELECT con_id, name, open_mode FROM v$pdbs;`_"
+        ),
+        "blind_spot.matrix_intro": (
+            "**Coverage matrix** - account class x login capability x coverage "
+            "status. The best coverage path always wins, so the columns are "
+            "disjoint and add up to the row total."
+        ),
+        "blind_spot.matrix_note": (
+            "_`LOGIN` = can this account still log in (`account_status` does "
+            "not contain `LOCKED`). A blind spot on a locked account is "
+            "housekeeping, not exposure._"
+        ),
+        "blind_spot.class_customer": "Customer",
+        "blind_spot.class_oracle": "Oracle",
+        "blind_spot.login_yes": "yes",
+        "blind_spot.login_no": "no",
+        "blind_spot.col_class": "Class",
+        "blind_spot.col_login": "Login",
+        "blind_spot.col_covered": "Covered",
+        "blind_spot.col_except": "Except",
+        "blind_spot.col_blind": "Blind",
+        "blind_spot.col_actionable": "Actionable",
+        "blind_spot.none_actionable": (
+            "_{n} blind spot(s) exist, but none are actionable - all of them "
+            "are locked or oracle-maintained accounts._"
+        ),
+        "blind_spot.truncated": (
+            "_{shown} shown; **{n} further row(s) suppressed by `--top-n`.** "
+            "Full list: `23_blind_spot_pdb.csv` / `24_blind_spot_cdb.csv` in "
+            "the bundle, column `actionable = Y`._"
+        ),
+        "blind_spot.rest_note": (
+            "_In addition, **{n} further blind spot(s)** exist that are not "
+            "listed here: locked and/or oracle-maintained accounts. They are "
+            "housekeeping rather than acute exposure - see the CSV with "
+            "`coverage_status = BLIND_SPOT` and `actionable = N`._"
+        ),
+        "blind_spot.and_more": " (+{n} more)",
+        # --- Block D: name-pattern grouping ---
+        "blind_spot.groups_intro": (
+            "**Grouped by name pattern** (actionable blind spots only, "
+            "{n} or more members). A group is one finding with one remedy - a "
+            "policy for the pattern, or one decision to exempt it. The members "
+            "are listed individually in the table above."
+        ),
+        "blind_spot.groups_note": (
+            "_Pattern detection is deliberately conservative: only a trailing "
+            "run of digits is collapsed to `*`, and only for a stem of at "
+            "least 4 characters. Everything else stays ungrouped - too coarse "
+            "a pattern would hide a single finding inside a group._"
+        ),
+        "blind_spot.groups_pseudonymised": (
+            "_Name-pattern grouping skipped: the principals in this bundle are "
+            "pseudonymised (`DBUSER_nnn`). Patterns such as `ISC_DEV_*` no "
+            "longer exist there - every principal would collapse into a single "
+            "catch-all group. For grouping, run "
+            "`sql/standalone/blind-spot-pdb.sql` or `blind-spot-cdb.sql` "
+            "directly on the database system, where the real names are "
+            "available._"
+        ),
+        "blind_spot.ungrouped": "(ungrouped)",
+        "blind_spot.col_pattern": "Pattern",
+        "blind_spot.col_members": "Members",
+        "blind_spot.col_pdbs": "PDBs",
+        "blind_spot.col_example": "Example",
+
+        # --- F8: Policy effectiveness (25/26) ---
+        "section.07_5_policy_eff": "7.5 Policy Effectiveness (does the policy reach anybody?)",
+        "policy_eff.intro": (
+            "The reverse view of 7.4. Section 7.4 walks the users and reports "
+            "the ones nobody covers; this one walks the policy enablements and "
+            "reports the ones that **reach nobody**. A policy naming a dropped "
+            "user, or a role without grantees, looks correct in "
+            "`AUDIT_UNIFIED_ENABLED_POLICIES` and audits nothing. Section 7.4 "
+            "cannot surface that: a policy contributing no coverage is "
+            "indistinguishable from a policy that was never meant to. One row "
+            "per policy x enablement form x entity - a policy routinely has "
+            "several, e.g. `BY GRANTED ROLE` plus an additional `BY USER SYS`."
+        ),
+        "policy_eff.none": (
+            "_All {n} enablement row(s) of the customer policies resolve and "
+            "reach at least one account - no dead policy._"
+        ),
+        "policy_eff.found": (
+            "**{n} of {total} enablement row(s) reach nobody.** These policies "
+            "are enabled, look correctly configured, and audit nothing:"
+        ),
+        "policy_eff.verdict_legend": (
+            "_`ENTITY_MISSING` - the named user or role does not exist "
+            "(dropped, renamed, typo). `ROLE_NO_GRANTEES` - the role exists but "
+            "no account holds it (transitively, PUBLIC included). `NO_USERS` - "
+            "resolves but reaches no account._"
+        ),
+        "policy_eff.exclusion_dead_note": (
+            "_In addition {n} `EXCLUSION_DEAD`: an `EXCEPT` clause names a "
+            "non-existent user. Not a coverage gap, but a marker that the "
+            "policy has drifted from reality._"
+        ),
+        "policy_eff.truncated": (
+            "_**{n} further row(s) suppressed by `--top-n`.** Full list: "
+            "`25_policy_effectiveness.csv` / "
+            "`26_policy_effectiveness_cdb.csv` in the bundle._"
+        ),
+        "policy_eff.csv_missing": (
+            "_(25_policy_effectiveness.csv / 26_policy_effectiveness_cdb.csv "
+            "not in bundle - collected with an older tool version.)_"
+        ),
+        "policy_eff.col_verdict": "Verdict",
+        "policy_eff.col_option": "Enablement",
+        "policy_eff.col_entity": "Entity",
+        "policy_eff.col_entity_type": "Type",
+        "policy_eff.source_pdb": "Source: `25_policy_effectiveness.csv`",
+        "policy_eff.source_cdb": "Source: `26_policy_effectiveness_cdb.csv`",
         "blind_spot.source_pdb": "Source: `23_blind_spot_pdb.csv`",
         "blind_spot.source_cdb": "Source: `24_blind_spot_cdb.csv`",
         "label.coverage_status": "Coverage Status",

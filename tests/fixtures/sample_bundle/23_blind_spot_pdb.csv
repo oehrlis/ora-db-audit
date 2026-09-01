@@ -1,0 +1,18 @@
+# query: blind_spot_pdb
+# query_id: 23
+# dbsid: free
+# pdb: AUDITPDB1
+# generated: 2026-05-12T10:00:00+02:00
+# cis_controls: 5.1,5.2
+# schema: principal=PSEUDO:DBUSER|oracle_maintained=KEEP|account_status=KEEP|coverage_status=KEEP|cover_paths=KEEP|policy_count=COUNT|ora_supplied_cover=KEEP|via_roles=KEEP|excepted_policies=KEEP|covering_policies=KEEP|account_class=KEEP|login_enabled=KEEP|actionable=KEEP
+principal|oracle_maintained|account_status|coverage_status|cover_paths|policy_count|ora_supplied_cover|via_roles|excepted_policies|covering_policies|account_class|login_enabled|actionable
+APP_ONE|N|OPEN|BLIND_SPOT|-|0|YES|-|-|-|CUSTOMER|Y|Y
+APP_TWO|N|EXPIRED(GRACE)|BLIND_SPOT|-|0|NO|-|-|-|CUSTOMER|Y|Y
+DEV_X|N|OPEN|BLIND_SPOT|-|0|YES|-|-|-|CUSTOMER|Y|Y
+OLD_ONE|N|LOCKED|BLIND_SPOT|-|0|NO|-|-|-|CUSTOMER|N|N
+OLD_TWO|N|EXPIRED & LOCKED|BLIND_SPOT|-|0|NO|-|-|-|CUSTOMER|N|N
+GSMADMIN_INTERNAL|Y|LOCKED|BLIND_SPOT|-|0|NO|-|-|-|ORACLE|N|N
+BATCH_A|N|OPEN|EXCLUDED_EXCEPT|-|0|YES|-|OUA_DDL_ALL|-|CUSTOMER|Y|N
+BATCH_B|N|OPEN|EXCLUDED_EXCEPT|-|0|YES|-|OUA_DDL_ALL,OUA_SYS_PARAM|-|CUSTOMER|Y|N
+DBA_ONE|N|OPEN|COVERED_VIA_ROLE|ROLE|2|YES|OUA_ROLE_DBA|-|OUA_PRIV_DBA_ALL|CUSTOMER|Y|N
+SYS|Y|OPEN|COVERED_ALL_USERS|ALL_USERS|1|YES|-|-|OUA_DDL_ALL|ORACLE|Y|N

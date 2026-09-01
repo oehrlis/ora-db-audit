@@ -7,6 +7,123 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-09-01
+
+Blind-spot reporting reworked from a row-per-user listing into a condensed
+roll-up, plus the reverse view: policies that reach nobody.
+
+### Added
+
+- **`sql/25-policy-effectiveness.sql`, `sql/26-policy-effectiveness-cdb.sql`** -
+  new queries answering the reverse question to the blind-spot report: not
+  "who is unaudited" but "which enabled policy reaches nobody". A policy
+  naming a dropped user, or a role without grantees, is enabled, looks
+  correct in `AUDIT_UNIFIED_ENABLED_POLICIES`, and audits nothing. Queries
+  23/24 structurally cannot surface this - a policy contributing no coverage
+  is indistinguishable there from one that was never meant to.
+
+  Grain is one row per policy x enablement form x entity, matching Oracle's
+  own grain: a policy routinely has several rows (`BY GRANTED ROLE <role>`
+  plus an additional `BY USER SYS` is the recommended pattern for
+  privileged-activity policies), so "the scope of a policy" is not a single
+  value. Verdicts: `ENTITY_MISSING`, `ROLE_NO_GRANTEES`, `NO_USERS` (findings)
+  and `EXCLUSION_DEAD`, `EXCLUSION`, `ALL_USERS`, `OK` (context).
+
+  Unlike 23/24 these queries deliberately do not filter out logon-only
+  policies - whether an enablement resolves is independent of which actions
+  the policy audits.
+- **`tools/audit_report.py` section 7.5 "Policy-Wirksamkeit"** - renders
+  25/26 with a verdict summary and a findings table. Oracle-supplied
+  policies are excluded by default, same rationale as section 7.4.
+- **Block E in `sql/standalone/blind-spot-*.sql`** - the same effectiveness
+  model on screen, per container in the CDB script.
+- **Block D, name-pattern grouping** in `sql/standalone/blind-spot-*.sql` and
+  report section 7.4 - collapses the actionable blind spots by name pattern,
+  so `ISC_DEV_01` .. `ISC_DEV_40` reads as one finding with one remedy
+  instead of 40 rows. The CDB script adds a `PDBS` column showing in how many
+  containers each pattern occurs.
+
+  The pattern rule is deliberately conservative: only a trailing run of
+  digits collapses to `*`, and only for a stem of at least 4 characters. A
+  pattern below `grp_min` is not a group - its members fold back into an
+  `(ungrouped)` count, so members plus ungrouped always equals the actionable
+  total. New control variable `grp_min` (default 3, `0` disables block D).
+- **Pseudonymised-bundle guard for block D** - grouping needs real account
+  names. On an anonymised bundle every principal is `DBUSER_nnn` and all
+  patterns are destroyed; grouping them would yield one meaningless catch-all
+  group. `tools/audit_report.py` detects the anonymiser's own `DBUSER_NNN`
+  token format and states that grouping was skipped, pointing at the
+  standalone scripts, instead of printing the bogus group.
+
+  Detection deliberately matches that exact token format rather than a ratio
+  of pseudonym-shaped names: the anonymiser whitelists Oracle-maintained
+  schemas, so pseudonyms are a minority of the rows even in a fully anonymised
+  bundle, and the actionable subset can be smaller than any useful sample -
+  while a bogus group needs only `grp_min` members to appear. Covered by a
+  regression test.
+- **`sql/23-blind-spot-pdb.sql`, `sql/24-blind-spot-cdb.sql`** - three derived
+  columns, so the "which gap actually matters" rule exists in exactly one
+  place instead of being re-implemented per consumer:
+  - `account_class` - `CUSTOMER` / `ORACLE` (from `oracle_maintained`)
+  - `login_enabled` - `N` when `account_status` contains `LOCKED`
+  - `actionable` - `Y` when `BLIND_SPOT` **and** `CUSTOMER` **and**
+    `login_enabled = Y`
+
+  Additive change; the `# schema:` preamble is extended, existing columns and
+  their order are unchanged.
+- **Tests and fixtures** - `tests/python/test_blind_spot_rollup.py` (12 tests:
+  only actionable rows listed, suppressed rows counted rather than dropped,
+  matrix does not double-count, Python fallback for bundles without the new
+  columns, block D grouping incl. threshold, container counting, conservative
+  pattern rule and pseudonym guard) and
+  `tests/python/test_policy_effectiveness.py` (6 tests: all verdicts, the
+  Oracle-supplied exclusion, `EXCLUSION_DEAD` as context, missing 25/26).
+  New fixtures `23_blind_spot_pdb.csv` and `25_policy_effectiveness.csv`.
+
+### Changed
+
+- **`sql/standalone/blind-spot-pdb.sql`, `sql/standalone/blind-spot-cdb.sql`** -
+  rewritten from a row-per-user listing into a condensed roll-up. The previous
+  version was a verbatim copy of the CSV query and produced ~250 screen rows
+  on a mid-size database (~1000 CDB-wide), which buried the handful of
+  accounts that need a decision. Now a single read-only PL/SQL block prints
+  scorecard (A), container matrix (F, CDB only), coverage matrix (B),
+  actionable blind spots (C), blind-spot groups (D) and policy effectiveness
+  (E).
+
+  Controlled by `bs_scope` (`ACTIONABLE` / `CUSTOMER` / `ALL`), `bs_max_rows`
+  and `grp_min`. Every suppressed row is reported with its count and the
+  switch that reveals it.
+- **`tools/audit_report.py` section 7.4** - same block layout as the
+  standalone scripts, so a screen run and a delivered report cannot disagree.
+  Previously the section emitted a status-count table followed by every
+  `BLIND_SPOT` row, silently cut off at `--top-n`. `EXCLUDED_EXCEPT` is now
+  grouped by the policy the users are excepted from instead of one row per
+  user.
+- **Executive summary metric** - "blind spots" now reads
+  `40 (davon handlungsrelevant: 4)`. The bare total was misleading: it is
+  dominated by locked and Oracle-maintained accounts.
+- **`bin/ora-db-audit.sh`** - queries 25 and 26 added to `QUERIES`.
+
+### Fixed
+
+- **`sql/standalone/*.sql` column alignment** - both scripts now `SET TAB OFF`.
+  SQL*Plus defaults to `TAB ON` and replaces runs of spaces in output with tab
+  characters, which broke the alignment of every table depending on the
+  terminal tab stop.
+- **`sql/standalone/*.sql` column overflow** - output columns are padded
+  through a helper that truncates to width minus two, so at least two spaces
+  of separator always survive. Previously a value exactly as wide as its
+  column welded itself to the next one (`ORA$DICTIONARY_SNET_RPC_ACCESS` is
+  exactly 30 characters), and `account_status` at up to 30 characters
+  overflowed a 22-character column.
+- **`sql/standalone/*.sql` missing blank lines** between output blocks when
+  block C took its "no blind spots" path.
+- **`sql/standalone/README.md`, `docs/usage.md`, `sql/README.md`** - close
+  `markdownlint-disable` blocks with `restore` instead of `enable`. `enable`
+  reactivates rules with **default** parameters, dropping `line_length: 120`
+  back to 80 and re-enabling rules the config disables.
+
 ## [1.9.4] - 2026-08-21
 
 ### Fixed

@@ -23,7 +23,9 @@
     "15-noise-candidates.sql",
     "16-policy-ddl.sql",
     "17-cis-coverage.sql",
-    "18-audit-roles.sql"
+    "18-audit-roles.sql",
+    "23-blind-spot-pdb.sql",
+    "25-policy-effectiveness.sql"
   ],
   "tool":           "ora-db-audit.sh",
   "tool_version":   "0.2.0"
