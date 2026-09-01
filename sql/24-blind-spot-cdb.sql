@@ -64,7 +64,7 @@ PROMPT # generated: &GENERATED_ISO
 PROMPT # cis_controls: 5.1,5.2
 PROMPT # cdb: &IS_CDB
 PROMPT # con_name: &PDB_NAME
-PROMPT # schema: con_id=KEEP|pdb_name=PSEUDO:PDB|principal=PSEUDO:DBUSER|oracle_maintained=KEEP|account_status=KEEP|coverage_status=KEEP|cover_paths=KEEP|policy_count=COUNT|ora_supplied_cover=KEEP|via_roles=KEEP|excepted_policies=KEEP|covering_policies=KEEP
+PROMPT # schema: con_id=KEEP|pdb_name=PSEUDO:PDB|principal=PSEUDO:DBUSER|oracle_maintained=KEEP|account_status=KEEP|coverage_status=KEEP|cover_paths=KEEP|policy_count=COUNT|ora_supplied_cover=KEEP|via_roles=KEEP|excepted_policies=KEEP|covering_policies=KEEP|account_class=KEEP|login_enabled=KEEP|actionable=KEEP
 
 SET MARKUP CSV ON DELIMITER '|' QUOTE OFF
 
@@ -246,6 +246,27 @@ final AS (
     LEFT   JOIN containers_map cm ON cm.con_id = pr.con_id
     LEFT   JOIN agg a ON a.con_id = pr.con_id AND a.principal = pr.principal
     LEFT   JOIN exc x ON x.con_id = pr.con_id AND x.principal = pr.principal
+),
+-- Derived classification, single source of truth for every roll-up
+-- (standalone summary and tools/audit_report.py section 7.4):
+--   account_class  ORACLE   = oracle_maintained 'Y' (Oracle-shipped schema)
+--                  CUSTOMER = everything else
+--   login_enabled  N = account_status contains LOCKED (cannot log in)
+--                  Y = OPEN / EXPIRED / EXPIRED(GRACE) - login still possible
+--   actionable     Y = BLIND_SPOT on a customer account that can still log in.
+--                  This is the only subset that needs a decision; locked and
+--                  Oracle-maintained blind spots are housekeeping, not risk.
+enriched AS (
+    SELECT f.*,
+           CASE WHEN f.oracle_maintained = 'Y' THEN 'ORACLE'
+                ELSE 'CUSTOMER' END AS account_class,
+           CASE WHEN UPPER(f.account_status) LIKE '%LOCKED%' THEN 'N'
+                ELSE 'Y' END        AS login_enabled,
+           CASE WHEN f.coverage_status = 'BLIND_SPOT'
+                 AND f.oracle_maintained = 'N'
+                 AND UPPER(f.account_status) NOT LIKE '%LOCKED%'
+                THEN 'Y' ELSE 'N' END AS actionable
+    FROM   final f
 )
 SELECT
     con_id,
@@ -259,8 +280,11 @@ SELECT
     ora_supplied_cover AS "ora_supplied_cover",
     via_roles          AS "via_roles",
     excepted_policies  AS "excepted_policies",
-    covering_policies  AS "covering_policies"
-FROM   final
+    covering_policies  AS "covering_policies",
+    account_class      AS "account_class",
+    login_enabled      AS "login_enabled",
+    actionable         AS "actionable"
+FROM   enriched
 ORDER  BY
     CASE coverage_status
         WHEN 'BLIND_SPOT'        THEN 1

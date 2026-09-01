@@ -34,7 +34,9 @@ Files are run in sequence. Each query writes its output to a CSV file in the bun
 | `22-crit-pkg-executions.sql` | Audit trail events for the 19 CIS 5.1.3 critical SYS packages | 5.3 |
 | `23-blind-spot-pdb.sql` | Blind-spot report, PDB scope (current container, dba_* views) | 5.1, 5.2 |
 | `24-blind-spot-cdb.sql` | Blind-spot report, CDB scope (CONTAINERS() + cdb_* views, all open PDBs) | 5.1, 5.2 |
-<!-- markdownlint-enable -->
+| `25-policy-effectiveness.sql` | Policy effectiveness, PDB scope - enabled policies that reach nobody | 5.1, 5.2 |
+| `26-policy-effectiveness-cdb.sql` | Policy effectiveness, CDB scope (CONTAINERS() + cdb_* views) | 5.1, 5.2 |
+<!-- markdownlint-restore -->
 
 Queries 08-12 and 15 support `--sample-rows N` via `ROWNUM <= N` injection for large audit trails.
 
@@ -49,8 +51,16 @@ setup, bundle directory, or spool configuration.
 <!-- markdownlint-disable MD013 MD060 -->
 | File | Description |
 |------|-------------|
-| `sql/standalone/blind-spot-pdb.sql` | Blind-spot report for a single container (PDB or Non-CDB) |
-| `sql/standalone/blind-spot-cdb.sql` | Blind-spot report across all open PDBs in a CDB |
-<!-- markdownlint-enable -->
+| `sql/standalone/blind-spot-pdb.sql` | Blind-spot **summary** for a single container (PDB or Non-CDB) |
+| `sql/standalone/blind-spot-cdb.sql` | Blind-spot **summary** across all open PDBs in a CDB |
+<!-- markdownlint-restore -->
 
-See [sql/standalone/README.md](standalone/README.md) for usage details and required privileges.
+The standalone files are **not** copies of the numbered queries. The numbered queries emit
+one CSV row per user (per container) for the reporting pipeline; the standalone files
+condense the same model into a screen-readable roll-up - scorecard, container matrix,
+coverage matrix, actionable blind spots, name-pattern groups and policy effectiveness.
+They also cover queries 25/26, so one script answers both "who is unaudited" and "which
+policy is silently doing nothing".
+
+See [sql/standalone/README.md](standalone/README.md) for the output blocks, report
+controls and required privileges.
