@@ -88,3 +88,55 @@ referencing a path.
 **verify:** `ls bin/ora-db-audit.sh tools/audit_report.py` → both files exist
 
 [promoted → rule: CLAUDE.md Known Traps]
+
+---
+
+## L-06: Verify a guard by triggering it, not by unit-testing its shape
+
+A guard that never fires is worse than no guard: it makes the unsafe path look
+covered. Three guards written in the v1.10.0 session passed their own tests
+and were still ineffective on real data.
+
+**Why:**
+
+- The pseudonym guard for block D checked only the *actionable* principals and
+  required a sample of 5. The actionable subset is often 3-4 rows, so the check
+  never ran - while a bogus `DBUSER_*` group needs only `grp_min` (3) members
+  to appear. A ratio test was equally wrong: the anonymiser whitelists
+  Oracle-maintained schemas, so pseudonyms are a minority of rows even in a
+  fully anonymised bundle. Fixed by matching the anonymiser's own literal
+  token format (`DBUSER_NNN`) - a signal from the tool, not a heuristic.
+- A bats assertion on the section headers `### 7.4` / `### 7.5` passed with
+  the fixtures deleted, because both sections print their header plus a
+  "not in bundle" note when the CSV is missing.
+- The sample-bundle tarball was rebuilt only when *absent*, so a stale local
+  tarball silently shadowed new fixtures. Gitignored, so CI was fine and only
+  local runs were affected - the case nobody notices.
+
+**How to apply:** For every guard, filter or assertion, produce the state it is
+meant to catch and confirm it actually fires. Delete the input, feed the
+anonymised copy, touch the fixture - then look. Never accept a green test as
+evidence that the negative case is covered.
+
+**verify:** for each new assertion, run it once with the condition removed and
+confirm it fails; record that you did
+
+---
+
+## L-07: An ampersand anywhere in a SQL*Plus script is an input prompt
+
+SQL*Plus performs substitution everywhere in a `.sql` file, including inside
+`--` comments and inside string literals. A stray `&` stops the script and
+prompts for a value.
+
+**Why:** A comment documenting `account_status` values contained
+`EXPIRED(GRACE) & LOCKED(TIMED)`. The shipped standalone script stopped with
+"Enter value for locked:" and `SP2-0546`. It was caught only because the
+script was executed against a live database, not merely reviewed.
+
+**How to apply:** In `sql/` and `sql/standalone/`, the only ampersands allowed
+are the intended substitution variables. Describe combined account states in
+words instead.
+
+**verify:** `grep -on '&[A-Za-z_]*' sql/*.sql sql/standalone/*.sql` → only the
+declared DEFINE / positional variables appear
