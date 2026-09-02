@@ -134,9 +134,14 @@ prompts for a value.
 "Enter value for locked:" and `SP2-0546`. It was caught only because the
 script was executed against a live database, not merely reviewed.
 
-**How to apply:** In `sql/` and `sql/standalone/`, the only ampersands allowed
-are the intended substitution variables. Describe combined account states in
-words instead.
+**How to apply:** In `sql/` and `sql/standalone/`, the only `&<name>` forms
+allowed are the intended substitution variables. Describe combined account
+states in words instead.
 
-**verify:** `grep -on '&[A-Za-z_]*' sql/*.sql sql/standalone/*.sql` → only the
-declared DEFINE / positional variables appear
+Only `&` followed by a letter or underscore starts a substitution. `&*_PATTERN`
+in a comment (`sql/19-offpath-candidates.sql:29`) is harmless - measured
+2026-09-02 against Oracle FREE: zero prompts. So the check must match the
+`&<name>` form, otherwise it reports a false positive on that line.
+
+**verify:** `grep -onE '&[A-Za-z_][A-Za-z0-9_]*' sql/*.sql sql/standalone/*.sql`
+→ only declared DEFINE / positional variables appear
