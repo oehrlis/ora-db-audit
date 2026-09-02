@@ -226,7 +226,7 @@ dist-verify: ## Verify the built distribution tarball and .b64
 	fi
 	@echo "tarball: $(DIST_PACK_TARBALL)"
 	@tar -tzf "$(DIST_PACK_TARBALL)" | sort
-	@for f in bin/ora-db-audit.sh ora-db-audit tools/audit_report.py tools/anonymize_bundle.py tools/export_siem.py README.md CHANGELOG.md sql/23-blind-spot-pdb.sql sql/24-blind-spot-cdb.sql sql/standalone/blind-spot-pdb.sql sql/standalone/blind-spot-cdb.sql; do \
+	@for f in bin/ora-db-audit.sh ora-db-audit tools/audit_report.py tools/anonymize_bundle.py tools/export_siem.py README.md CHANGELOG.md sql/23-blind-spot-pdb.sql sql/24-blind-spot-cdb.sql sql/25-policy-effectiveness.sql sql/26-policy-effectiveness-cdb.sql sql/standalone/blind-spot-pdb.sql sql/standalone/blind-spot-cdb.sql sql/standalone/README.md; do \
 		if ! tar -tzf "$(DIST_PACK_TARBALL)" | grep -q "$(DIST_PACK_NAME)/$$f$$"; then \
 			echo "ERROR: $$f missing from tarball" >&2; \
 			exit 1; \

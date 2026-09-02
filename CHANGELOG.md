@@ -7,6 +7,30 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-09-02
+
+### Fixed
+
+- **`make dist-verify` did not check the new queries** - the required-files
+  list still named only 23/24 plus the two standalone scripts, so a green
+  `dist-verify` said nothing about `sql/25-policy-effectiveness.sql`,
+  `sql/26-policy-effectiveness-cdb.sql` or `sql/standalone/README.md`. All
+  three are now on the list. They were in fact present in the v1.10.0
+  tarball - confirmed by inspecting the published release asset - but by
+  luck of the `cp sql/*.sql` glob, not because anything verified it.
+
+  Positive control: with `sql/25-policy-effectiveness.sql` moved aside,
+  `make dist-verify` now exits non-zero and names the missing file; before
+  the change it passed.
+
+### Changed
+
+- **Release assets rebuilt** - the v1.10.0 tarball was built at tag time and
+  therefore predates the documentation commits that followed it
+  (`CHANGELOG.md`, `tasks/lessons.md`, the markdownlint marker fix across the
+  docs). No code or SQL differed. This release ships the current
+  documentation state so a customer handover and the repository agree.
+
 ## [1.10.0] - 2026-09-01
 
 Blind-spot reporting reworked from a row-per-user listing into a condensed
