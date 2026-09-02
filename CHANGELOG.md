@@ -7,6 +7,29 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.10.2] - 2026-09-02
+
+### Fixed
+
+- **Generated reports switched line-length checking back on halfway through.**
+  `render_report` opens the report with a file-level
+  `markdownlint-disable MD013 MD033 MD060`, but three section renderers closed
+  their own inner block with `markdownlint-enable MD013`. `enable` does not
+  return to the previous state, it enables the rule outright - so from the first
+  section table onward MD013 was active again against the file's own intent.
+  Measured on the report of an existing bundle: **67 findings before, 5 after,
+  56 of the 67 were MD013**.
+
+  Replacing `enable` with a bare `restore` does **not** fix this - measured with
+  markdownlint-cli 0.49.1, a plain `restore` reverts to the state at the start of
+  the file and therefore drops the file-level disable as well. The inner blocks
+  now use `markdownlint-capture` before the disable and `markdownlint-restore`
+  after it, which restores exactly the captured state.
+
+  Affects every report generated so far; regenerating is enough, no data change.
+  The five remaining findings are unrelated template issues (blockquote spacing,
+  emphasis used as a heading, one heading-level jump) and are not addressed here.
+
 ## [1.10.1] - 2026-09-02
 
 ### Fixed

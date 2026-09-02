@@ -866,9 +866,10 @@ def render_fp_section(candidates, lang="de"):
             c["policy_name"] or "-", c["user_name"] or "-",
             str(c["event_count"]) if c["event_count"] else "-",
         ])
+    out += "<!-- markdownlint-capture -->\n"
     out += "<!-- markdownlint-disable MD013 -->\n"
     out += render_table(cols, rows)
-    out += "<!-- markdownlint-enable MD013 -->\n"
+    out += "<!-- markdownlint-restore -->\n"
 
     for i, c in enumerate(candidates, 1):
         label = "FP Candidate" if lang == "en" else "FP-Kandidat"
@@ -2222,6 +2223,7 @@ def render_section_07_security_signals(files, classifier, top_n):
                     _row_get(row, idx_rc).strip(),
                 ])
             if evt_rows:
+                out += "<!-- markdownlint-capture -->\n"
                 out += "<!-- markdownlint-disable MD013 -->\n"
                 out += render_table(
                     [t("label.policy", lang=LANG),
@@ -2231,7 +2233,7 @@ def render_section_07_security_signals(files, classifier, top_n):
                      t("label.return_code_short", lang=LANG)],
                     evt_rows, max_rows=top_n,
                 )
-                out += "<!-- markdownlint-enable MD013 -->\n\n"
+                out += "<!-- markdownlint-restore -->\n\n"
             else:
                 out += t("offpath.ctx_events_none", lang=LANG) + "\n\n"
     else:
@@ -2279,6 +2281,7 @@ def render_section_07_security_signals(files, classifier, top_n):
         out += t("offpath.none", lang=LANG) + "\n\n"
     else:
         out += t("offpath.found", lang=LANG, n=len(offpath_rows)) + "\n\n"
+        out += "<!-- markdownlint-capture -->\n"
         out += "<!-- markdownlint-disable MD013 -->\n"
         out += render_table(
             [t("label.host", lang=LANG),
@@ -2287,7 +2290,7 @@ def render_section_07_security_signals(files, classifier, top_n):
              t("label.users", lang=LANG)],
             offpath_rows, max_rows=top_n,
         )
-        out += "<!-- markdownlint-enable MD013 -->\n\n"
+        out += "<!-- markdownlint-restore -->\n\n"
 
     # --- 7.3 Uncovered Users ---
     sec73, _count = render_section_07_3_uncovered(files.get("21"), top_n)
