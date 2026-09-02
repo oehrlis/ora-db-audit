@@ -76,7 +76,7 @@ Use `--pdb` to scope the collection to a single PDB.
 | Specific PDB via named user | `user/pw@SID` | `--pdb MYPDB` |
 | Non-CDB (19c traditional) | `/ as sysdba` | no `--pdb` |
 | Wallet + PDB | `/@SID_WALLET` | `--pdb MYPDB` |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ---
 
@@ -201,7 +201,7 @@ The generated `audit_report.md` is structured as follows. Report language is Ger
 | 9. CIS Coverage | CIS 5.1-5.5 PASS/WARN/FAIL table |
 | 10. Audit Roles | AUDIT_ADMIN/AUDIT_VIEWER grantees with risk flags |
 | 11. AI Findings | Claude-generated security signal analysis (with --ai) |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ---
 

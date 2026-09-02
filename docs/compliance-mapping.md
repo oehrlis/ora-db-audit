@@ -32,7 +32,7 @@ flat `5.x`. All controls are **Automated** and apply to Level 1 - RDBMS.
 | 5.3 (5.1.3) | Ensure Critical Packages Are Audited | `CIS_CDB_CRITICAL_PACKAGES` | 5.1.3 | 5.3 | 5.3 | 8.5 | 6.3 |
 | 5.4 (5.1.4) | Ensure All Export Activities Are Audited | `CIS_CDB_EXPORT` | 5.1.4 | 5.4 | 5.4 | 8.5 | 6.3 |
 | 5.5 (5.1.5) | Ensure The Use Of SYS\* Privileges Is Audited | `CIS_CDB_ALL_ACTIONS_BY_PRIVILEGED_USERS` | 5.1.5 | 5.5 | 5.5 | 8.5 | 6.3 |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ### 1.2 Control Details
 
@@ -109,7 +109,7 @@ WHERE enabled_option = 'EXCEPT USER';
 | V-270537 | O19C-00-010700 | Use of the Oracle Database installation account must be logged | Partial | `14-privileged-activity.sql` |
 | V-270538 | O19C-00-011300 | Database data files, transaction logs and audit files must be stored in dedicated areas | Yes | `02-storage.sql` |
 | V-270540 | O19C-00-011300 | Changes to configuration options must be audited | Yes | `03-policy-inventory.sql`, `01-config.sql` |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ### 2.1 STIG DoD Audit Event Requirements (V-270504)
 
@@ -139,7 +139,7 @@ management recommendations.
 | 1 | Audit administrative database user accounts | None | No | `14-privileged-activity.sql` (partial) |
 | 2 | Audit database user accounts with direct database access | None | No | `05-policy-user-action.sql` (partial) |
 | 3 | Audit individual high risk database user accounts | None | No | `14-privileged-activity.sql` (partial) |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ### 3.2 Security-Relevant Events Auditing
 
@@ -157,7 +157,7 @@ management recommendations.
 | 12 | Monitor suspicious user-activity: multiple failed login attempts | `ORA_LOGON_FAILURES` | Yes | `13-failed-logins.sql` |
 | 13 | Monitor suspicious user-activity: sudden activity in dormant accounts | None | No | - (GAP: missing) |
 | 14 | Monitor suspicious user-activity: non-business hour activities | None | No | - (GAP: missing) |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ### 3.3 Sensitive Data Access Auditing
 
@@ -167,7 +167,7 @@ management recommendations.
 | 15 | Audit user access to sensitive data through untrusted path | None | No | - (out of scope: FGA, app-specific) |
 | 16 | Audit user access to sensitive data | None | No | - (out of scope: app-specific) |
 | 17 | Audit sensitive columns storing PII data | None | No | - (out of scope: FGA, app-specific) |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 BP items 15-17 require application-specific FGA policies. This tool does not generate them
 (they depend on customer schema knowledge), but the report notes their absence where relevant.
@@ -182,7 +182,7 @@ BP items 15-17 require application-specific FGA policies. This tool does not gen
 | Archive and purge audit records periodically | `DBMS_AUDIT_MGMT.CREATE_PURGE_JOB` | `02-storage.sql` (partial) |
 | Query performance: include `EVENT_TIMESTAMP_UTC` in WHERE clause | - | All trail queries in SQLs 04-15 |
 | Gather statistics on `AUDSYS.AUD$UNIFIED` periodically | `DBMS_STATS.GATHER_TABLE_STATS` | - (out of scope: DBA task) |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ---
 
@@ -210,7 +210,7 @@ BP items 15-17 require application-specific FGA policies. This tool does not gen
 | `14-privileged-activity.sql` | SYS\* and privileged user events | 5.5 | 504, 537 | 1, 9 |
 | `15-noise-candidates.sql` | High-volume policy/user/action tuning candidates | - | - | Trail mgmt |
 | `16-policy-ddl.sql` | Policy DDL via `DBMS_METADATA.GET_DDL` | 5.1-5.5 | 503 | 4-12 |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ### 4.2 Missing Checks (Proposed New SQLs)
 
@@ -308,7 +308,7 @@ Based on the gap analysis above, the following changes are proposed for the next
 |------|---------|----------|
 | `sql/17-cis-coverage.sql` | CIS 5.1-5.5 policy presence + completeness check | P1 |
 | `sql/18-audit-roles.sql` | `AUDIT_ADMIN` / `AUDIT_VIEWER` membership | P2 |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ### Phase 2: SQL Enhancements (v1.1)
 
@@ -317,7 +317,7 @@ Based on the gap analysis above, the following changes are proposed for the next
 |------|--------|--------|
 | `sql/02-storage.sql` | Add purge job + `LAST_ARCHIVE_TIMESTAMP` + partition interval queries | Oracle BP trail mgmt |
 | `sql/03-policy-inventory.sql` | Add `EXCEPT USER` detection column | CIS additional info |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ### Phase 3: Report Integration (v1.1)
 
@@ -351,7 +351,7 @@ verify which are present and enabled.
 | `CIS_CDB_CRITICAL_PACKAGES` | Critical package execution audit (CIS 5.3) | CIS 5.3 | Customer-created |
 | `CIS_CDB_EXPORT` | Data Pump export audit (CIS 5.4) | CIS 5.4 | Customer-created |
 | `CIS_CDB_ALL_ACTIONS_BY_PRIVILEGED_USERS` | SYS\* all-actions audit (CIS 5.5) | CIS 5.5 | Customer-created |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ---
 

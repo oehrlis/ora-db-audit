@@ -22,7 +22,7 @@ Cross-reference for the `ODB_LOC_*_V2` policy set used as the canonical input fo
 | `ODB_LOC_PRIV_DBA_ALL_V2` | Explicit DDL+DML for DBA role holders | ROLE: C##ODB_ROLE_DBA + BY SYS | 5.5 |
 | `ODB_LOC_DEV_ALL_V2` | Explicit DDL+DML for developer accounts | BY user-list | 5.5 |
 | `ODB_LOC_ADHOC_ALL_V2` | ACTIONS ALL (not enabled - incident reserve) | Manual | - |
-<!-- markdownlint-enable MD013 MD060 -->
+<!-- markdownlint-restore -->
 
 ---
 
