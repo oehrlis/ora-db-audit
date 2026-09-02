@@ -113,7 +113,7 @@ collection and feed report section 7.4:
 | `COVERED_ALL_USERS` | Covered by an unrestricted policy |
 | `EXCLUDED_EXCEPT` | Not covered, and the only reason is an `EXCEPT` clause - a deliberate exemption |
 | `BLIND_SPOT` | No customer-controlled policy audits this user |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 `coverage_status` counts customer-controlled policies only. Oracle ships
 `ORA_SECURECONFIG` enabled `BY ALL USERS` on virtually every database - counting it would
@@ -154,7 +154,7 @@ becomes unreadable on a database with many PDBs.
 | [Compliance Mapping](docs/compliance-mapping.md) | CIS/STIG/Oracle BP controls |
 | [AI Analysis Rules](docs/ai-analysis-rules.md) | How AI findings are generated |
 | [Roadmap](docs/roadmap.md) | Planned features |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ---
 

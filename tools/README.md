@@ -16,7 +16,7 @@ Python helper scripts for reporting, anonymisation, SIEM export, and HTML conver
 | `deanonymize_report.py` | Restore real values in report .md files using .mapping.json | stdlib only |
 | `export_siem.py` | Convert bundle to OCSF JSON Lines or Sentinel CSV | stdlib only |
 | `md_to_html.py` | Convert `audit_report.md` to standalone HTML | `markdown>=3.0` |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ## Install Python Packages
 

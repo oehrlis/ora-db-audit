@@ -78,7 +78,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 | Workshop preparation | Once per workshop | `--days 30 --anonymize --report --patterns patterns.json` |
 | Monthly trend | Monthly | `--days 30 --anonymize --report` |
 | Post-policy deployment | 7 days after each policy change | `--days 7 --top-n 50 --anonymize --report` |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ---
 

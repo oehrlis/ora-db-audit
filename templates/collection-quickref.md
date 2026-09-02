@@ -7,7 +7,7 @@
 | Engagement | `<ENGAGEMENT-ID>` |
 | Contact (analyst) | `<NAME> <EMAIL>` |
 | Date | `<YYYY-MM-DD>` |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ---
 
@@ -110,6 +110,6 @@ Keep the raw `.tar.gz` and `.mapping.json` on the database host.
 | `SyntaxError: future feature annotations` | Python version too old (< 3.6); use `--check-requirements` to diagnose |
 | `python not found` / wrong version | Use `--python /path/to/python3` to override; verify with `--check-requirements` |
 | Bundle > 100 MB | Re-run with `--top-n 50 --days 14` |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 Questions? Contact your analyst: `<NAME>` at `<EMAIL>`.

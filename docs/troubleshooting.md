@@ -21,7 +21,7 @@ frequently asked questions.
 | `ERROR: no python3 interpreter found` | Python not in PATH | Install Python 3.10+ or source the Oracle environment (`. oraenv`) |
 | `command not found: pandoc` during `make to-html` | pandoc not installed | `pip install markdown` (Python fallback, no pandoc needed) |
 | Mixed Mode detected and flagged | Database is using Mixed Mode audit | Informational only - collection still works; consider migrating to Pure Mode |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ---
 

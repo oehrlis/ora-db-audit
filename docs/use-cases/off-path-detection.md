@@ -15,7 +15,7 @@
 | Zielgruppe | Security Engineer, DBA |
 | Voraussetzung | `AUDIT_VIEWER` oder `AUDIT_ADMIN` |
 
-<!-- markdownlint-enable MD013 MD060 -->
+<!-- markdownlint-restore -->
 
 ---
 
@@ -216,7 +216,7 @@ Users und Client-Programm pruefen. Falls bekannt: zur `--patterns`-Datei hinzufu
 | `first_seen` | `TIMESTAMP` | Erste Verbindung im Zeitfenster |
 | `last_seen` | `TIMESTAMP` | Letzte Verbindung im Zeitfenster |
 | `classification` | `KEEP` | Immer `OFF-PATH` (Filter-Ausgabe) |
-<!-- markdownlint-enable MD013 -->
+<!-- markdownlint-restore -->
 
 ---
 

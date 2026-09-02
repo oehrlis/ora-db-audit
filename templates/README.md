@@ -9,7 +9,7 @@ Templates for customer engagements.
 |------|---------|
 | `customer-handover.md` | Engagement-level handover sheet. Fill out per engagement: connect string, anonymisation config, host patterns, distribution recipients, run cadence. One copy per engagement. |
 | `collection-quickref.md` | Condensed step-by-step guide for the customer DBA. "Read this, run this, send me the bundle." Print-friendly, one page. |
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 ## Usage
 

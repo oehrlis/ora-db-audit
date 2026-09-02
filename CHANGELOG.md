@@ -107,6 +107,19 @@ roll-up, plus the reverse view: policies that reach nobody.
 
 ### Fixed
 
+- **All project Markdown: `markdownlint-disable` blocks closed with `enable`** -
+  25 markers across 12 files (`README.md`, `docs/*`, `templates/*`,
+  `tools/README.md`, `tasks/self-evolving-system.md`) now close with
+  `restore`. `enable` re-enables rules the project config switches off, so
+  every line after such a block was linted against a config this project does
+  not use. `restore` reinstates the configured state.
+
+  Rule lists on the marker are dropped, not carried over: `restore` takes no
+  arguments. Verified with markdownlint-cli 0.49.1 - `MD033: false` in the
+  config plus a closing `enable` (bare or with a rule list) reports MD033,
+  while `restore` does not. The lint result across all 36 files is unchanged
+  (0 issues before and after), so this is a correctness fix for future edits
+  rather than a backlog of hidden violations.
 - **`sql/standalone/*.sql` column alignment** - both scripts now `SET TAB OFF`.
   SQL*Plus defaults to `TAB ON` and replaces runs of spaces in output with tab
   characters, which broke the alignment of every table depending on the
@@ -135,8 +148,12 @@ roll-up, plus the reverse view: policies that reach nobody.
   the fixtures and confirming the test fails).
 - **`sql/standalone/README.md`, `docs/usage.md`, `sql/README.md`** - close
   `markdownlint-disable` blocks with `restore` instead of `enable`. `enable`
-  reactivates rules with **default** parameters, dropping `line_length: 120`
-  back to 80 and re-enabling rules the config disables.
+  re-enables rules that `.markdownlint.json` switches **off**, so everything
+  after the block is linted against a config the project does not use;
+  `restore` reinstates the configured state. Measured with markdownlint-cli
+  0.49.1: with `MD033: false` in the config, a document closed with `enable`
+  (bare or with a rule list) reports MD033, one closed with `restore` does
+  not.
 
 ## [1.9.4] - 2026-08-21
 
