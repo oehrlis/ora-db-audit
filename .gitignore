@@ -63,3 +63,5 @@ references/
 # A project-own file under these paths needs an explicit `git add -f`.
 .claude/commands/
 .claude/agents/
+.claude/settings.local.json
+.claude/settings.json
