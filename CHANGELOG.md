@@ -7,6 +7,14 @@ This project adheres to Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- **Repo audit routine** - `docs/review-lens.md` (crown jewels, invariants `INV-1` to
+  `INV-7`, threat model) and `tasks/review-register.md` with stable finding IDs
+  `RA-ora-db-audit-NNN`, set up by `/repo-audit --init`. The first run records the
+  gate gaps (no secret scan in CI or pre-commit, `make lint` without Python and YAML)
+  and the history-scan result as open findings.
+
 ## [1.10.2] - 2026-09-02
 
 ### Fixed
