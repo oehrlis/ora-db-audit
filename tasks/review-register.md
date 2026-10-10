@@ -26,13 +26,15 @@
 
 ### RA-ora-db-audit-002 - Kein gitleaks-Config mit OCI-Regeln im Repo
 
-- status: offen
+- status: behoben
 - schwere: mittel
 - rolle: security
 - ort: .gitleaks.toml
 - regel: ci-gate
 - gefunden: 2026-10-10
 - beleg: .gitleaks.toml fehlt - ls .gitleaks.toml: No such file or directory
+- erledigt: 2026-10-10
+- commit: 5c3c97b
 
 ### RA-ora-db-audit-003 - Kein Secret-Scan in der CI
 
