@@ -1,0 +1,10 @@
+---
+# pre-commit hooks for ora-db-audit
+# Install once per clone: pre-commit install
+# gitleaks uses the repo config (.gitleaks.toml: defaults + OCI + customer-share rules).
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+        args: ["--config", ".gitleaks.toml", "--redact"]
