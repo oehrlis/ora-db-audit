@@ -21,6 +21,8 @@
   deckt jedes Dictionary-Objekt, das `sql/` liest
 - INV-6: Jedes Enable-/DROP-Beispiel fuer Audit-Policies nennt das passende `NOAUDIT POLICY`
 - INV-7: Echte Bundles und `*.mapping.json` sind gitignoriert und nie getrackt
+- INV-8: Das `.anon`-Bundle traegt keine Kundenwerte im Klartext; unbekannter Schema-Typ oder
+  CSV ohne Schema-Zeile bricht ab statt durchzureichen (fail-closed)
 - Zuordnung: Kundendaten in der Historie -> `INV-2`, im Baum -> `INV-1`; Credential in der
   Historie -> `history`, im Baum -> `secret`
 

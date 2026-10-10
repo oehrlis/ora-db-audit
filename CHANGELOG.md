@@ -10,10 +10,11 @@ This project adheres to Semantic Versioning.
 ### Added
 
 - **Repo audit routine** - `docs/review-lens.md` (crown jewels, invariants `INV-1` to
-  `INV-7`, threat model) and `tasks/review-register.md` with stable finding IDs
+  `INV-8`, threat model) and `tasks/review-register.md` with stable finding IDs
   `RA-ora-db-audit-NNN`, set up by `/repo-audit --init`. The first run records the
   gate gaps (no secret scan in CI or pre-commit, `make lint` without Python and YAML)
-  and the history-scan result as open findings.
+  and the history-scan result as open findings. The first `--quick` run adds 24 findings
+  (report `tasks/review-2026-10-10.md`); two are release blockers.
 - **`.gitleaks.toml`** - gitleaks default rules plus OCI PAR URLs, real OCIDs, API key
   fingerprints and paths into a local customer share. Customer names are deliberately
   not part of it - a rule naming a customer would publish the name in this public repo.
