@@ -39,7 +39,7 @@
 
 ### RA-ora-db-audit-003 - Kein Secret-Scan in der CI
 
-- status: offen
+- status: behoben
 - schwere: hoch
 - rolle: security
 - ort: .github/workflows/ci.yml
@@ -48,10 +48,12 @@
 - beleg: .github/workflows/ci.yml - Jobs lint-markdown, lint-shell, test-bats, test-pytest, build-dist; grep -rl
   gitleaks .github/workflows liefert nichts
 - gesehen: 2026-10-10
+- erledigt: 2026-10-10
+- commit: 527721f
 
 ### RA-ora-db-audit-004 - Kein pre-commit-Hook fuer gitleaks
 
-- status: offen
+- status: behoben
 - schwere: mittel
 - rolle: security
 - ort: .pre-commit-config.yaml
@@ -59,6 +61,8 @@
 - gefunden: 2026-10-10
 - beleg: .pre-commit-config.yaml fehlt
 - gesehen: 2026-10-10
+- erledigt: 2026-10-10
+- commit: 527721f
 
 ### RA-ora-db-audit-005 - make lint und CI pruefen weder Python noch YAML
 
@@ -75,7 +79,7 @@
 
 ### RA-ora-db-audit-006 - Kundenname, Kunden-Audit-Konfiguration und Kundenablage-Pfad im Baum
 
-- status: offen
+- status: behoben
 - schwere: kritisch
 - rolle: security
 - ort: tasks/prompt-concept-doc-blind-spot.md
@@ -85,6 +89,8 @@
   <Kunden-Policy-Praefix>_*, EXCEPT-Ausnahmen, Pfad in die Kundenablage (redigiert)
 - schwere-grund: ausnutzbar (Audit-Ausnahmen eines benannten Kunden), exponiert (PUBLIC auf main), keine kompensierende
   Kontrolle - drei Mal ja, von review-security belegt
+- erledigt: 2026-10-10
+- commit: ab33ed4
 
 ### RA-ora-db-audit-007 - Kunden-abgeleitete Praefixe als Beispiele in Doku, SQL, Tools und Tests
 
