@@ -14,6 +14,9 @@ This project adheres to Semantic Versioning.
   `RA-ora-db-audit-NNN`, set up by `/repo-audit --init`. The first run records the
   gate gaps (no secret scan in CI or pre-commit, `make lint` without Python and YAML)
   and the history-scan result as open findings.
+- **`.gitleaks.toml`** - gitleaks default rules plus OCI PAR URLs, real OCIDs, API key
+  fingerprints and paths into a local customer share. Customer names are deliberately
+  not part of it - a rule naming a customer would publish the name in this public repo.
 
 ## [1.10.2] - 2026-09-02
 

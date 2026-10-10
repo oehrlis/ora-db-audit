@@ -1,0 +1,73 @@
+# .gitleaks.toml - gitleaks config for ora-db-audit
+#
+# Source: ai-toolkit repo-audit skill, references/gitleaks-oci.toml (v0.3.1),
+# adapted for this repo. Extends the gitleaks default rules with OCI PAR URLs,
+# real OCIDs and API key fingerprints (the defaults know none of them), plus one
+# repo rule: paths into a local customer share, which mark engagement material.
+#
+# Customer names are deliberately NOT listed here - this repo is public, and a
+# rule naming a customer would publish the name. The name check runs from the
+# repo-audit routine with a pattern kept outside the repo (docs/review-lens.md).
+#
+# Use:
+#   gitleaks git --config .gitleaks.toml --redact --log-opts=--all .
+#   gitleaks dir --config .gitleaks.toml --redact .
+
+title = "ora-db-audit - gitleaks default + OCI / Oracle"
+
+[extend]
+useDefault = true
+
+# OCI pre-authenticated request. Covers the short form .../p/<token>/ and the long
+# form .../p/<token>/n/<namespace>/b/<bucket>/o/<object>, on the classic and the
+# dedicated endpoint (<ns>.objectstorage.<region>.oci.customer-oci.com).
+[[rules]]
+id = "oci-par-url"
+description = "OCI Object Storage pre-authenticated request (PAR) URL with token"
+regex = '''objectstorage\.[a-z0-9-]+\.(?:oraclecloud\.com|oci\.customer-oci\.com)/p/([A-Za-z0-9_-]{20,})/'''
+secretGroup = 1
+keywords = ["objectstorage"]
+
+[[rules.allowlists]]
+description = "placeholder tokens (xxxx, 0000, ...)"
+regexTarget = "match"
+regexes = ['''/p/(?:[xX]+|0+|[aA]+)/''']
+
+# Real OCIDs: ocid1.<type>.<realm>.<region-or-empty>.<unique>. Tenancy, user and
+# compartment carry an empty region (ocid1.tenancy.oc1..aaaa...), regional resources a
+# region key or name (ocid1.instance.oc1.eu-zurich-1.anl...). Real unique parts often
+# start with "aaaaaaaa" - only an unique part made of a/x/0 alone is a placeholder.
+[[rules]]
+id = "oci-ocid"
+description = "OCI resource OCID (identifies tenancy, users, resources)"
+regex = '''ocid1\.(?:tenancy|user|compartment|instance|vcn|subnet|drg|dbsystem|database|autonomousdatabase|vault|key|bucket|group|dynamicgroup|policy)\.oc[0-9]+\.[a-z0-9-]*\.[a-z0-9]{40,}'''
+keywords = ["ocid1."]
+
+[[rules.allowlists]]
+description = "placeholder OCIDs (aaaa..., xxxx..., 0000...)"
+regexTarget = "match"
+regexes = ['''\.[ax0]{40,}$''']
+
+# OCI API signing key fingerprint (MD5, 16 hex pairs) next to "fingerprint".
+[[rules]]
+id = "oci-api-key-fingerprint"
+description = "OCI API key fingerprint"
+regex = '''(?i)fingerprint["']?\s*[:=]\s*["']?([0-9a-f]{2}(?::[0-9a-f]{2}){15})'''
+secretGroup = 1
+keywords = ["fingerprint"]
+
+[[rules.allowlists]]
+description = "placeholder fingerprints (00:00:..., aa:aa:..., 12:34:...)"
+regexTarget = "secret"
+regexes = ['''^(?:00:){15}00$''', '''^(?:aa:){15}aa$''', '''^(?:xx:){15}xx$''', '''^12:34:56:78:''']
+
+# Private key blocks (-----BEGIN ... PRIVATE KEY-----) are covered by the default
+# rule "private-key" - not repeated here.
+
+# Paths into a local customer share (OneDrive customer folders). Engagement material
+# referenced by path belongs in the PKM, not in this public repo.
+[[rules]]
+id = "customer-share-path"
+description = "Path into a local customer share (engagement material)"
+regex = '''(?:OneDrive-[A-Za-z]+|CloudStorage)/[0-9]{2}_Customers/[A-Za-z0-9_ -]+'''
+keywords = ["_customers"]
