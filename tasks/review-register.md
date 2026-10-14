@@ -8,7 +8,7 @@
 
 ### RA-ora-db-audit-001 - Kundendaten in der public Git-Historie (History-Scan, Orchestrator)
 
-- status: offen
+- status: behoben
 - schwere: kritisch
 - rolle: security
 - ort: docs/review-lens.md
@@ -24,6 +24,15 @@
   exponiert (Repo ist PUBLIC), keine kompensierende Kontrolle (Historie und Forks behalten die Werte) - alle drei Fragen
   ja
 - gesehen: 2026-10-10
+- erledigt: 2026-10-14
+- massnahme: History mit git filter-repo bereinigt, Repo auf GitHub geloescht und neu angelegt (29 Tags,
+  24 Releases mit neu gebauten Assets, v1.10.1 latest; Entwurf v1.0.3 ohne Tag nicht neu angelegt)
+- nachweis: frischer Clone 2026-10-14 - Resttreffer 0 in `git log --all -p` und 0 in `--format=%B`, 110 Commits,
+  29 Tags auf origin, 0 Treffer in 50 Release-Assets und in den Release-Notes, gitleaks volle History gruen
+- ci: gitleaks-Job scannt seit diesem Befund die volle History statt nur die Commits des Events
+- rest: zweites Kunden-Host-Praefix ist nicht in der Begriffsliste des Rewrites, steht weiter in Baum und
+  History - unter RA-ora-db-audit-007 offen
+- kunde: falls er geklont hat, neu klonen lassen
 
 ### RA-ora-db-audit-002 - Kein gitleaks-Config mit OCI-Regeln im Repo
 
@@ -109,6 +118,10 @@
   /@<Kunden-Context>; <Kunden-Schema-Praefix>_DEV_nn in 8 weiteren Dateien
 - schwere-grund: Praefixe allein nennen den Kunden nicht; erst zusammen mit der kritischen tasks-Datei und der Historie
   entsteht die Zuordnung - Frage 1 allein nicht belegt
+- nachtrag: 2026-10-14 - zweites Kunden-Host-Praefix (<zweites Kunden-Host-Praefix>) zugeordnet, steht in
+  docs/configuration.md, sql/19-offpath-candidates.sql, tools/audit_report.py; nicht von der Begriffsliste des
+  Rewrites (RA-ora-db-audit-001) erfasst, daher auch weiter in der History - bleibt offen
+- gesehen: 2026-10-14
 
 ### RA-ora-db-audit-008 - Feste /tmp-Dateien werden als SYSDBA-SQL ausgefuehrt
 

@@ -35,23 +35,10 @@ jobs:
           sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
       - name: Scan working tree
         run: gitleaks dir --config .gitleaks.toml --redact --no-banner .
-      - name: Scan commits of this event
-        # Only the new commits: the existing history carries known findings that the
-        # review register tracks (RA-ora-db-audit-001) - a full-history scan would stay
-        # red until the history rewrite is done.
-        env:
-          BEFORE: ${{ github.event.before }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if [ -n "${BASE_SHA}" ]; then
-            range="${BASE_SHA}..${GITHUB_SHA}"
-          elif [ -n "${BEFORE}" ] && [ "${BEFORE}" != "0000000000000000000000000000000000000000" ]; then
-            range="${BEFORE}..${GITHUB_SHA}"
-          else
-            range="${GITHUB_SHA}~1..${GITHUB_SHA}"
-          fi
-          echo "gitleaks range: ${range}"
-          gitleaks git --config .gitleaks.toml --redact --no-banner --log-opts="${range}" .
+      - name: Scan full history
+        # Full history since the rewrite of 2026-10-14 (RA-ora-db-audit-001) - a finding
+        # anywhere in the history fails the job, not only in the commits of this event.
+        run: gitleaks git --config .gitleaks.toml --redact --no-banner .
 
   lint-markdown:
     name: Markdown lint
