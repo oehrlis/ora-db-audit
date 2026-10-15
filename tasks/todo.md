@@ -34,10 +34,9 @@
 ### Repo-Audit - Nachlauf Neuaufbau (2026-10-14)
 
 - RA-ora-db-audit-001 behoben (History-Rewrite, Repo neu aufgebaut, PR #1 gemerged)
-- RA-ora-db-audit-007 offen: zweites Kunden-Host-Praefix im Baum neutralisiert, in der History noch
-  vorhanden - Entscheid erneuter Rewrite ja/nein; weitere Kunden-Praefixe offen, Details in
-  `tasks/review-register.md`
-- Branch-Settings auf GitHub pruefen; Kunde ggf. neu klonen lassen
+- RA-ora-db-audit-007 akzeptiert: Baum frei von Kundenbezug, kein erneuter History-Rewrite
+  (Entscheid 2026-10-15), Details in `tasks/review-register.md`
+- Branch-Settings und Kunde erledigt (2026-10-15)
 
 ### v1.8.0 - V2 Policy Alignment
 
