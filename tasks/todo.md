@@ -31,6 +31,13 @@
 
 ## Open
 
+### Repo-Audit - Nachlauf Neuaufbau (2026-10-14)
+
+- RA-ora-db-audit-001 behoben (History-Rewrite, Repo neu aufgebaut) - PR #1 mergen
+- RA-ora-db-audit-007 offen: zweites Kunden-Host-Praefix in 3 Dateien und in der History -
+  Entscheid erneuter Rewrite ja/nein, Details in `tasks/review-register.md`
+- Branch-Settings auf GitHub pruefen; Kunde ggf. neu klonen lassen
+
 ### v1.8.0 - V2 Policy Alignment
 
 **Kontext:** `ora-db-audit-eng` wurde auf V2-Policies umgestellt (Präfix `ODB_LOC_*_V2`).

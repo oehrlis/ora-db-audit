@@ -19,6 +19,11 @@ This project adheres to Semantic Versioning.
   fingerprints and paths into a local customer share. Customer names are deliberately
   not part of it - a rule naming a customer would publish the name in this public repo.
 
+### Changed
+
+- **CI gitleaks job scans the full history** - after the history rewrite of 2026-10-14
+  (RA-ora-db-audit-001) the job no longer limits the scan to the commits of the event.
+
 ## [1.10.2] - 2026-09-02
 
 ### Fixed
