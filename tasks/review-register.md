@@ -103,7 +103,7 @@
 
 ### RA-ora-db-audit-007 - Kunden-abgeleitete Praefixe als Beispiele in Doku, SQL, Tools und Tests
 
-- status: offen
+- status: akzeptiert
 - schwere: hoch
 - rolle: security
 - ort: docs/review-lens.md
@@ -125,6 +125,16 @@
 - nachtrag: 2026-10-15 - zweites Kunden-Host-Praefix im Baum durch neutrales `^appsrv` ersetzt (3 Dateien,
   nur Kommentare und Doku); in der History bleibt es, Entscheid zum erneuten Rewrite separat. Offen bleiben
   <Kunden-Context>_CTX, Wallet-Alias und <Kunden-Schema-Praefix>_DEV_nn
+- nachtrag: 2026-10-15 - Kunden-Context, Wallet-Alias und Kunden-Schema-Praefix hat der Rewrite von
+  RA-ora-db-audit-001 bereits in Baum und History auf das neutrale `APP_` umgeschrieben (`APP_AUDIT_CTX`,
+  `/@APP_AUDIT`, `APP_DEV_nn` in 7 Dateien); Baum 0 Resttreffer. Uebrig ist nur das zweite Host-Praefix in
+  der History
+- erledigt: 2026-10-15
+- commit: 09bd61e
+- begruendung: Baum frei von Kundenbezug; das zweite Host-Praefix stand nur als Beispiel in Kommentaren,
+  nie neben Kundenname, Policy-Namen oder Kundenablage - letztere sind seit dem Neuaufbau aus der History
+  entfernt, die Zuordnung ist damit nicht mehr herstellbar. Kein erneuter History-Rewrite - Stefan Oehrli
+  2026-10-15
 
 ### RA-ora-db-audit-008 - Feste /tmp-Dateien werden als SYSDBA-SQL ausgefuehrt
 
