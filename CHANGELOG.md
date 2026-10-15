@@ -27,6 +27,12 @@ This project adheres to Semantic Versioning.
   comments of `sql/19-offpath-candidates.sql`, `tools/audit_report.py` and in
   `docs/configuration.md` is replaced by `^appsrv` (RA-ora-db-audit-007, partial).
 
+### Fixed
+
+- **`make test` failed where pytest is not installed for `python3`** (e.g. Homebrew
+  Python). `test-pytest` now falls back to `uv run --with pytest` and says so; without
+  pytest and without uv it still fails with an install hint.
+
 ## [1.10.2] - 2026-09-02
 
 ### Fixed
