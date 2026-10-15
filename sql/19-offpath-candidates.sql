@@ -36,7 +36,7 @@
 -- APP_PATTERN: lab prefixes + generic WebLogic + K8s ReplicaSet/CronJob pods.
 -- K8s ReplicaSet pod: <name>-<10hex>-<5hex>   e.g. my-service-6c4d8bbdfd-jdbsd
 -- K8s CronJob pod:    <name>-<10digits>-<...>  e.g. batch-job-1774600200-main-xyz
--- Customer-specific prefixes (^acmexa, ^eap etc.) set via SQL*Plus DEFINE override.
+-- Customer-specific prefixes (^acmexa, ^appsrv etc.) set via SQL*Plus DEFINE override.
 DEFINE APP_PATTERN   = '^auditlab-app-|^app-|^wls-|-[a-z0-9]{10}-[a-z0-9]{5}$|-[0-9]{10}-'
 DEFINE INFRA_PATTERN = '^auditlab-db|^oem-'
 DEFINE DBA_PATTERN   = '^laptop-|^jumphost-'

@@ -461,7 +461,7 @@ AI_USER_PROMPT_TEMPLATE = AI_USER_PROMPT_TEMPLATES["de"]
 # override with --patterns config.json for deployment-specific patterns.
 DEFAULT_PATTERNS = {
     # app_host_patterns: application servers, middleware, PaaS / K8s workloads.
-    # Customer-specific prefixes (^acmexa, ^eap, etc.) belong in --patterns JSON.
+    # Customer-specific prefixes (^acmexa, ^appsrv, etc.) belong in --patterns JSON.
     # Generic K8s pod patterns cover both Deployment pods (ReplicaSet hash suffix)
     # and CronJob pods (Unix timestamp suffix) without false-matching DBA hosts.
     "app_host_patterns": [

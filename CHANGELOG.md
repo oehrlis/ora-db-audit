@@ -23,6 +23,9 @@ This project adheres to Semantic Versioning.
 
 - **CI gitleaks job scans the full history** - after the history rewrite of 2026-10-14
   (RA-ora-db-audit-001) the job no longer limits the scan to the commits of the event.
+- **Neutral host prefix example** - the customer-derived second host prefix in the
+  comments of `sql/19-offpath-candidates.sql`, `tools/audit_report.py` and in
+  `docs/configuration.md` is replaced by `^appsrv` (RA-ora-db-audit-007, partial).
 
 ## [1.10.2] - 2026-09-02
 

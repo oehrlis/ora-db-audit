@@ -125,7 +125,7 @@ The two generic Kubernetes patterns require no customer-specific configuration:
 | `-[a-z0-9]{10}-[a-z0-9]{5}$` | K8s ReplicaSet/Deployment pod | `my-svc-6c4d8bbdfd-jdbsd` |
 | `-[0-9]{10}-` | K8s CronJob pod (Unix timestamp embedded) | `batch-1774600200-main-xyz` |
 
-Customer-specific host prefixes (e.g. `^acmexa`, `^eap`, `^wls-prod-`) must be added to a
+Customer-specific host prefixes (e.g. `^acmexa`, `^appsrv`, `^wls-prod-`) must be added to a
 customer `--patterns` file. Running `sql/19-offpath-candidates.sql` standalone requires
 overriding the `APP_PATTERN` DEFINE variable accordingly.
 
