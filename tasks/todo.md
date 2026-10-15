@@ -33,9 +33,10 @@
 
 ### Repo-Audit - Nachlauf Neuaufbau (2026-10-14)
 
-- RA-ora-db-audit-001 behoben (History-Rewrite, Repo neu aufgebaut) - PR #1 mergen
-- RA-ora-db-audit-007 offen: zweites Kunden-Host-Praefix in 3 Dateien und in der History -
-  Entscheid erneuter Rewrite ja/nein, Details in `tasks/review-register.md`
+- RA-ora-db-audit-001 behoben (History-Rewrite, Repo neu aufgebaut, PR #1 gemerged)
+- RA-ora-db-audit-007 offen: zweites Kunden-Host-Praefix im Baum neutralisiert, in der History noch
+  vorhanden - Entscheid erneuter Rewrite ja/nein; weitere Kunden-Praefixe offen, Details in
+  `tasks/review-register.md`
 - Branch-Settings auf GitHub pruefen; Kunde ggf. neu klonen lassen
 
 ### v1.8.0 - V2 Policy Alignment

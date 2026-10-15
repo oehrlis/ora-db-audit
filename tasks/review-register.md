@@ -122,6 +122,9 @@
   docs/configuration.md, sql/19-offpath-candidates.sql, tools/audit_report.py; nicht von der Begriffsliste des
   Rewrites (RA-ora-db-audit-001) erfasst, daher auch weiter in der History - bleibt offen
 - gesehen: 2026-10-14
+- nachtrag: 2026-10-15 - zweites Kunden-Host-Praefix im Baum durch neutrales `^appsrv` ersetzt (3 Dateien,
+  nur Kommentare und Doku); in der History bleibt es, Entscheid zum erneuten Rewrite separat. Offen bleiben
+  <Kunden-Context>_CTX, Wallet-Alias und <Kunden-Schema-Praefix>_DEV_nn
 
 ### RA-ora-db-audit-008 - Feste /tmp-Dateien werden als SYSDBA-SQL ausgefuehrt
 
