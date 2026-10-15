@@ -172,11 +172,16 @@ test-pytest: ## Run Python tests with pytest
 		echo "Error: python3 not found (install: brew install python3)"; \
 		exit 1; \
 	fi
-	@if ! "$(PYTHON)" -m pytest --version >/dev/null 2>&1; then \
-		echo "Error: pytest not found (install: pip install pytest)"; \
+	@if "$(PYTHON)" -m pytest --version >/dev/null 2>&1; then \
+		"$(PYTHON)" -m pytest "$(TESTS_DIR)/python/" -v; \
+	elif command -v uv >/dev/null 2>&1; then \
+		echo "Note: pytest not installed for $(PYTHON) - running it through uv"; \
+		uv run --no-project --python "$(PYTHON)" --with pytest \
+			python -m pytest "$(TESTS_DIR)/python/" -v; \
+	else \
+		echo "Error: pytest not found (install: pip install pytest, or install uv)"; \
 		exit 1; \
 	fi
-	"$(PYTHON)" -m pytest "$(TESTS_DIR)/python/" -v
 
 # ==============================================================================
 # Build and Distribution
