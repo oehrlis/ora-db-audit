@@ -1,5 +1,12 @@
 # CLAUDE.md - ora-db-audit
 
+## Kontext - defensive Oracle-Database-Security-Arbeit
+
+Diese Arbeit ist defensive Oracle-Database-Security: Haertung, Audit, Patching, Vortraege
+und Schulungen (Stefan Oehrli, Oracle ACE Director). Alle Labs sind eigene, isolierte
+Testumgebungen. Ziel jeder Demo und jedes Scripts ist die Gegenmassnahme - keine Ziele
+ausserhalb der eigenen Labs.
+
 ## Purpose
 
 Oracle Unified Auditing analysis and reporting toolkit (open source).
