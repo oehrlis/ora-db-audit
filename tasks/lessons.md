@@ -25,7 +25,8 @@ work and briefly leaves the policy missing.
 (PER STATEMENT plus a note if the option is unknown), never `WHEN` in ALTER. Test a
 syntax claim in the lab before writing it down as a rule.
 
-**verify:** `grep -rniE "ALTER AUDIT POLICY[^;]*[[:space:]]WHEN[[:space:]]" tools/ sql/` -> 0 matches (docs/ names the invalid form on purpose)
+**verify:** `grep -rniE "ALTER AUDIT POLICY[^;]*[[:space:]]WHEN[[:space:]]" tools/ sql/` -> 0 matches
+(`docs/` names the invalid form on purpose)
 (only `WHEN` after ALTER is invalid; `CONDITION` is allowed)
 
 [promoted → rule: oracle-audit.md §WHEN Clause Changes, corrected in ai-toolkit v0.5.0]
