@@ -165,3 +165,41 @@ def test_report_no_exception_on_missing_query(tmp_path):
     )
     assert isinstance(result, str)
     assert len(result) > 100
+
+
+def test_alter_condition_statement_is_valid_syntax():
+    """Tuning suggestions use ALTER ... CONDITION ... EVALUATE PER, never ALTER ... WHEN."""
+    import re
+    import audit_report
+    headers = ["policy_name", "dbusername", "action_name",
+               "client_program_name", "events"]
+    row = ["MY_POL", "HR", "SELECT", "sqlplus", "100"]
+    ddl = {"MY_POL": "CREATE AUDIT POLICY MY_POL ACTIONS SELECT ON HR.T "
+                      "WHEN 'SYS_CONTEXT(''USERENV'',''ISDBA'') = ''FALSE''' "
+                      "EVALUATE PER SESSION;"}
+    res = audit_report.when_clause_for(row, headers, ddl)
+    assert res["eval_opt"] == "SESSION" and res["eval_opt_known"]
+    for sg in res["suggestions"]:
+        stmt = sg["alter_stmt"]
+        assert stmt.startswith("ALTER AUDIT POLICY MY_POL CONDITION '(")
+        assert stmt.endswith("EVALUATE PER SESSION;")
+        assert "''ISDBA''" in stmt and "AND (" in stmt
+        assert not re.search(r"ALTER AUDIT POLICY[^;]*\sWHEN\s", stmt)
+
+
+def test_alter_condition_without_ddl_defaults_per_statement():
+    import audit_report
+    res = audit_report.when_clause_for(
+        ["P", "HR", "SELECT", "", "1"],
+        ["policy_name", "dbusername", "action_name",
+         "client_program_name", "events"], {})
+    assert not res["eval_opt_known"]
+    stmt = res["suggestions"][0]["alter_stmt"]
+    assert stmt == ("ALTER AUDIT POLICY P CONDITION "
+                    "'SYS_CONTEXT(''USERENV'',''SESSION_USER'') != ''HR''' "
+                    "EVALUATE PER STATEMENT;")
+
+
+def test_report_has_no_alter_when(report):
+    import re
+    assert not re.search(r"ALTER AUDIT POLICY[^;]*\sWHEN\s", report)

@@ -482,15 +482,24 @@ CSV output is consumed by `audit_report.py` Section 8.1.
 ### 4.2 Rules for suggested DDL
 
 - **NEVER** synthesise an `ALTER AUDIT POLICY` from `UNIFIED_AUDIT_POLICIES`
-  concat strings. The concat string is observation data, not DDL.
+  concat strings. The concat string is observation data, not DDL. The
+  existing condition and `EVALUATE PER` come from `DBMS_METADATA.GET_DDL`.
+- **Valid syntax (lab-verified 2026-11-25, 19.27 and 23.26.3):**
+  `ALTER AUDIT POLICY <p> CONDITION '<expr>' EVALUATE PER STATEMENT|SESSION|INSTANCE;`
+  and `ALTER AUDIT POLICY <p> CONDITION DROP;`. **Invalid** is only
+  `ALTER AUDIT POLICY <p> WHEN '...'` - `WHEN` exists only in
+  `CREATE AUDIT POLICY`. `CONDITION` replaces the whole condition, so a
+  suggestion must carry `(<existing>) AND (<new>)`. Keep the policy's
+  existing `EVALUATE PER`; if unknown, use `PER STATEMENT` and say so.
 - **NEVER** issue a suggestion against a policy name that does not appear
   in `AUDIT_UNIFIED_POLICIES`. If the trail mentions a policy that no
   longer exists, raise that as a finding ("policy referenced in trail
   but missing from `AUDIT_UNIFIED_POLICIES` - was it dropped?") instead
   of generating modification DDL.
 - **ALWAYS** present suggested changes as DDL-diff: show the existing
-  WHEN clause / action filter; show the proposed addition / change;
-  let the reviewer apply the change manually after reviewing impact.
+  WHEN clause / action filter; show the proposed addition / change as a
+  full `ALTER AUDIT POLICY ... CONDITION ...` statement; let the reviewer
+  apply the change manually after reviewing impact.
 - **ALWAYS** include a NOAUDIT counterpart when relevant - per
   OraDBA invariant `AUDIT` and `NOAUDIT` policy DDL come paired.
 

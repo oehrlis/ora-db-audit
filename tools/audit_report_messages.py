@@ -388,8 +388,8 @@ MESSAGES: Dict[str, Dict[str, str]] = {
             "Top Noise-Kandidaten (High-Volume Kombinationen aus Policy / User / "
             "Action / Programm). Pro Kandidat folgt die aktuelle Policy-DDL plus "
             "vorgeschlagene WHEN-Klausel-Erweiterungen. Vorschläge sind "
-            "Bedingungs-Ausdrücke - die Anwendung erfolgt manuell via "
-            "`DROP AUDIT POLICY ...; CREATE AUDIT POLICY ... WHEN '...';` "
+            "Bedingungs-Ausdrücke mit fertiger Anweisung - die Anwendung erfolgt manuell via "
+            "`ALTER AUDIT POLICY ... CONDITION '...' EVALUATE PER ...;` "
             "(per ai-analysis-rules.md Section 4)."
         ),
         "tuning.csv_missing": "_(15-noise-candidates.csv nicht im Bundle)_",
@@ -406,12 +406,17 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "tuning.no_template": "Kein automatisches Template ableitbar für {policy}",
         "tuning.apply_instructions": "Anwendung (manuell)",
         "tuning.apply_template": (
-            "Erweitere die WHEN-Klausel von `{policy}` um den oben gezeigten Ausdruck. "
-            "Verfahren: bestehende DDL behalten, WHEN-Klausel auf "
-            "`(bestehend) AND ({new})` setzen "
-            "(ohne `(bestehend) AND` falls noch keine WHEN-Klausel existiert). "
-            "Sequenz: `DROP AUDIT POLICY {policy};` gefolgt von einem neuen "
-            "`CREATE AUDIT POLICY {policy} ...` mit der angepassten WHEN-Klausel."
+            "Erweitere die Bedingung von `{policy}` um den oben gezeigten Ausdruck: "
+            "`ALTER AUDIT POLICY ... CONDITION` ersetzt die gesamte Bedingung, "
+            "die Anweisung enthält deshalb `(bestehend) AND (neu)`. "
+            "Rückgängig: `ALTER AUDIT POLICY {policy} CONDITION DROP;` entfernt "
+            "die Bedingung ganz (Vorsicht: dann auditiert die Policy wieder alles)."
+        ),
+        "tuning.alter_label": "Anweisung",
+        "tuning.eval_unknown": (
+            "> **Hinweis:** `EVALUATE PER` der Policy ist unbekannt (keine DDL im "
+            "Bundle) - `PER STATEMENT` ist angenommen. Vor dem Einsatz gegen "
+            "`AUDIT_UNIFIED_POLICIES.CONDITION_EVAL_OPT` prüfen."
         ),
         "tuning.rationale_user": (
             "Filtere Events vom Benutzer `{user}` aus. Anwendbar "
@@ -1087,8 +1092,8 @@ MESSAGES: Dict[str, Dict[str, str]] = {
             "Top noise candidates (high-volume combinations of Policy / User / "
             "Action / Program). Each candidate is followed by the current policy DDL "
             "and suggested WHEN clause extensions. Suggestions are condition "
-            "expressions - apply manually via "
-            "`DROP AUDIT POLICY ...; CREATE AUDIT POLICY ... WHEN '...';` "
+            "expressions with a ready statement - apply manually via "
+            "`ALTER AUDIT POLICY ... CONDITION '...' EVALUATE PER ...;` "
             "(per ai-analysis-rules.md Section 4)."
         ),
         "tuning.csv_missing": "_(15-noise-candidates.csv not in bundle)_",
@@ -1105,12 +1110,17 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "tuning.no_template": "No automatic template derivable for {policy}",
         "tuning.apply_instructions": "How to apply (manual)",
         "tuning.apply_template": (
-            "Extend the WHEN clause of `{policy}` with the expression shown above. "
-            "Procedure: keep existing DDL, set WHEN clause to "
-            "`(existing) AND ({new})` "
-            "(omit `(existing) AND` if no WHEN clause exists yet). "
-            "Sequence: `DROP AUDIT POLICY {policy};` followed by a new "
-            "`CREATE AUDIT POLICY {policy} ...` with the updated WHEN clause."
+            "Extend the condition of `{policy}` with the expression shown above: "
+            "`ALTER AUDIT POLICY ... CONDITION` replaces the whole condition, so "
+            "the statement carries `(existing) AND (new)`. "
+            "To undo: `ALTER AUDIT POLICY {policy} CONDITION DROP;` removes the "
+            "condition entirely (caution: the policy then audits everything again)."
+        ),
+        "tuning.alter_label": "Statement",
+        "tuning.eval_unknown": (
+            "> **Note:** the policy's `EVALUATE PER` is unknown (no DDL in the "
+            "bundle) - `PER STATEMENT` is assumed. Check against "
+            "`AUDIT_UNIFIED_POLICIES.CONDITION_EVAL_OPT` before applying."
         ),
         "tuning.rationale_user": (
             "Filter events from user `{user}`. Applicable when "

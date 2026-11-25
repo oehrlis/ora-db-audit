@@ -4,20 +4,31 @@ Patterns extracted from corrections and fix commits. Updated by `/evolve`.
 
 ---
 
-## L-01: ALTER AUDIT POLICY CONDITION is invalid Oracle syntax
+## L-01: ALTER AUDIT POLICY CONDITION syntax [corrected 2026-11-25]
 
-`ALTER AUDIT POLICY ... CONDITION` / `WHEN` does not exist in Oracle.
-Changing a WHEN clause requires DROP AUDIT POLICY + recreate.
+**Valid:** `ALTER AUDIT POLICY p CONDITION '<expr>' EVALUATE PER STATEMENT|SESSION|INSTANCE;`
+and `ALTER AUDIT POLICY p CONDITION DROP;`. **Invalid:** `ALTER AUDIT POLICY p WHEN '...'` -
+`WHEN` exists only in `CREATE AUDIT POLICY`. `CONDITION` replaces the whole condition.
 
-**Why:** Emitting ALTER statements caused the report to suggest SQL that cannot
-be executed. Documented in `docs/ai-analysis-rules.md §4`.
+**Evidence:** lab 2026-11-25, 19.27 (dict19) and 23.26.3 (audit26): the ALTER with
+CONDITION and `EVALUATE PER INSTANCE` returned "Audit policy altered",
+`AUDIT_UNIFIED_POLICIES` showed the new condition and eval option; `CONDITION DROP`
+set the condition to NONE.
 
-**How to apply:** When generating WHEN-clause tuning suggestions, emit a boolean
-condition expression only (for manual DROP+CREATE), never a full ALTER statement.
+**Why the old lesson was wrong:** it generalised from the invalid `ALTER ... WHEN`
+(the original bug) to "ALTER ... CONDITION does not exist" and "changing a condition
+needs DROP + recreate" - without testing CONDITION. DROP + recreate is unnecessary
+work and briefly leaves the policy missing.
 
-**verify:** `grep -rn "ALTER AUDIT POLICY" tools/ | grep -i "condition\|when"` → 0 matches
+**How to apply:** tuning suggestions emit
+`ALTER AUDIT POLICY <name> CONDITION '(<existing>) AND (<new>)' EVALUATE PER <existing opt>;`
+(PER STATEMENT plus a note if the option is unknown), never `WHEN` in ALTER. Test a
+syntax claim in the lab before writing it down as a rule.
 
-[promoted → rule: oracle-audit.md §WHEN Clause Changes]
+**verify:** `grep -rniE "ALTER AUDIT POLICY[^;]*[[:space:]]WHEN[[:space:]]" tools/ sql/` -> 0 matches (docs/ names the invalid form on purpose)
+(only `WHEN` after ALTER is invalid; `CONDITION` is allowed)
+
+[promoted → rule: oracle-audit.md §WHEN Clause Changes, corrected in ai-toolkit v0.5.0]
 
 ---
 

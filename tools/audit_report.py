@@ -203,12 +203,13 @@ Diese Finding-Klassen sind erwünscht:
 ### Tuning-Vorschläge (Abschnitt 8.1)
 
 Die im Report gelisteten WHEN-Klausel-Vorschläge sind Bedingungs-
-Ausdrücke. Sie sind manuell anzuwenden via:
+Ausdrücke, ergänzt um eine fertige Anweisung. Manuell anzuwenden via:
 
 ```sql
-DROP AUDIT POLICY <name>;
-CREATE AUDIT POLICY <name> ... WHEN '(<bestehend>) AND (<vorschlag>)' ...;
+ALTER AUDIT POLICY <name> CONDITION '(<bestehend>) AND (<vorschlag>)' EVALUATE PER <opt>;
 ```
+
+(`WHEN` gibt es nur in `CREATE AUDIT POLICY`, nie in `ALTER`.)
 
 Bewerte jeden Vorschlag:
 
@@ -358,13 +359,14 @@ These finding classes are expected:
 
 ### Tuning suggestions (Section 8.1)
 
-The WHEN-clause suggestions listed in the report are condition expressions.
-Apply them manually via:
+The WHEN-clause suggestions listed in the report are condition expressions
+plus a ready statement. Apply manually via:
 
 ```sql
-DROP AUDIT POLICY <name>;
-CREATE AUDIT POLICY <name> ... WHEN '(<existing>) AND (<suggestion>)' ...;
+ALTER AUDIT POLICY <name> CONDITION '(<existing>) AND (<suggestion>)' EVALUATE PER <opt>;
 ```
+
+(`WHEN` exists only in `CREATE AUDIT POLICY`, never in `ALTER`.)
 
 Evaluate each suggestion:
 
@@ -1392,17 +1394,40 @@ def extract_when_clause(ddl):
     return m.group(1).strip() or None
 
 
+_EVAL_RE = re.compile(r"\bEVALUATE\s+PER\s+(STATEMENT|SESSION|INSTANCE)\b",
+                      re.IGNORECASE)
+
+
+def extract_eval_option(ddl):
+    """Return the EVALUATE PER option (upper case) from policy DDL, or None."""
+    if not ddl:
+        return None
+    m = _EVAL_RE.search(ddl)
+    return m.group(1).upper() if m else None
+
+
+def build_alter_condition(policy, existing_when, expr, eval_opt):
+    """Full ALTER AUDIT POLICY ... CONDITION statement (never WHEN).
+
+    `existing_when` and `expr` use Oracle's doubled-quote escaping already.
+    """
+    cond = f"({existing_when}) AND ({expr})" if existing_when else expr
+    return (f"ALTER AUDIT POLICY {policy} CONDITION '{cond}' "
+            f"EVALUATE PER {eval_opt};")
+
+
 def when_clause_for(noise_row, headers, policy_ddl_map):
     """Build a structured tuning recommendation for a 15-noise-candidates row.
 
-    Per docs/ai-analysis-rules.md Section 4 (DDL source rule), suggestions
-    are presented as boolean condition expressions intended to be
-    AND-combined with the policy's existing WHEN clause via a manual
-    DROP + CREATE sequence. We never synthesise standalone
-    `ALTER AUDIT POLICY` statements from the row's UAP context - that
-    pattern was finding F2 and was functionally wrong (Oracle has no
-    `ALTER AUDIT POLICY ... CONDITION` syntax; the WHEN clause is set
-    at CREATE time and changing it requires DROP + recreate).
+    Per docs/ai-analysis-rules.md Section 4 (DDL source rule), the current
+    state comes from DBMS_METADATA (16-policy-ddl.csv), never from the row's
+    UAP concat string. Each suggestion carries a boolean condition expression
+    plus a full statement
+    `ALTER AUDIT POLICY <name> CONDITION '(<existing>) AND (<expr>)'
+    EVALUATE PER <opt>;` (valid on 19c and 26ai, lab-verified 2026-11-25).
+    `WHEN` exists only in CREATE AUDIT POLICY and is never emitted in ALTER.
+    EVALUATE PER is taken from the policy DDL; if unknown the statement
+    uses PER STATEMENT and `eval_opt_known` is False (renderer adds a note).
 
     Returns a dict the renderer (render_section_08_tuning) formats into
     a Markdown sub-section. Shape:
@@ -1411,11 +1436,14 @@ def when_clause_for(noise_row, headers, policy_ddl_map):
         "policy_name":  str,
         "current_ddl":  str | None,   # from DBMS_METADATA via 16-policy-ddl.csv
         "existing_when": str | None,  # parsed from current_ddl, if present
+        "eval_opt":     str,          # STATEMENT | SESSION | INSTANCE
+        "eval_opt_known": bool,       # False = default assumed, no DDL
         "recap":        list[(label, value)],
         "suggestions":  [
             {
               "label":          str,
               "condition_expr": str | None,  # AND-combinable bool expression
+              "alter_stmt":     str | None,  # full ALTER ... CONDITION stmt
               "rationale":      str,
             },
             ...
@@ -1441,6 +1469,8 @@ def when_clause_for(noise_row, headers, policy_ddl_map):
 
     current_ddl = policy_ddl_map.get(policy) if policy_ddl_map else None
     existing_when = extract_when_clause(current_ddl)
+    eval_known = extract_eval_option(current_ddl)
+    eval_opt = eval_known or "STATEMENT"
 
     suggestions = []
 
@@ -1480,8 +1510,13 @@ def when_clause_for(noise_row, headers, policy_ddl_map):
                            user=user, program=program),
         })
 
+    for sg in suggestions:
+        sg["alter_stmt"] = build_alter_condition(
+            policy, existing_when, sg["condition_expr"], eval_opt)
+
     if not suggestions:
         suggestions.append({
+            "alter_stmt": None,
             "label": t("tuning.no_template", lang=LANG, policy=policy),
             "condition_expr": None,
             "rationale": t("tuning.rationale_no_template", lang=LANG,
@@ -1492,6 +1527,8 @@ def when_clause_for(noise_row, headers, policy_ddl_map):
         "policy_name":   policy,
         "current_ddl":   current_ddl,
         "existing_when": existing_when,
+        "eval_opt":      eval_opt,
+        "eval_opt_known": eval_known is not None,
         "recap": [
             ("policy_name",         policy),
             ("dbusername",          user or "<n/a>"),
@@ -2976,8 +3013,8 @@ def render_section_08_tuning(file_data, top_n, policy_ddl_map):
         else:
             out += t("note.policy_ddl_unavailable", lang=LANG) + "\n\n"
 
-        # Suggested condition expressions (NOT full ALTER DDL - see
-        # ai-analysis-rules.md Section 4 + rationale in when_clause_for).
+        # Suggested condition expressions + ALTER ... CONDITION statement
+        # (ai-analysis-rules.md Section 4).
         for v, suggestion in enumerate(result["suggestions"], start=1):
             out += (
                 f"##### {t('tuning.suggestion_header', lang=LANG, n=i, v=v, label=suggestion['label'])}\n\n"
@@ -2987,10 +3024,16 @@ def render_section_08_tuning(file_data, top_n, policy_ddl_map):
                 out += "```sql\n"
                 out += suggestion["condition_expr"] + "\n"
                 out += "```\n\n"
+                out += f"**{t('tuning.alter_label', lang=LANG)}**:\n\n"
+                out += "```sql\n"
+                out += suggestion["alter_stmt"] + "\n"
+                out += "```\n\n"
                 out += (
                     f"**{t('tuning.apply_instructions', lang=LANG)}**: "
-                    f"{t('tuning.apply_template', lang=LANG, policy=result['policy_name'], new=suggestion['condition_expr'])}\n\n"
+                    f"{t('tuning.apply_template', lang=LANG, policy=result['policy_name'])}\n\n"
                 )
+                if not result["eval_opt_known"]:
+                    out += t("tuning.eval_unknown", lang=LANG) + "\n\n"
     out += t("note.tuning_disclaimer", lang=LANG) + "\n\n"
     return out
 

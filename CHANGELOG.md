@@ -21,6 +21,12 @@ This project adheres to Semantic Versioning.
 
 ### Changed
 
+- **Section 8.1 suggests `ALTER AUDIT POLICY ... CONDITION` again** - each tuning
+  suggestion now carries a full statement
+  `ALTER AUDIT POLICY <name> CONDITION '(<existing>) AND (<new>)' EVALUATE PER <opt>;`
+  (the policy's own `EVALUATE PER` from the DDL; `PER STATEMENT` plus a note if
+  unknown). `docs/ai-analysis-rules.md` section 4, the report texts and the embedded
+  AI prompt follow.
 - **CI gitleaks job scans the full history** - after the history rewrite of 2026-10-14
   (RA-ora-db-audit-001) the job no longer limits the scan to the commits of the event.
 - **Neutral host prefix example** - the customer-derived second host prefix in the
@@ -29,6 +35,10 @@ This project adheres to Semantic Versioning.
 
 ### Fixed
 
+- **Lesson L-01 / correction C-01 were wrong** - `ALTER AUDIT POLICY ... CONDITION` is
+  valid Oracle syntax (lab 2026-11-25: 19.27 and 23.26.3, `CONDITION '...' EVALUATE PER
+  INSTANCE` and `CONDITION DROP`). Only `ALTER AUDIT POLICY ... WHEN` is invalid.
+  `tasks/lessons.md` L-01 rewritten, `tasks/corrections.jsonl` C-08 supersedes C-01.
 - **`make test` failed where pytest is not installed for `python3`** (e.g. Homebrew
   Python). `test-pytest` now falls back to `uv run --with pytest` and says so; without
   pytest and without uv it still fails with an install hint.
